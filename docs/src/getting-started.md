@@ -1,0 +1,40 @@
+# Getting started
+
+## From a Lisp image
+
+```lisp
+(asdf:load-system "cl-asciiquarium")
+
+(cl-asciiquarium:run)
+```
+
+`RUN` takes over the current terminal (alternate screen, cursor hidden, raw
+input) until you press `q`. Useful keywords:
+
+```lisp
+(cl-asciiquarium:run :width 100 :height 30  ; override the detected terminal size
+                      :seed 42              ; reproducible spawns and lanes
+                      :fish-count 12
+                      :interval 1/24)       ; seconds per frame (default 1/20)
+```
+
+## From the command line
+
+Once built (`nix build` or `(asdf:operate 'asdf:program-op "cl-asciiquarium")`),
+the delivered binary exposes the same knobs:
+
+```sh
+asciiquarium --width 100 --height 30 --seed 42 --fps 24
+```
+
+Run `asciiquarium --help` for the full option list.
+
+## Controls
+
+| Key | Effect |
+|---|---|
+| `q` / `Q` | Quit |
+| `r` / `R` | Redraw: remove and respawn every fish, shark, and guest; background stays |
+
+A terminal resize is picked up automatically -- cl-asciiquarium polls the
+terminal size once per frame (see [Architecture](reference/architecture.md)).
