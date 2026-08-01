@@ -21,6 +21,24 @@
   as the `ADVANCE` argument to `cl-tty-kit:TICK-LOOP-RUN` /
   `TICK-LOOP-RUN-REALTIME`.
 
+## Geometry / sprite helpers
+
+Generic sprite-text operations shared by every creature kind (splitting
+sprite text into lines, measuring it, mirroring it left-to-right); nothing
+here is aquarium-specific. See [Architecture](architecture.md).
+
+- `SPRITE-DIMENSIONS (text)` -- `(VALUES WIDTH HEIGHT)` for multi-line sprite
+  TEXT: HEIGHT is the number of lines, WIDTH the length of the longest one.
+- `SPRITE-WIDTH (text)` -- just the WIDTH of `SPRITE-DIMENSIONS`, for the
+  common case of an off-screen spawn point that needs only the horizontal
+  extent.
+- `MIRROR-SPRITE-TEXT (text)` -- return multi-line sprite TEXT flipped
+  left-to-right: each line is reversed and its directional glyphs swapped, so
+  a creature authored facing right can reuse the same art facing left instead
+  of a second hand-drawn copy.
+- `CLAMP (value low high)` -- return VALUE clamped to the inclusive range
+  `[LOW, HIGH]`.
+
 ## Creature
 
 The one shape every sprite type goes through; see
@@ -30,9 +48,20 @@ The one shape every sprite type goes through; see
   kind data policy)` -- create a `CREATURE`. `POLICY` is one of `:WRAP`
   (reposition inside the world when it exits), `:DESPAWN` (mark for removal),
   or `:NONE` (no off-bounds callback).
+- `CREATURE-P (object)` -- true when OBJECT is a `CREATURE`.
 - `CREATURE-X`, `CREATURE-Y`, `CREATURE-KIND`, `CREATURE-DATA`,
   `CREATURE-TTL`, `CREATURE-REMOVEP`, `CREATURE-STYLE`, `CREATURE-Z` --
   accessors.
+- `CREATURE-ENTITY` -- the underlying `cl-tty-kit:ENTITY`, which carries
+  position and velocity (and fires an `:ON-EXIT` callback when it leaves the
+  world bounds).
+- `CREATURE-FRAMES` -- the simple-vector of sprite-art strings backing the
+  creature (more than one entry for a looping animation, such as swaying
+  seaweed).
+- `CREATURE-FRAME-INDEX` -- the index into `CREATURE-FRAMES` of the frame
+  currently shown.
+- `CREATURE-FACING` -- `:RIGHT` (art drawn as authored) or `:LEFT` (art
+  mirrored via `MIRROR-SPRITE-TEXT`).
 - `CREATURE-ART (creature)` -- the current frame, mirrored if facing `:LEFT`.
 - `CREATURE-DIMENSIONS (creature)` -- `(VALUES WIDTH HEIGHT)`.
 - `CREATURE-TICK-ANIMATION (creature)` -- advance its looping frame.
@@ -51,6 +80,13 @@ The one shape every sprite type goes through; see
 
 - `APPLY-COLLISIONS (world)` -- the single collision pass: shark-vs-fish and
   dropped-anchor-vs-fish.
+
+## Constants
+
+- `+DEATH-ANIMATION-TICKS+` -- how many ticks a caught fish's death frame
+  stays visible before removal.
+- `+WATERLINE-ROW+` -- the screen row the waterline sits on; bubbles are
+  removed once they rise to this row or above.
 
 ## Input and rendering
 
