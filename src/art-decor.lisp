@@ -27,7 +27,9 @@ to this row or above; see update.lisp.")
                   :dx 0 :dy 0))
 
 (defparameter +castle-art+
-  (format nil "   /\\      /\\~% _||_ /--\\ _||_~%|    |    |    |~%|  o | [] |  o |~%|____|____|____|")
+  (format nil (concatenate 'string
+                            "   /\\      /\\~% _||_ /--\\ _||_~%|    |    |    |~%"
+                            "|  o | [] |  o |~%|____|____|____|"))
   "Original castle decoration: two crenellated towers flanking a gatehouse.")
 
 (defun make-castle (world)

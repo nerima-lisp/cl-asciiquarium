@@ -16,6 +16,11 @@
       (dolist (event (decode-input "x"))
         (world-apply-key-event world event))
       (expect (world-quitp world) :to-be-falsy)))
+  (it "sets quitp on a Ctrl-C key event (the raw ETX byte, character code 3)"
+    (let ((world (tiny-world)))
+      (dolist (event (decode-input (string (code-char 3))))
+        (world-apply-key-event world event))
+      (expect (world-quitp world) :to-be-truthy)))
   (it "calls world-redraw on an r key event, repopulating fish"
     (seeded 4
       (lambda ()

@@ -42,7 +42,9 @@ creatures whose velocity never carries them out of bounds (the waterline, the
 castle)."
   (ecase policy
     (:wrap (lambda (entity edge) (declare (ignore edge)) (%wrap-creature creature world)))
-    (:despawn (lambda (entity edge) (declare (ignore entity edge)) (setf (creature-removep creature) t)))
+    (:despawn (lambda (entity edge)
+                (declare (ignore entity edge))
+                (setf (creature-removep creature) t)))
     (:none nil)))
 
 (defun %wrap-creature (creature world)

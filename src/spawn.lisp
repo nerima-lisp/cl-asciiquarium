@@ -39,5 +39,6 @@ it reaches zero."
     (if (<= timer 0)
         (progn
           (push (make-bubble world fish) (world-creatures world))
-          (setf (getf (creature-data fish) :bubble-timer) (apply #'random-between +bubble-interval-range+)))
+          (setf (getf (creature-data fish) :bubble-timer)
+                (apply #'random-between +bubble-interval-range+)))
         (setf (getf (creature-data fish) :bubble-timer) timer))))

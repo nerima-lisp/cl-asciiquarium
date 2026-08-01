@@ -14,7 +14,10 @@
           (expect (world-quitp world) :to-be-falsy)
           (expect (count :fish (world-creatures world) :key #'creature-kind) :to-be 5)
           (expect (count :waterline (world-creatures world) :key #'creature-kind) :to-be 1)
-          (expect (count :castle (world-creatures world) :key #'creature-kind) :to-be 1))))))
+          (expect (count :castle (world-creatures world) :key #'creature-kind) :to-be 1)
+          ;; +default-seaweed-count+ (world.lisp) is 4; %populate-background spawns
+          ;; that many regardless of the requested fish count.
+          (expect (count :seaweed (world-creatures world) :key #'creature-kind) :to-be 4))))))
 
 (describe "world-advance"
   (it "increments the tick counter exactly once per call"

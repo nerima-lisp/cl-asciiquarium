@@ -20,6 +20,18 @@
                 #:make-screen #:make-renderer
                 #:tick-loop-run
                 #:cell-char #:screen-cell)
+  ;; Test-only cl-cli primitives for t/cli-test.lisp. cl-asciiquarium imports
+  ;; make-app/make-option/run-app/option-value/current-process-argv into its
+  ;; own package already (src/package.lisp) but does not re-export them as
+  ;; part of its own public API, so tests that drive *APP* through cl-cli's
+  ;; own parsing entry points (rather than only through RUN) import them
+  ;; here instead, the same reasoning DECODE-INPUT above follows for
+  ;; cl-tty-kit.
+  (:import-from #:cl-cli
+                #:parse-argv
+                #:run-app
+                #:option-value
+                #:cli-invalid-option-value)
   (:export #:run-tests))
 
 (in-package #:cl-asciiquarium/test)

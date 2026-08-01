@@ -22,7 +22,8 @@ an anchor's fall-then-settle, a bubble's waterline removal)."
     (:fish (when (%alive-fish-p creature) (maybe-emit-bubble world creature)))
     (:ship (%maybe-drop-anchor world creature))
     (:anchor (%anchor-tick creature))
-    (:bubble (when (<= (creature-y creature) +waterline-row+) (setf (creature-removep creature) t)))))
+    (:bubble (when (<= (creature-y creature) +waterline-row+)
+               (setf (creature-removep creature) t)))))
 
 (defun world-advance (world)
   "Advance WORLD by exactly one tick, returning WORLD. Every CREATURE is

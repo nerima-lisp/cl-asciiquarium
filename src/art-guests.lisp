@@ -57,7 +57,8 @@ WORLD. Guarded by :ANCHOR-DROPPED so a ship drops at most one anchor."
 random :TARGET-DEPTH row, then stops and becomes :DROPPED (active for
 COLLISION.LISP) for +ANCHOR-DROPPED-TICKS+ before despawning."
   (let* ((height (world-height world))
-         (target-depth (random-between (+ +waterline-row+ 3) (max (+ +waterline-row+ 4) (- height 3)))))
+         (target-depth (random-between (+ +waterline-row+ 3)
+                                        (max (+ +waterline-row+ 4) (- height 3)))))
     (make-creature :world world
                     :kind :anchor
                     :frames (list +anchor-art+)

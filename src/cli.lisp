@@ -6,24 +6,30 @@
 ;;;; `(asdf:operate 'asdf:program-op ...)` both produce.
 (in-package #:cl-asciiquarium)
 
-(defparameter +version+ "0.1.0"
-  "Mirrors :VERSION in cl-asciiquarium.asd; see docs/src/project/roadmap.md
-for why this project does not derive the CLI's --version output from the .asd
-file the way flake.nix does.")
+(defun %asciiquarium-version ()
+  "The running CL-ASCIIQUARIUM system's :VERSION, the single source of truth
+also read by flake.nix and enforced by release.yml against the git tag --
+the same asdf:component-version pattern cl-cowsay/src/cli.lisp and
+cl-cmatrix/src/cli.lisp use, so this CLI's --version output cannot drift
+from a version bump in cl-asciiquarium.asd the way a literal copy could."
+  (let ((system (asdf:find-system "cl-asciiquarium" nil)))
+    (if system (asdf:component-version system) "0.0.0")))
 
 (defparameter *app*
   (make-app
    :name "asciiquarium"
-   :version +version+
+   :version (%asciiquarium-version)
    :summary "An ASCII-art aquarium screensaver for the terminal."
    :description "Swimming fish, a shark, rising bubbles, swaying seaweed, and
 periodic special guests (a ship that drops an anchor, a line of ducks),
 rendered live in the terminal. Press q to quit, r to redraw."
    :global-options
    (list (make-option :name "width" :kind :value :type :integer
-                       :description "Terminal width override; defaults to the detected terminal size.")
+                       :description
+                       "Terminal width override; defaults to the detected terminal size.")
          (make-option :name "height" :kind :value :type :integer
-                       :description "Terminal height override; defaults to the detected terminal size.")
+                       :description
+                       "Terminal height override; defaults to the detected terminal size.")
          (make-option :name "seed" :kind :value :type :integer
                        :description "Seed the random number generator for a reproducible run.")
          (make-option :name "fps" :kind :value :type :integer :min 1 :max 60
