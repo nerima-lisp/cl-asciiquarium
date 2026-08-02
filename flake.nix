@@ -21,18 +21,26 @@
     # `lispDerivation` below), never these repos' own flake outputs -- see
     # DEPENDENCY_POLICY.md "姉妹パッケージは flake = false で引きます".
     cl-tty-kit = {
-      url = "github:nerima-lisp/cl-tty-kit/v1.1.0";
+      url = "github:nerima-lisp/cl-tty-kit/v1.2.0";
       flake = false;
     };
 
     cl-cli = {
-      url = "github:nerima-lisp/cl-cli/v1.1.0";
+      url = "github:nerima-lisp/cl-cli/v1.2.0";
       flake = false;
     };
 
     cl-weave = {
-      url = "github:nerima-lisp/cl-weave/v1.1.0";
+      url = "github:nerima-lisp/cl-weave/v1.1.4";
       flake = false;
+    };
+
+    # Unlike the sibling *packages* above, this is consumed for its `lib`
+    # output (`mkLintCheck`), which a `flake = false` source tree cannot
+    # provide -- the same reason cl-cli keeps it a real flake input.
+    paredit-cli = {
+      url = "github:nerima-lisp/paredit-cli/v1.4.0";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     treefmt-nix = {
@@ -49,6 +57,7 @@
       cl-tty-kit,
       cl-cli,
       cl-weave,
+      paredit-cli,
       treefmt-nix,
     }:
     let
@@ -127,5 +136,37 @@
       # ONE treefmt evaluation drives both `nix fmt` and `checks.formatting`.
       # Scope stays the preset's default of Nix only.
       treefmt.evalModule = treefmt-nix.lib.evalModule;
+
+      # Granularity lives here, not in an extra GitHub Actions job: `nix flake
+      # check` evaluates each attribute as its own derivation, in parallel,
+      # with build caching -- see cl-cli's flake.nix, which this follows.
+      extraOutputs = ctx: {
+        checks = {
+          # Structural parse gate over every Lisp source in the filtered
+          # tree: fails if any .lisp/.asd file is not a balanced S-expression
+          # document. The test suite would not catch it -- an unbalanced file
+          # makes ASDF fail to load the system, which reads like any other
+          # build error and points at the wrong cause.
+          paredit-lint = paredit-cli.lib.${ctx.system}.mkLintCheck {
+            inherit (ctx) src;
+            name = "cl-asciiquarium-paredit-lint";
+          };
+
+          # An sb-cover HTML coverage report for src/, as a buildable
+          # artifact rather than a pass/fail gate: `nix build
+          # .#checks.<system>.coverage --no-link --print-out-paths` prints a
+          # store path whose cover-index.html is the report to open. No
+          # minimum-coverage threshold -- see cl-nix-forge's
+          # lib/batteries/coverage.nix for why one would gate on the wrong
+          # thing here (sb-cover's raw expression percentage under-attributes
+          # top-level defstruct/define-condition forms by design).
+          coverage = ctx.cl.mkCoverageReport {
+            drv = ctx.package;
+            systems = [ "cl-asciiquarium" ];
+            name = "cl-asciiquarium-coverage";
+            timeoutSeconds = 900;
+          };
+        };
+      };
     };
 }
