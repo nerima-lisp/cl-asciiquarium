@@ -21,17 +21,17 @@
     # `lispDerivation` below), never these repos' own flake outputs -- see
     # DEPENDENCY_POLICY.md "姉妹パッケージは flake = false で引きます".
     cl-tty-kit = {
-      url = "github:nerima-lisp/cl-tty-kit/v1.2.0";
+      url = "github:nerima-lisp/cl-tty-kit/v1.3.0";
       flake = false;
     };
 
     cl-cli = {
-      url = "github:nerima-lisp/cl-cli/v1.2.0";
+      url = "github:nerima-lisp/cl-cli/v1.3.0";
       flake = false;
     };
 
     cl-weave = {
-      url = "github:nerima-lisp/cl-weave/v1.1.4";
+      url = "github:nerima-lisp/cl-weave/v1.2.0";
       flake = false;
     };
 
