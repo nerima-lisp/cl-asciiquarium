@@ -17,6 +17,8 @@
                   :kind :waterline
                   :frames (list (waterline-art (world-width world)))
                   :style (solid-style :bright-blue)
+                  :%trusted-frames-p t
+                  :%trusted-style-p t
                   :z 0
                   :policy :none
                   :x 0

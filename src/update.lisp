@@ -24,7 +24,7 @@ WORLD. Guarded by :ANCHOR-DROPPED so a ship drops at most one anchor."
   (when (and (not (getf (creature-data ship) :anchor-dropped))
              (>= (world-tick world) (getf (creature-data ship) :drop-tick)))
     (setf (getf (creature-data ship) :anchor-dropped) t)
-    (push (make-anchor world ship) (world-creatures world))))
+    (%add-world-creature world (make-anchor world ship))))
 
 (defun dolphin-tick (world dolphin)
   "Recompute DOLPHIN's Y as a sine wave around its :BASELINE-Y, amplitude
@@ -77,6 +77,29 @@ arc, a sea-monster segment following its leader)."
     (:dolphin (dolphin-tick world creature))
     (:monster-segment (monster-segment-tick world creature))))
 
+(defun %delete-removed-creatures (creatures)
+  "Filter REMOVEP creatures out of CREATURES, sharing the surviving tail
+instead of consing a full copy when nothing was removed. Returns (values
+new-list removedp)."
+  (let ((head nil)
+        (tail nil)
+        (cursor creatures)
+        (removedp nil))
+    (loop while cursor
+          for creature = (car cursor)
+          for next = (cdr cursor)
+          do (if (creature-removep creature)
+                 (setf removedp t)
+                 (progn
+                   (if tail
+                       (setf (cdr tail) cursor)
+                       (setf head cursor))
+                   (setf tail cursor)))
+             (setf cursor next))
+    (when tail
+      (setf (cdr tail) nil))
+    (values head removedp)))
+
 (defun world-advance (world)
   "Advance WORLD by exactly one tick, returning WORLD. When WORLD-PAUSED-P is
 true, this is a no-op (no tick increment, no creature update, no spawn or
@@ -89,10 +112,11 @@ then the shark and guest spawn timers are counted down, and finally every
 REMOVEP creature is dropped from the list."
   (unless (world-paused-p world)
     (incf (world-tick world))
-    (dolist (creature (world-creatures world))
+    (dolist (creature (world-%creatures world))
       (tick-creature world creature))
     (apply-collisions world)
     (maybe-spawn-shark world)
     (maybe-spawn-guest world)
-    (setf (world-creatures world) (delete-if #'creature-removep (world-creatures world))))
+    (multiple-value-bind (creatures removedp) (%delete-removed-creatures (world-%creatures world))
+      (when removedp (%set-world-creatures world creatures))))
   world)

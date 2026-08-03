@@ -58,7 +58,7 @@ alone, so a fish inside more than one predator's bounding box in the same
 tick is only killed once."
   (unless (getf (creature-data fish) :dying)
     (setf (creature-data fish) (list* :dying t (creature-data fish)))
-    (setf (creature-frames fish) (vector +fish-death-art+))
+    (%set-creature-frames fish (vector +fish-death-art+))
     (setf (creature-frame-index fish) 0)
     (setf (creature-ttl fish) +death-animation-ticks+)
     (setf (entity-dx (creature-entity fish)) 0)

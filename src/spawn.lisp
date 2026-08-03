@@ -14,7 +14,7 @@ cooldown, without regard to how much of it was left or to SHARK-ENABLED-P.
 Shared by MAYBE-SPAWN-SHARK (the automatic cooldown path) and the `s' key's
 manual spawn (input.lisp), which is why the immediate-spawn action is its own
 function rather than inlined into MAYBE-SPAWN-SHARK."
-  (push (make-shark world) (world-creatures world))
+  (%add-world-creature world (make-shark world))
   (setf (world-shark-cooldown world) (apply #'random-between +shark-cooldown-range+)))
 
 (defun maybe-spawn-shark (world)
@@ -43,14 +43,14 @@ a single expression MAYBE-SPAWN-GUEST could just PUSH the result of, the way
 MAYBE-SPAWN-SHARK does for MAKE-SHARK. Shared by MAYBE-SPAWN-GUEST (the
 automatic cooldown path) and the `g' key's manual spawn (input.lisp)."
   (ecase kind
-    (:ship (push (make-ship world) (world-creatures world)))
-    (:duck-line (push (make-duck-line world) (world-creatures world)))
-    (:dolphin (push (make-dolphin world) (world-creatures world)))
+    (:ship (%add-world-creature world (make-ship world)))
+    (:duck-line (%add-world-creature world (make-duck-line world)))
+    (:dolphin (%add-world-creature world (make-dolphin world)))
     (:sea-monster
      (let ((leader (make-sea-monster world)))
-       (push leader (world-creatures world))
+       (%add-world-creature world leader)
        (dolist (segment (sea-monster-segments world leader))
-         (push segment (world-creatures world)))))))
+         (%add-world-creature world segment))))))
 
 (defun maybe-spawn-guest (world)
   "Count WORLD's guest cooldown down by one tick; spawn a random special
@@ -68,7 +68,7 @@ it reaches zero."
   (let ((timer (1- (getf (creature-data fish) :bubble-timer))))
     (if (<= timer 0)
         (progn
-          (push (make-bubble world fish) (world-creatures world))
+          (%add-world-creature world (make-bubble world fish))
           (setf (getf (creature-data fish) :bubble-timer)
                 (apply #'random-between +bubble-interval-range+)))
         (setf (getf (creature-data fish) :bubble-timer) timer))))

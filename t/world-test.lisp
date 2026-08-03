@@ -116,6 +116,26 @@
       (expect (world-fish-count world) :to-be 0)
       (expect (count :fish (world-creatures world) :key #'creature-kind) :to-be 0))))
 
+(describe "%delete-removed-creatures"
+  (labels ((marker (kind) (make-creature :kind kind :frames (list "x") :x 0 :y 0))
+           (check (removed-indices expected-kinds expected-removedp)
+             (let* ((creatures (list (marker :a) (marker :b) (marker :c)))
+                    (original creatures))
+               (dolist (index removed-indices)
+                 (setf (creature-removep (nth index creatures)) t))
+               (multiple-value-bind (survivors removedp)
+                   (cl-asciiquarium::%delete-removed-creatures creatures)
+                 (expect (mapcar #'creature-kind survivors) :to-equal expected-kinds)
+                 (expect removedp :to-be expected-removedp)
+                 (when (null removed-indices)
+                   (expect survivors :to-be original))))))
+    (it "filters removed creatures in one stable destructive pass"
+      (check '(0) '(:b :c) t)
+      (check '(1) '(:a :c) t)
+      (check '(2) '(:a :b) t)
+      (check '(0 1 2) nil t)
+      (check nil '(:a :b :c) nil))))
+
 (describe "world-redraw"
   (it "repopulates the requested number of fresh fish, none reused from before"
     (with-seeded-random-state (3)

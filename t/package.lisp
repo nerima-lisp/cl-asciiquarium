@@ -23,7 +23,8 @@
                 #:make-screen #:make-renderer
                 #:tick-loop-run
                 #:cell-char #:screen-cell
-                #:make-input-decoder)
+                #:make-input-decoder
+                #:make-style #:style-fg #:named-color)
   ;; Test-only cl-cli primitives for t/cli-test.lisp. cl-asciiquarium imports
   ;; make-app/make-option/run-app/option-value/current-process-argv into its
   ;; own package already (src/package.lisp) but does not re-export them as
