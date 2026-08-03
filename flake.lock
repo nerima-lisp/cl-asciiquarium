@@ -17,6 +17,40 @@
         "type": "github"
       }
     },
+    "cl-codec-kit": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785657119,
+        "narHash": "sha256-73/PTRu9neWZNGC3L6bL7ltWt0CtORHNDS4zzf4uH2U=",
+        "owner": "nerima-lisp",
+        "repo": "cl-codec-kit",
+        "rev": "8570a6c16dcc0bc0f4774749a0f9f1d0520696c2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nerima-lisp",
+        "ref": "v0.4.0",
+        "repo": "cl-codec-kit",
+        "type": "github"
+      }
+    },
+    "cl-host-kit": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785673216,
+        "narHash": "sha256-Tusrpki/Ml7eqTsuKWCy5MJln/w9bpM+iflyJ4GDFAI=",
+        "owner": "nerima-lisp",
+        "repo": "cl-host-kit",
+        "rev": "bd343b36c184cf70e91ab2fc61088e47dee529bf",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nerima-lisp",
+        "ref": "v0.3.0",
+        "repo": "cl-host-kit",
+        "type": "github"
+      }
+    },
     "cl-nix-forge": {
       "inputs": {
         "nixpkgs": [
@@ -25,16 +59,16 @@
         "treefmt-nix": "treefmt-nix"
       },
       "locked": {
-        "lastModified": 1785347314,
-        "narHash": "sha256-eSnOllc5L+DuP5TrPGPQUzMzfN8HA88x326EzZvo7V4=",
+        "lastModified": 1785654861,
+        "narHash": "sha256-f9qqtyUPlljTfnI5UbyGo37QxdQwomAOK3KRoNDwYd4=",
         "owner": "nerima-lisp",
         "repo": "cl-nix-forge",
-        "rev": "53f26644d8cc40f5e677cedb00dd10ca5726d25a",
+        "rev": "1ed4292da73f0d7a0a909376d983475cb41a75b9",
         "type": "github"
       },
       "original": {
         "owner": "nerima-lisp",
-        "ref": "v0.4.0",
+        "ref": "v0.4.1",
         "repo": "cl-nix-forge",
         "type": "github"
       }
@@ -42,16 +76,16 @@
     "cl-tty-kit": {
       "flake": false,
       "locked": {
-        "lastModified": 1785673205,
-        "narHash": "sha256-vGdle1cAXppHvQK0ZcDt2Od+nav3zTaUnjRSnsz1+k4=",
+        "lastModified": 1785761479,
+        "narHash": "sha256-n1EQ6pTS67gUWPUEGa/yFmnpnaWKrDLEu2vY9wlHIjE=",
         "owner": "nerima-lisp",
         "repo": "cl-tty-kit",
-        "rev": "2541743c8af29cfdaba20ff1b91e70f612dfcd3a",
+        "rev": "4f31fade9b94b94ec835097807b3ea0e2755de91",
         "type": "github"
       },
       "original": {
         "owner": "nerima-lisp",
-        "ref": "v1.3.0",
+        "ref": "v1.4.0",
         "repo": "cl-tty-kit",
         "type": "github"
       }
@@ -131,6 +165,8 @@
     "root": {
       "inputs": {
         "cl-cli": "cl-cli",
+        "cl-codec-kit": "cl-codec-kit",
+        "cl-host-kit": "cl-host-kit",
         "cl-nix-forge": "cl-nix-forge",
         "cl-tty-kit": "cl-tty-kit",
         "cl-weave": "cl-weave",

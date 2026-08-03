@@ -37,3 +37,7 @@ jobs:
       # formatting gate (checks.formatting), so unformatted Nix fails CI here.
       - name: Check flake
         run: nix flake check --print-build-logs
+
+      # Catches stray conflict markers and whitespace errors that compile fine.
+      - name: Check diff hygiene
+        run: git diff --check
