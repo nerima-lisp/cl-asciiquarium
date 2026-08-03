@@ -1,42 +1,52 @@
 # Roadmap
 
-## What v1 includes
+## What this includes
 
-- 3 original fish species (`:dart`, `:puffer`, `:ribbon`), each multi-line,
-  direction-mirrored art.
-- 1 predator: the shark, which removes any fish it overlaps.
+- 5 original fish species (`:dart`, `:puffer`, `:ribbon`, `:angel`,
+  `:guppy`), each multi-line, direction-mirrored art, each with a color
+  *palette* rather than one fixed color -- two individuals of the same
+  species need not match (`RANDOM-SPECIES-COLOR`, `src/art-fish.lisp`).
+- 1 predator: the shark, which removes any fish it overlaps; disable-able for
+  the whole run via `--no-shark`, or spawned on demand with the `s` key.
 - Rising bubble trails, periodically emitted from fish, removed at the
   waterline.
 - Swaying seaweed (a 2-frame loop) and a static castle decoration.
-- 2 special guests: a ship that drops an anchor (which removes a fish
-  directly beneath it), and a decorative line of ducks.
-- `q` to quit, `r` to redraw/reshuffle, polled terminal-resize handling.
+- 4 special guests, spawned on a shared cooldown or on demand with the `g`
+  key: a ship that drops an anchor (which removes a fish directly beneath
+  it), a decorative line of ducks, a leaping dolphin (a parametric sine-arc
+  `Y`, the first non-linear motion in this codebase), and a segmented sea
+  monster (a head `CREATURE` plus several trailing `:MONSTER-SEGMENT`
+  `CREATURE`s that follow it as a synchronized trail). See
+  [Architecture](../reference/architecture.md) for both motion patterns.
+- `q`/Ctrl-C to quit, `r` to redraw/reshuffle, space to pause/resume, `+`/`-`
+  to grow/shrink the live fish count, `h` to toggle an on-screen help panel,
+  and polled terminal-resize handling.
+- `--monochrome` to render every creature in the terminal's default
+  foreground color.
 
-## What was deliberately cut, and why
+## What was deliberately cut, and why -- and what has since shipped
 
-- **Dolphins and a sea monster.** The project brief asked for at least 2 of
-  the 4 classic special guests; a ship-with-anchor and a duck line already
-  exercise the same `CREATURE` machinery (a wide horizontal sprite that
-  despawns off screen, one of which spawns a second creature mid-flight).
-  Adding a jumping-arc dolphin or a sea monster would mean a genuinely
-  different motion pattern (a parametric arc rather than constant velocity)
-  for marginal additional proof that the `CREATURE` contract scales -- the
-  two guests already implemented make that case.
-- **A 4th+ fish species.** Three species already exercise every art/behavior
-  axis this v1 has (species selection, mirroring, per-species color); a 4th
-  would be more of the same data, not new capability.
+Both guests this document previously tracked as deliberate v1 cuts --
+dolphins and a sea monster -- are now implemented above, exactly along the
+lines this section originally sketched (a parametric arc for the dolphin, a
+multi-`CREATURE` synchronized trail for the monster); see "Possible follow-up
+work" below for what that looked like before it shipped. Likewise, fish now
+vary in color within a species. What remains cut, and why:
+
 - **A general NxN interaction matrix.** The project brief explicitly asked
   for this to be cut; only shark-vs-fish and dropped-anchor-vs-fish are
-  checked (`src/collision.lisp`).
+  checked (`src/collision.lisp`). The dolphin and sea monster stay purely
+  decorative, like the duck line, rather than growing a third interaction
+  pair apiece.
 - **A generic ECS or config-driven guest-definition DSL.** Also explicitly
   out of scope; every creature is a plain `CREATURE` struct built by a plain
   Lisp function.
 
 ## Possible follow-up work
 
-- A jumping-arc dolphin school, built on the same `CREATURE` shape with a
-  parametric `Y` offset computed from `WORLD-TICK` rather than a constant
-  `DY`.
-- A sea monster with a longer, segmented body (multiple `CREATURE`s moving
-  in a synchronized trail).
-- Color variation within a fish species (currently one color per species).
+- A configurable color theme (a named palette swapped in for every species'
+  default colors at once), building on `*MONOCHROME*`'s precedent of a
+  dynamically bound rendering-time switch (`src/creature.lisp`).
+- A treasure chest or other bottom-of-tank decoration, alongside the castle.
+- A crab or other seafloor walker, exercising a third motion pattern (bounded
+  horizontal pacing) beyond the dolphin's arc and the sea monster's trail.

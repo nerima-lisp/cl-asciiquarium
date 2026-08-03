@@ -1,52 +1,148 @@
+# cl-asciiquarium documentation -- MkDocs + Material configuration.
+#
+# Build:   mkdocs build -f docs/mkdocs.yml --strict
+# Serve:   mkdocs serve  -f docs/mkdocs.yml
+#
+# The flake builds this same config offline: `nix build .#docs`, also
+# published as `checks.docs` (see flake.nix's `docs.root = ./docs;`).
+
 site_name: cl-asciiquarium
 site_description: An original ASCII-art aquarium screensaver for the terminal.
+site_author: cl-asciiquarium contributors
 site_url: https://nerima-lisp.github.io/cl-asciiquarium/
-repo_url: https://github.com/nerima-lisp/cl-asciiquarium
+
 repo_name: nerima-lisp/cl-asciiquarium
+repo_url: https://github.com/nerima-lisp/cl-asciiquarium
 edit_uri: edit/main/docs/src/
 
+# Content lives in docs/src.
 docs_dir: src
+site_dir: ../site
+use_directory_urls: true
+
+# Also passed as --strict by flake.nix's `packages.docs`. Declaring it here too
+# means `mkdocs serve` applies the same rule, so there is no invocation path
+# that silently tolerates a broken link. Use `mkdocs serve --no-strict` while
+# drafting if you want warnings not to stop the build.
+strict: true
+
+copyright: Copyright &copy; cl-asciiquarium contributors -- MIT License
 
 theme:
   name: material
-  features:
-    - navigation.sections
-    - navigation.top
-    - content.code.copy
-    - content.action.edit
-    - search.highlight
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/fish
+  favicon: assets/favicon.svg
   palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: teal
+      accent: teal
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: teal
+      accent: teal
       toggle:
         icon: material/brightness-4
-        name: Switch to light mode
+        name: Switch to system preference
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/nerima-lisp/cl-asciiquarium
+      name: cl-asciiquarium on GitHub
+  generator: false
+
+plugins:
+  - search
 
 markdown_extensions:
+  # Callouts / admonitions.
   - admonition
-  - toc:
-      permalink: true
+  - pymdownx.details
+  # Code blocks: syntax highlighting, line numbers, inline highlighting.
   - pymdownx.highlight:
       anchor_linenums: true
-  - pymdownx.superfences
-  - pymdownx.details
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  # Content tabs (e.g. the Lisp / command-line usage pair).
   - pymdownx.tabbed:
       alternate_style: true
+  # Task lists, key bindings, smart symbols.
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.keys
+  - pymdownx.smartsymbols
+  - attr_list
+  - md_in_html
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+      title: On this page
 
+# Five fixed sections, in this order, per the org DOCS_STANDARD (2026-08-01
+# revision). Content lives in guide/, reference/ and project/; only index.md,
+# getting-started.md and assets/ sit at the root of docs/src. The order tracks
+# the reader's state: Getting Started is for someone who has not run it yet,
+# Guide for someone who has but does not know the design, Reference for
+# someone writing code and looking up one answer, Project for someone
+# contributing. Readers drop off along that path, so reference sits at the
+# back.
 nav:
   - Home: index.md
-  - Getting started: getting-started.md
+  - Getting Started: getting-started.md
   - Guide:
       - Keybindings and CLI: guide/usage.md
   - Reference:
       - API: reference/api.md
       - Architecture: reference/architecture.md
+      - Conditions: reference/conditions.md
   - Project:
       - Roadmap: project/roadmap.md
+
+# docs/notes/ is for measurements worth keeping but not worth publishing.
+# --strict fails on any page missing from the nav, so without this
+# declaration adding such a file would break the build.
+not_in_nav: |
+  notes/

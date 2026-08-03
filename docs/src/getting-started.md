@@ -20,7 +20,8 @@ input) until you press `q`. Useful keywords:
 
 ## From the command line
 
-Once built (`nix build` or `(asdf:operate 'asdf:program-op "cl-asciiquarium")`),
+Once built (`nix build`, which puts it at `./result/bin/asciiquarium`, or
+`(asdf:operate 'asdf:program-op "cl-asciiquarium")`),
 the delivered binary exposes the same knobs:
 
 ```sh
@@ -33,8 +34,20 @@ Run `asciiquarium --help` for the full option list.
 
 | Key | Effect |
 |---|---|
-| `q` / `Q` | Quit |
+| `q` / `Q` / Ctrl-C | Quit |
 | `r` / `R` | Redraw: remove and respawn every fish, shark, and guest; background stays |
+| Space | Pause / resume the simulation |
+| `+` / `=` | Grow the live fish count by one (up to 40) |
+| `-` / `_` | Shrink the live fish count by one |
+| `s` / `S` | Spawn a shark immediately (no-op under `--no-shark`) |
+| `g` / `G` | Spawn a random special guest immediately |
+| `h` / `H` | Toggle the on-screen key-list panel |
 
 A terminal resize is picked up automatically -- cl-asciiquarium polls the
 terminal size once per frame (see [Architecture](reference/architecture.md)).
+
+## Flags worth knowing about
+
+- `--no-shark` -- disable the shark, so fish are never eaten.
+- `--monochrome` -- render every creature in the terminal's default
+  foreground color instead of its species color.
