@@ -16,7 +16,7 @@ the waterline sits a few rows below the true top edge."
                     :kind :bubble
                     :frames +bubble-art-frames+
                     :frame-period 4
-                    :style (make-style (style-fg (named-color :bright-white)))
+                    :style (solid-style :bright-white)
                     :z 4
                     :policy :none
                     :x (+ (creature-x fish) (random (max 1 fish-width)))

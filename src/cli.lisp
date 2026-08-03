@@ -6,7 +6,7 @@
 ;;;; `(asdf:operate 'asdf:program-op ...)` both produce.
 (in-package #:cl-asciiquarium)
 
-(defun %asciiquarium-version ()
+(defun asciiquarium-version ()
   "The running CL-ASCIIQUARIUM system's :VERSION, the single source of truth
 also read by flake.nix and enforced by release.yml against the git tag --
 the same asdf:component-version pattern cl-cowsay/src/cli.lisp and
@@ -15,14 +15,29 @@ from a version bump in cl-asciiquarium.asd the way a literal copy could."
   (let ((system (asdf:find-system "cl-asciiquarium" nil)))
     (if system (asdf:component-version system) "0.0.0")))
 
+(defun run-handler (invocation)
+  "The handler cl-cli:RUN-APP dispatches to: resolve --width/--height against
+the detected terminal size, then run the aquarium. Returns 0 once RUN returns
+(i.e. once the user presses `q')."
+  (multiple-value-bind (detected-columns detected-rows) (terminal-size)
+    (run :width (or (option-value invocation :width) detected-columns +default-width+)
+         :height (or (option-value invocation :height) detected-rows +default-height+)
+         :seed (option-value invocation :seed)
+         :interval (/ 1 (or (option-value invocation :fps) 20))
+         :shark-enabled-p (not (option-value invocation :no-shark))
+         :monochrome-p (option-value invocation :monochrome)))
+  0)
+
 (defparameter *app*
   (make-app
    :name "asciiquarium"
-   :version (%asciiquarium-version)
+   :version (asciiquarium-version)
    :summary "An ASCII-art aquarium screensaver for the terminal."
    :description "Swimming fish, a shark, rising bubbles, swaying seaweed, and
-periodic special guests (a ship that drops an anchor, a line of ducks),
-rendered live in the terminal. Press q to quit, r to redraw."
+periodic special guests (a ship that drops an anchor, a line of ducks, a
+leaping dolphin, a segmented sea monster), rendered live in the terminal.
+Press q to quit, r to redraw, space to pause, +/- to grow or shrink the fish
+count, s/g to spawn a shark/guest on demand, and h for the full key list."
    :global-options
    (list (make-option :name "width" :kind :value :type :integer
                        :description
@@ -33,19 +48,13 @@ rendered live in the terminal. Press q to quit, r to redraw."
          (make-option :name "seed" :kind :value :type :integer
                        :description "Seed the random number generator for a reproducible run.")
          (make-option :name "fps" :kind :value :type :integer :min 1 :max 60
-                       :description "Target frames per second (default 20)."))
-   :handler #'%run-handler))
-
-(defun %run-handler (invocation)
-  "The handler cl-cli:RUN-APP dispatches to: resolve --width/--height against
-the detected terminal size, then run the aquarium. Returns 0 once RUN returns
-(i.e. once the user presses `q')."
-  (multiple-value-bind (detected-columns detected-rows) (terminal-size)
-    (run :width (or (option-value invocation :width) detected-columns +default-width+)
-         :height (or (option-value invocation :height) detected-rows +default-height+)
-         :seed (option-value invocation :seed)
-         :interval (/ 1 (or (option-value invocation :fps) 20))))
-  0)
+                       :description "Target frames per second (default 20).")
+         (make-option :name "no-shark" :kind :flag
+                       :description "Disable the shark, so fish are never eaten.")
+         (make-option :name "monochrome" :kind :flag
+                       :description
+                       "Render every creature in the terminal's default foreground color."))
+   :handler #'run-handler))
 
 (defun main ()
   "Entry point for a plain `sbcl --script'/REPL invocation: parse the current
@@ -54,7 +63,7 @@ process argv against *APP* and exit with its result code."
 
 (defun image-entry-point ()
   "Toplevel of the delivered `asciiquarium' executable; named by :ENTRY-POINT
-in cl-asciiquarium.asd. Identical to MAIN -- this application loads no further
+in cl-asciiquarium.asd. Delegates to MAIN -- this application loads no further
 ASDF systems at run time, so it needs none of cl-weave's image-relocation
 bootstrapping (see cl-weave/src/cli-image.lisp) beyond this thin wrapper."
-  (uiop:quit (run-app *app* :argv (current-process-argv))))
+  (main))

@@ -6,26 +6,28 @@
            (screen (make-screen 20 10)))
       (expect (draw-world screen world) :to-be screen)))
   (it "paints a creature's non-space characters onto the screen"
+    ;; Y=1 sits above +WATERLINE-ROW+ (2), clear of every background creature
+    ;; TINY-WORLD populates (waterline at Y=2, castle and seaweed lower still),
+    ;; so this cell has no art to collide with the marker.
     (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
            (screen (make-screen 20 10))
-           (creature (make-creature :world world :kind :marker :frames (list "Z") :x 5 :y 4)))
+           (creature (make-creature :world world :kind :marker :frames (list "Z") :x 5 :y 1)))
       (push creature (world-creatures world))
       (draw-world screen world)
-      (expect (cell-char (screen-cell screen 5 4)) :to-be #\Z)))
+      (expect (cell-char (screen-cell screen 5 1)) :to-be #\Z)))
   (it "clears the screen before repainting, so a creature that has moved leaves no trail"
     (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
            (screen (make-screen 20 10))
-           (creature (make-creature :world world :kind :marker :frames (list "Z") :x 5 :y 4)))
+           (creature (make-creature :world world :kind :marker :frames (list "Z") :x 5 :y 1)))
       (push creature (world-creatures world))
       (draw-world screen world)
       (setf (entity-x (creature-entity creature)) 10)
       (draw-world screen world)
-      (expect (cell-char (screen-cell screen 5 4)) :to-be #\Space))))
+      (expect (cell-char (screen-cell screen 5 1)) :to-be #\Space))))
 
 (describe "render-frame"
   (it "produces non-empty output for the first frame of a populated world"
-    (seeded 6
-      (lambda ()
-        (let ((world (make-world :width 20 :height 10 :fish-count 2))
-              (renderer (make-renderer 20 10)))
-          (expect (plusp (length (render-frame renderer world))) :to-be-truthy))))))
+    (with-seeded-random-state (6)
+      (let ((world (make-world :width 20 :height 10 :fish-count 2))
+            (renderer (make-renderer 20 10)))
+        (expect (plusp (length (render-frame renderer world))) :to-be-truthy)))))

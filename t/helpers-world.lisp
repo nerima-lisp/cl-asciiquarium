@@ -3,13 +3,16 @@
 ;;;; CODING_STANDARD.md "テスト補助ファイルは helpers- で始める".
 (in-package #:cl-asciiquarium/test)
 
-(defun seeded (seed thunk)
-  "Call THUNK with CL:*RANDOM-STATE* bound to the deterministic state
+(defmacro with-seeded-random-state ((seed) &body body)
+  "Evaluate BODY with CL:*RANDOM-STATE* bound to the deterministic state
 SB-EXT:SEED-RANDOM-STATE derives from SEED, so every RANDOM call inside
-THUNK -- including everything cl-asciiquarium's spawn/species/lane selection
-does -- is reproducible across runs."
-  (let ((*random-state* (sb-ext:seed-random-state seed)))
-    (funcall thunk)))
+BODY -- including everything cl-asciiquarium's spawn/species/lane selection
+does -- is reproducible across runs. A binding macro rather than a
+higher-order function taking a THUNK, so a call site reads as scoping a
+dynamic binding (like WITH-OPEN-FILE) instead of manually wrapping its body
+in `(lambda () ...)'."
+  `(let ((*random-state* (sb-ext:seed-random-state ,seed)))
+     ,@body))
 
 (defun tiny-world (&key (width 20) (height 10) (fish-count 0))
   "A small, mostly-empty WORLD for tests that want to control exactly which

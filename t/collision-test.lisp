@@ -60,17 +60,16 @@
 
 (describe "deterministic predator/prey scenario via a seeded shark spawn"
   (it "eventually spawns a shark and kills a fish placed in its path, given a fixed seed"
-    (seeded 42
-      (lambda ()
-        (let ((world (make-world :width 40 :height 10 :fish-count 0)))
-          ;; Force an immediate shark spawn regardless of the random initial
-          ;; cooldown, so this scenario is about the collision, not about how
-          ;; long a shark's cooldown happens to draw.
-          (setf (world-shark-cooldown world) 1)
-          (let ((fish (make-fish world :species :dart :x 20 :y 4 :dx 0)))
-            (push fish (world-creatures world))
-            (dotimes (i 200)
-              (unless (member fish (world-creatures world))
-                (return))
-              (world-advance world))
-            (expect (member fish (world-creatures world)) :to-be-falsy)))))))
+    (with-seeded-random-state (42)
+      (let ((world (make-world :width 40 :height 10 :fish-count 0)))
+        ;; Force an immediate shark spawn regardless of the random initial
+        ;; cooldown, so this scenario is about the collision, not about how
+        ;; long a shark's cooldown happens to draw.
+        (setf (world-shark-cooldown world) 1)
+        (let ((fish (make-fish world :species :dart :x 20 :y 4 :dx 0)))
+          (push fish (world-creatures world))
+          (dotimes (i 200)
+            (unless (member fish (world-creatures world))
+              (return))
+            (world-advance world))
+          (expect (member fish (world-creatures world)) :to-be-falsy))))))

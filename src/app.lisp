@@ -6,64 +6,84 @@
 ;;;; spawn.lisp does.
 (in-package #:cl-asciiquarium)
 
-(defun %read-available-string (stream)
-  "Return every character currently buffered on STREAM without blocking, as a
-string. Used instead of cl-tty-kit's fd-level FD-READ-OCTETS because
-*STANDARD-INPUT* here is a plain character stream on the controlling
-terminal, not a bare fd this application owns the non-blocking mode of;
-READ-CHAR-NO-HANG already returns NIL rather than blocking when nothing is
-buffered."
-  (with-output-to-string (out)
-    (loop for char = (read-char-no-hang stream nil nil)
-          while char
-          do (write-char char out))))
+(defun make-world-poller (renderer stream decoder)
+  "Return a TICK-LOOP-RUN-REALTIME :POLL callback that keeps a WORLD state
+in sync with the controlling terminal before every tick's pure advance step:
+resize WORLD and RENDERER via cl-tty-kit:MAKE-TERMINAL-SIZE-POLLER when the
+terminal's size has changed since the last poll, then apply any key events
+cl-tty-kit:MAKE-STREAM-INPUT-POLLER decodes from STREAM through DECODER.
+Both pollers keep their own state across ticks (the last-seen terminal size,
+and any escape sequence split across reads), so this closure only needs to
+compose them once per RUN rather than reimplementing either."
+  (let ((size-poller (make-terminal-size-poller))
+        (input-poller (make-stream-input-poller stream :decoder decoder)))
+    (lambda (state)
+      (multiple-value-bind (columns rows) (funcall size-poller state 0)
+        (when (and columns rows)
+          (world-resize state columns rows)
+          (renderer-resize renderer columns rows)))
+      (world-apply-key-events state (funcall input-poller state 0)))))
 
-(defun %poll-input-events (decoder stream)
-  "Feed any input currently available on STREAM through DECODER, returning
-the decoded KEY-EVENTs (or NIL when nothing was available)."
-  (let ((chunk (%read-available-string stream)))
-    (if (plusp (length chunk))
-        (decode-input-chunk decoder chunk)
-        nil)))
+(defun quit-on-signal (world)
+  "The action RUN's SIGTERM/SIGHUP handler performs: set WORLD-QUITP, so the
+tick loop notices on its next STOP check and returns normally, letting
+WITH-TERMINAL-SESSION's own UNWIND-PROTECT restore the terminal exactly as it
+does for the `q' key -- rather than an external `kill' or a closed
+controlling terminal ending the process mid-raw-mode, with the terminal left
+needing a manual `reset'/`stty sane' to recover."
+  (setf (world-quitp world) t))
 
-(defun %poll-resize (world renderer)
-  "Resize WORLD and RENDERER to the controlling terminal's current size when
-it differs from WORLD's own, returning WORLD. cl-tty-kit polls rather than
-traps SIGWINCH (see its terminal-size.lisp file header), so this application
-does the same: it is called once per tick from the realtime loop below."
-  (multiple-value-bind (columns rows) (terminal-size)
-    (when (and columns rows
-               (or (/= columns (world-width world)) (/= rows (world-height world))))
-      (world-resize world columns rows)
-      (renderer-resize renderer columns rows)))
-  world)
-
-(defun %advance-with-io (world renderer decoder)
-  "The realtime loop's ADVANCE function: poll for a resize and for key input,
-apply any decoded key events, then run the one pure simulation step."
-  (%poll-resize world renderer)
-  (world-apply-key-events world (%poll-input-events decoder *standard-input*))
-  (world-advance world))
+(defun install-quit-signal-handler (world)
+  "Install QUIT-ON-SIGNAL as WORLD's SIGTERM and SIGHUP handler, so an
+external `kill' or a closed controlling terminal quits exactly as cleanly as
+the `q' key. Not itself unit-tested (see QUIT-ON-SIGNAL for the tested
+logic): sending a real signal to exercise this would risk terminating the
+test runner itself, which is exactly the real-terminal/real-process boundary
+RUN is already outside TEST_STANDARD.md's unit-test scope for (see
+t/app-test.lisp)."
+  (flet ((handle (signal info context)
+           (declare (ignore signal info context))
+           (quit-on-signal world)))
+    (sb-sys:enable-interrupt sb-unix:sigterm #'handle)
+    (sb-sys:enable-interrupt sb-unix:sighup #'handle))
+  (values))
 
 (defun run (&key (width +default-width+) (height +default-height+) fish-count seed
-            (interval 1/20) (stream *standard-output*))
-  "Run the aquarium in the real terminal until `q' is pressed. WIDTH and
+            (interval 1/20) (stream *standard-output*) (shark-enabled-p t) monochrome-p)
+  "Run the aquarium in the real terminal until `q' is pressed, or SIGTERM/
+SIGHUP arrives from outside (see INSTALL-QUIT-SIGNAL-HANDLER) -- both quit
+exactly as cleanly, restoring the terminal via WITH-TERMINAL-SESSION's
+UNWIND-PROTECT rather than leaving it in raw/alternate-screen mode. WIDTH and
 HEIGHT size the initial WORLD (a resize is then picked up automatically, see
-%POLL-RESIZE); SEED, when supplied, seeds *RANDOM-STATE* for a reproducible
-run; INTERVAL is the target seconds between frames, forwarded to
-cl-tty-kit:TICK-LOOP-RUN-REALTIME."
+MAKE-WORLD-POLLER); SEED, when supplied, seeds *RANDOM-STATE* for a
+reproducible run; INTERVAL is the target seconds between frames, forwarded to
+cl-tty-kit:TICK-LOOP-RUN-REALTIME; SHARK-ENABLED-P and MONOCHROME-P forward the
+--no-shark and --monochrome CLI flags (cli.lisp) to MAKE-WORLD and *MONOCHROME*
+(creature.lisp) respectively."
   (when seed
     (setf *random-state* (sb-ext:seed-random-state seed)))
-  (let ((world (make-world :width width :height height
-                            :fish-count (or fish-count +default-fish-count+)))
-        (renderer (make-renderer width height))
-        (decoder (make-input-decoder)))
+  ;; LET*, not LET: MAKE-WORLD's init-form must run after *MONOCHROME* is
+  ;; bound, since it constructs every background/fish creature (via
+  ;; SOLID-STYLE, creature.lisp) right away -- LET's parallel-binding
+  ;; semantics would evaluate MAKE-WORLD against the outer, unbound
+  ;; *MONOCHROME* instead.
+  (let* ((*monochrome* monochrome-p)
+         (world (make-world :width width :height height
+                             :fish-count (or fish-count +default-fish-count+)
+                             :shark-enabled-p shark-enabled-p))
+         (renderer (make-renderer width height))
+         (decoder (make-input-decoder)))
     (with-raw-mode ()
       (with-terminal-session (session-stream :stream stream :hide-cursor t :alternate-screen t)
-        (tick-loop-run-realtime
-         world
-         (lambda (state) (%advance-with-io state renderer decoder))
-         (lambda (state) (render-frame renderer state))
-         (lambda (state) (world-quitp state))
-         :stream session-stream
-         :interval interval)))))
+        (install-quit-signal-handler world)
+        (unwind-protect
+             (tick-loop-run-realtime
+              world
+              #'world-advance
+              (lambda (state) (render-frame renderer state))
+              #'world-quitp
+              :stream session-stream
+              :interval interval
+              :poll (make-world-poller renderer *standard-input* decoder))
+          (sb-sys:enable-interrupt sb-unix:sigterm :default)
+          (sb-sys:enable-interrupt sb-unix:sighup :default))))))

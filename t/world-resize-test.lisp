@@ -36,4 +36,4 @@
       (expect (creature-x fish) :to-be 7)))
   (it "signals invalid-dimensions for a non-positive size"
     (let ((world (tiny-world :width 40 :height 20)))
-      (expect (lambda () (world-resize world 0 10)) :to-throw 'invalid-dimensions))))
+      (expect (lambda () (world-resize world 0 10)) :to-throw 'asciiquarium-invalid-dimensions))))

@@ -40,28 +40,34 @@
               :to-be-truthy)))
 
   (it "rejects a --fps below the 1 minimum"
-    (expect (signals (parse-argv *app* '("asciiquarium" "--fps" "0"))
-                     'cli-invalid-option-value)
-            :to-be-truthy))
+    (signals cli-invalid-option-value (parse-argv *app* '("asciiquarium" "--fps" "0"))))
 
   (it "rejects a --fps above the 60 maximum"
-    (expect (signals (parse-argv *app* '("asciiquarium" "--fps" "61"))
-                     'cli-invalid-option-value)
-            :to-be-truthy)))
+    (signals cli-invalid-option-value (parse-argv *app* '("asciiquarium" "--fps" "61"))))
+
+  (it "defaults --no-shark and --monochrome to unset"
+    (let ((invocation (parse-argv *app* '("asciiquarium"))))
+      (with-soft-assertions
+        (expect (option-value invocation :no-shark) :to-be-falsy)
+        (expect (option-value invocation :monochrome) :to-be-falsy))))
+
+  (it "parses --no-shark and --monochrome as flags, taking no value"
+    (let ((invocation (parse-argv *app* '("asciiquarium" "--no-shark" "--monochrome"))))
+      (with-soft-assertions
+        (expect (option-value invocation :no-shark) :to-be-truthy)
+        (expect (option-value invocation :monochrome) :to-be-truthy)))))
 
 (describe "the cl-asciiquarium app spec: --help and --version"
   (it "exits 0 on --help without invoking the aquarium handler"
     (let ((output (with-output-to-string (out)
-                    (expect (= (run-app *app* :argv '("asciiquarium" "--help")
-                                       :stdout out)
-                              0)
+                    (expect (zerop (run-app *app* :argv '("asciiquarium" "--help")
+                                       :stdout out))
                             :to-be-truthy))))
       (expect (search "asciiquarium" output) :to-be-truthy)))
 
   (it "exits 0 on --version and prints the app's name and version"
     (let ((output (with-output-to-string (out)
-                    (expect (= (run-app *app* :argv '("asciiquarium" "--version")
-                                       :stdout out)
-                              0)
+                    (expect (zerop (run-app *app* :argv '("asciiquarium" "--version")
+                                       :stdout out))
                             :to-be-truthy))))
       (expect (search "asciiquarium" output) :to-be-truthy))))

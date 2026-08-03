@@ -64,3 +64,28 @@ off-screen spawn point that needs just the horizontal extent."
 (BX, BY, BW, BH) overlap. Touching edges do not count as overlap."
   (and (< ax (+ bx bw)) (< bx (+ ax aw))
        (< ay (+ by bh)) (< by (+ ay ah))))
+
+(defun random-between (low high)
+  "Return a random integer in the inclusive range [LOW, HIGH], drawn from the
+ambient CL:*RANDOM-STATE* so callers (and tests, via SB-EXT:SEED-RANDOM-STATE)
+control reproducibility by binding *RANDOM-STATE*, never by this function
+holding its own generator."
+  (+ low (random (1+ (- high low)))))
+
+(defun random-facing ()
+  "Return :LEFT or :RIGHT with equal probability, from the ambient
+CL:*RANDOM-STATE* (see RANDOM-BETWEEN). Every off-screen crossing factory
+(MAKE-FISH, MAKE-SHARK, MAKE-SHIP, MAKE-DUCK-LINE) draws its default FACING
+this same way."
+  (if (zerop (random 2)) :left :right))
+
+(defun off-screen-entry (facing art-width world-width speed)
+  "Return (VALUES X DX) placing a creature fully off WORLD-WIDTH on the edge
+opposite FACING (:LEFT or :RIGHT), moving at SPEED toward the far edge so it
+visibly crosses the screen. Shared by every off-screen crossing factory
+(MAKE-SHARK, MAKE-SHIP, MAKE-DUCK-LINE): a :RIGHT-facing creature starts
+ART-WIDTH off the left edge moving right; a :LEFT-facing one starts at
+WORLD-WIDTH moving left."
+  (if (eq facing :right)
+      (values (- art-width) speed)
+      (values world-width (- speed))))

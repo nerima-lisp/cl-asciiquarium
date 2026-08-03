@@ -39,7 +39,9 @@
                 #:make-input-decoder
                 #:decode-input-chunk
                 #:key-event-type
-                #:key-event-code)
+                #:key-event-code
+                #:make-terminal-size-poller
+                #:make-stream-input-poller)
   ;; cl-cli (L1): the --width/--height/--seed/--fps command-line surface.
   (:import-from #:cl-cli
                 #:make-app
@@ -50,17 +52,20 @@
   (:export
    ;; -- Conditions --
    #:asciiquarium-error
-   #:invalid-dimensions
+   #:asciiquarium-invalid-dimensions
    #:invalid-dimensions-width
    #:invalid-dimensions-height
-   #:unknown-species
+   #:asciiquarium-unknown-species
    #:unknown-species-name
+   #:asciiquarium-invalid-policy
+   #:invalid-policy-policy
 
    ;; -- Geometry / sprite helpers --
    #:mirror-sprite-text
    #:sprite-dimensions
    #:sprite-width
    #:clamp
+   #:rects-overlap-p
 
    ;; -- Creature: the one shape every sprite type goes through --
    #:creature
@@ -92,17 +97,24 @@
    #:world-height
    #:world-tick
    #:world-creatures
+   #:world-fish-count
    #:world-quitp
+   #:world-paused-p
+   #:world-shark-enabled-p
    #:world-shark-cooldown
    #:world-guest-cooldown
    #:world-resize
    #:world-redraw
+   #:world-increase-fish-count
+   #:world-decrease-fish-count
+   #:+max-fish-count+
 
    ;; -- Simulation step --
    #:world-advance
    #:apply-collisions
    #:+death-animation-ticks+
    #:+waterline-row+
+   #:+anchor-dropped-ticks+
 
    ;; -- Spawning --
    #:make-fish
@@ -113,13 +125,26 @@
    #:make-castle
    #:make-ship
    #:make-duck-line
+   #:make-dolphin
+   #:make-sea-monster
+   #:make-monster-segment
+   #:sea-monster-segments
+   #:make-help-overlay
    #:maybe-spawn-shark
    #:maybe-spawn-guest
    #:maybe-emit-bubble
+   #:spawn-shark-now
+   #:spawn-guest-now
+   #:random-guest-kind
+   #:+dolphin-arc-amplitude+
+   #:+dolphin-arc-period+
+   #:+sea-monster-segment-count+
+   #:+sea-monster-segment-spacing+
 
    ;; -- Input --
    #:world-apply-key-event
    #:world-apply-key-events
+   #:world-toggle-help-overlay
 
    ;; -- Rendering --
    #:draw-world

@@ -9,9 +9,11 @@
 (defsystem "cl-asciiquarium"
   :description "An original ASCII-art aquarium screensaver for the terminal."
   :long-description "Swimming fish, a shark, rising bubbles, swaying seaweed,
-and periodic special guests (a ship that drops an anchor, a line of ducks)
-rendered live in a terminal via cl-tty-kit. Every sprite is original art
-authored for this repository. SBCL only."
+and periodic special guests (a ship that drops an anchor, a line of ducks, a
+leaping dolphin, a segmented sea monster) rendered live in a terminal via
+cl-tty-kit. Pause, adjust the live fish count, spawn a shark or guest on
+demand, or run monochrome. Every sprite is original art authored for this
+repository. SBCL only."
   :author "takeokunn <bararararatty@gmail.com>"
   :maintainer "takeokunn <bararararatty@gmail.com>"
   :license "MIT"
@@ -28,9 +30,12 @@ authored for this repository. SBCL only."
                (:file "geometry")
                (:file "creature")
                (:file "world")
+               (:file "art-fish-data")
                (:file "art-fish")
                (:file "art-shark")
+               (:file "art-decor-data")
                (:file "art-decor")
+               (:file "art-guests-data")
                (:file "art-guests")
                (:file "bubble")
                (:file "spawn")
@@ -73,15 +78,18 @@ authored for this repository. SBCL only."
   :serial t
   :components ((:file "package")
                (:file "helpers-world")
+               (:file "conditions-test")
                (:file "geometry-test")
                (:file "creature-test")
+               (:file "art-fish-test")
                (:file "world-test")
-               (:file "resize-test")
+               (:file "world-resize-test")
                (:file "input-test")
                (:file "collision-test")
                (:file "spawn-test")
                (:file "render-test")
-               (:file "cli-test"))
+               (:file "cli-test")
+               (:file "app-test"))
   :perform (test-op (op system)
              (declare (ignore op system))
              (unless (uiop:symbol-call :cl-asciiquarium/test :run-tests)
