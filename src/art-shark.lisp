@@ -9,24 +9,28 @@
   (format nil "      /^\\~%=<{(o.o)}==>~%      \\_/")
   "Original shark art, authored facing right.")
 
-(defun make-shark (world)
+(defun make-shark (world &key facing)
   "Create a shark CREATURE crossing WORLD once, at a random lane and a speed
 faster than an ordinary fish. Policy :DESPAWN: the shark is removed once it
 swims fully off screen, and SPAWN.LISP schedules its next appearance after a
-cooldown rather than having it wrap forever like a fish."
+cooldown rather than having it wrap forever like a fish. FACING defaults to a
+random :LEFT or :RIGHT, as with MAKE-FISH's :X/:Y/:DX; an explicit override is
+what lets a test exercise one crossing direction deterministically."
   (let* ((height (world-height world))
          (lane-top 3)
          (lane-bottom (max lane-top (- height 5)))
-         (facing (if (zerop (random 2)) :left :right))
-         (speed (+ 1 (/ (random 3) 3))))
-    (make-creature :world world
-                    :kind :shark
-                    :frames (list +shark-art+)
-                    :facing facing
-                    :style (make-style (style-fg (named-color :white)))
-                    :z 6
-                    :policy :despawn
-                    :x (if (eq facing :right) (- (sprite-width +shark-art+)) (world-width world))
-                    :y (random-between lane-top lane-bottom)
-                    :dx (if (eq facing :right) speed (- speed))
-                    :data nil)))
+         (facing (or facing (random-facing)))
+         (speed (1+ (/ (random 3) 3))))
+    (multiple-value-bind (x dx)
+        (off-screen-entry facing (sprite-width +shark-art+) (world-width world) speed)
+      (make-creature :world world
+                      :kind :shark
+                      :frames (list +shark-art+)
+                      :facing facing
+                      :style (solid-style :white)
+                      :z 6
+                      :policy :despawn
+                      :x x
+                      :y (random-between lane-top lane-bottom)
+                      :dx dx
+                      :data nil))))
