@@ -10,7 +10,7 @@
     # this repository's entire required-output table, so none of it is
     # spelled out here and none of it can drift from the other repositories.
     cl-nix-forge = {
-      url = "github:nerima-lisp/cl-nix-forge/v0.4.1";
+      url = "github:nerima-lisp/cl-nix-forge/v0.5.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
