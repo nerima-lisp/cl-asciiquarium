@@ -86,6 +86,8 @@ nix develop          # SBCL with CL_SOURCE_REGISTRY already set
 nix build            # -> ./result/bin/asciiquarium
 nix run .#test       # run the test suite
 nix flake check      # tests + formatting + docs + paredit lint, the same gate CI uses
+nix develop --command sbcl --script scripts/benchmark-render.lisp
+                     # deterministic renderer/update-loop benchmark
 nix fmt              # format Nix sources (treefmt)
 nix build .#checks.x86_64-linux.coverage --no-link --print-out-paths
                      # sb-cover HTML report for src/; the build also gates

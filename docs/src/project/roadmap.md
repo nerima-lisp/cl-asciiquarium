@@ -18,19 +18,21 @@
   monster (a head `CREATURE` plus several trailing `:MONSTER-SEGMENT`
   `CREATURE`s that follow it as a synchronized trail). See
   [Architecture](../reference/architecture.md) for both motion patterns.
+- Three visual themes (`:abyss`, `:coral`, and `:moonlight`), cycled with `t`,
+  plus an ambient current and an optional HUD toggled with `u`.
 - `q`/Ctrl-C to quit, `r` to redraw/reshuffle, space to pause/resume, `+`/`-`
   to grow/shrink the live fish count, `h` to toggle an on-screen help panel,
   and polled terminal-resize handling.
 - `--monochrome` to render every creature in the terminal's default
   foreground color.
+- `--theme abyss|coral|moonlight` to select the initial visual theme.
 
 ## What was deliberately cut, and why -- and what has since shipped
 
 Both guests this document previously tracked as deliberate v1 cuts --
 dolphins and a sea monster -- are now implemented above, exactly along the
-lines this section originally sketched (a parametric arc for the dolphin, a
-multi-`CREATURE` synchronized trail for the monster); see "Possible follow-up
-work" below for what that looked like before it shipped. Likewise, fish now
+lines this section originally sketched (a parametric arc for the dolphin and
+a multi-`CREATURE` synchronized trail for the monster). Likewise, fish now
 vary in color within a species. What remains cut, and why:
 
 - **A general NxN interaction matrix.** The project brief explicitly asked
@@ -44,9 +46,6 @@ vary in color within a species. What remains cut, and why:
 
 ## Possible follow-up work
 
-- A configurable color theme (a named palette swapped in for every species'
-  default colors at once), building on `*MONOCHROME*`'s precedent of a
-  dynamically bound rendering-time switch (`src/creature.lisp`).
 - A treasure chest or other bottom-of-tank decoration, alongside the castle.
 - A crab or other seafloor walker, exercising a third motion pattern (bounded
   horizontal pacing) beyond the dolphin's arc and the sea monster's trail.
