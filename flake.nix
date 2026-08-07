@@ -10,7 +10,7 @@
     # this repository's entire required-output table, so none of it is
     # spelled out here and none of it can drift from the other repositories.
     cl-nix-forge = {
-      url = "github:nerima-lisp/cl-nix-forge/v0.4.1";
+      url = "github:nerima-lisp/cl-nix-forge/v0.5.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -56,7 +56,9 @@
     # output (`mkLintCheck`), which a `flake = false` source tree cannot
     # provide -- the same reason cl-cli keeps it a real flake input.
     paredit-cli = {
-      url = "github:nerima-lisp/paredit-cli/v1.4.0";
+      # v1.4.0 does not yet publish aarch64-darwin.  Pin the verified commit
+      # that adds it so every supported system runs the same structural gate.
+      url = "github:nerima-lisp/paredit-cli/110e4e1a4d6d2dbefe509340d1b7de9596d649f9";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -187,49 +189,32 @@
       # check` evaluates each attribute as its own derivation, in parallel,
       # with build caching -- see cl-cli's flake.nix, which this follows.
       extraOutputs = ctx: {
-        checks =
-          # paredit-cli's latest tagged release (v1.4.0, pinned above) has not
-          # cut a release carrying aarch64-darwin in its own `systems` list yet
-          # -- that support exists only on its main branch so far, and
-          # DEPENDENCY_POLICY.md's "姉妹パッケージは flake = false で引きます"
-          # rule pins every sibling to a release tag, never a branch. Guard
-          # this one check on the sibling actually publishing it for
-          # ctx.system, rather than reverting cl-asciiquarium's own `systems`
-          # list: `nix build` / `nix develop` and every other check are
-          # unaffected on aarch64-darwin, and this check reappears with no
-          # further change here once paredit-cli tags a release that has it.
-          (
-            if paredit-cli.lib ? ${ctx.system} then
-              {
-                # Structural parse gate over every Lisp source in the filtered
-                # tree: fails if any .lisp/.asd file is not a balanced S-expression
-                # document. The test suite would not catch it -- an unbalanced file
-                # makes ASDF fail to load the system, which reads like any other
-                # build error and points at the wrong cause.
-                paredit-lint = paredit-cli.lib.${ctx.system}.mkLintCheck {
-                  inherit (ctx) src;
-                  name = "cl-asciiquarium-paredit-lint";
-                };
-              }
-            else
-              { }
-          )
-          // {
-            # An sb-cover HTML coverage report for src/, as a buildable
-            # artifact rather than a pass/fail gate: `nix build
-            # .#checks.<system>.coverage --no-link --print-out-paths` prints a
-            # store path whose cover-index.html is the report to open. No
-            # minimum-coverage threshold -- see cl-nix-forge's
-            # lib/batteries/coverage.nix for why one would gate on the wrong
-            # thing here (sb-cover's raw expression percentage under-attributes
-            # top-level defstruct/define-condition forms by design).
-            coverage = ctx.cl.mkCoverageReport {
-              drv = ctx.package;
-              systems = [ "cl-asciiquarium" ];
-              name = "cl-asciiquarium-coverage";
-              timeoutSeconds = 900;
-            };
+        checks = {
+          # Structural parse gate over every Lisp source in the filtered
+          # tree: fails if any .lisp/.asd file is not a balanced S-expression
+          # document. The test suite would not catch it -- an unbalanced file
+          # makes ASDF fail to load the system, which reads like any other
+          # build error and points at the wrong cause.
+          paredit-lint = paredit-cli.lib.${ctx.system}.mkLintCheck {
+            inherit (ctx) src;
+            name = "cl-asciiquarium-paredit-lint";
           };
+
+          # An sb-cover HTML coverage report for src/, as a buildable
+          # artifact rather than a pass/fail gate: `nix build
+          # .#checks.<system>.coverage --no-link --print-out-paths` prints a
+          # store path whose cover-index.html is the report to open. No
+          # minimum-coverage threshold -- see cl-nix-forge's
+          # lib/batteries/coverage.nix for why one would gate on the wrong
+          # thing here (sb-cover's raw expression percentage under-attributes
+          # top-level defstruct/define-condition forms by design).
+          coverage = ctx.cl.mkCoverageReport {
+            drv = ctx.package;
+            systems = [ "cl-asciiquarium" ];
+            name = "cl-asciiquarium-coverage";
+            timeoutSeconds = 900;
+          };
+        };
       };
     };
 }

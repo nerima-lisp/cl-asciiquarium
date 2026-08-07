@@ -27,6 +27,36 @@
         (funcall poll world)
         (expect (world-quitp world) :to-be-truthy))))
 
+  (it "resizes the world and renderer when the terminal size poller has both dimensions"
+    (let* ((size-poller-symbol 'cl-asciiquarium::make-terminal-size-poller)
+           (input-poller-symbol 'cl-asciiquarium::make-stream-input-poller)
+           (original-size-poller (symbol-function size-poller-symbol))
+           (original-input-poller (symbol-function input-poller-symbol))
+           (world (tiny-world :width 20 :height 10))
+           (renderer (make-renderer 20 10)))
+      (unwind-protect
+           (progn
+             (setf (symbol-function size-poller-symbol)
+                   (lambda ()
+                     (lambda (state timeout)
+                       (declare (ignore state timeout))
+                       (values 73 31))))
+             (setf (symbol-function input-poller-symbol)
+                   (lambda (stream &key decoder)
+                     (declare (ignore stream decoder))
+                     (lambda (state timeout)
+                       (declare (ignore state timeout))
+                       nil)))
+             (funcall (cl-asciiquarium::make-world-poller renderer nil nil)
+                      world)
+             (expect (world-width world) :to-be 73)
+             (expect (world-height world) :to-be 31)
+             (expect (cl-tty-kit:renderer-width renderer) :to-be 73)
+             (expect (cl-tty-kit:renderer-height renderer) :to-be 31))
+        ;; Restore the global function cells even if an assertion fails.
+        (setf (symbol-function size-poller-symbol) original-size-poller
+              (symbol-function input-poller-symbol) original-input-poller))))
+
   (it "leaves world and renderer alone when nothing is buffered and no terminal size is available"
     (with-input-from-string (stream "")
       (let* ((world (tiny-world :width 20 :height 10))

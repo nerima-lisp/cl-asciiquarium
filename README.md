@@ -75,12 +75,15 @@ the delivered binary, not the ASDF system.
 nix develop          # SBCL with CL_SOURCE_REGISTRY already set
 nix build            # -> ./result/bin/asciiquarium
 nix run .#test       # run the test suite
-nix flake check      # tests + formatting + docs + paredit lint, the same gate CI uses
+nix flake check      # tests + formatting + docs + paredit lint on Linux CI
 nix fmt              # format Nix sources (treefmt)
-nix build .#checks.x86_64-linux.coverage --no-link --print-out-paths
+nix build ".#checks.$(nix eval --impure --raw --expr builtins.currentSystem).coverage" --no-link --print-out-paths
                      # sb-cover HTML report for src/; open cover-index.html
                      # from the printed path. No pass/fail threshold -- see
                      # flake.nix.
+nix develop -c sbcl --script scripts/benchmark-render.lisp
+                     # fixed-seed 160x48 / 200-fish renderer benchmark;
+                     # reports steady and world-advance frame timing/consing.
 ```
 
 Tests live in `t/` and run under [cl-weave](https://github.com/nerima-lisp/cl-weave),
@@ -88,9 +91,18 @@ the org's test framework. Every test that depends on randomness (spawn timing,
 species/lane selection, which special guest appears) binds `cl:*random-state*`
 via `sb-ext:seed-random-state` to a fixed seed first, so predator/prey and
 special-guest spawn scenarios are exactly reproducible; see
-`t/helpers-world.lisp`. `nix flake check` additionally runs
-[paredit-cli](https://github.com/nerima-lisp/paredit-cli)'s structural lint
-over every Lisp source file.
+`t/helpers-world.lisp`. On platforms supported by
+[paredit-cli](https://github.com/nerima-lisp/paredit-cli), `nix flake check`
+additionally runs structural lint over every Lisp source file. The repository's
+Linux CI gate includes that check; the upstream paredit-cli release used by this
+flake does not publish its check for Darwin.
+
+The collision pass indexes the private shark/anchor candidates, then consumes
+prepared sprite bounds for each active predator and live fish before scanning
+overlaps. An anchor's mutable dropped state is still checked on every pass.
+Its steady-state path creates no temporary collision lists or records; those
+bounds and indexes are implementation details and do not expand the public
+`creature` API.
 
 ## Contributing
 

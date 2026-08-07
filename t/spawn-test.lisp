@@ -15,62 +15,40 @@
         (expect (find :shark (world-creatures world) :key #'creature-kind) :to-be-truthy)
         (expect (plusp (world-shark-cooldown world)) :to-be-truthy)))))
 
-(describe "maybe-spawn-guest"
-  (it "spawns nothing while the cooldown is still counting down"
-    (let ((world (tiny-world :width 40 :height 20)))
-      (setf (world-guest-cooldown world) 5)
-      (maybe-spawn-guest world)
-      (expect (find-if (lambda (creature) (member (creature-kind creature) '(:ship :duck-line)))
-                        (world-creatures world))
-              :to-be-null)
-      (expect (world-guest-cooldown world) :to-be 4))))
-
-(describe "deterministic special-guest spawn scenario, given a fixed seed"
-  (it "spawns one of the two known guest kinds the moment its cooldown reaches zero"
-    (with-seeded-random-state (3)
-      (let ((world (tiny-world :width 40 :height 20)))
-        (setf (world-guest-cooldown world) 1)
-        (maybe-spawn-guest world)
-        (expect (member (creature-kind (first (world-creatures world))) '(:ship :duck-line))
-                :to-be-truthy))))
-  (it "spawns the identical guest kind given the identical seed, twice in a row"
-    (flet ((spawned-kind (seed)
-             (with-seeded-random-state (seed)
-               (let ((world (tiny-world :width 40 :height 20)))
-                 (setf (world-guest-cooldown world) 1)
-                 (maybe-spawn-guest world)
-                 (creature-kind (first (world-creatures world)))))))
-      (expect (spawned-kind 11) :to-be (spawned-kind 11))))
-  (it "a ship eventually drops an anchor while advancing the world"
-    ;; The anchor despawns +ANCHOR-DROPPED-TICKS+ after it settles (see
-    ;; art-guests.lisp), so this stops advancing the moment one appears
-    ;; rather than running the full budget and checking only at the end --
-    ;; a fixed-length run can easily outlast the anchor's own lifetime and
-    ;; find it already gone, which is exactly what this scenario intends to
-    ;; rule out.
-    (with-seeded-random-state (3)
-      (let* ((world (make-world :width 40 :height 20 :fish-count 0))
-             (ship (make-ship world)))
-        (push ship (world-creatures world))
-        (dotimes (i 100)
-          (when (find :anchor (world-creatures world) :key #'creature-kind)
-            (return))
-          (world-advance world))
-        (expect (find :anchor (world-creatures world) :key #'creature-kind) :to-be-truthy)))))
-
 (describe "anchor fall-then-settle state machine"
   (it "stops descending, marks itself dropped, and starts its despawn countdown once it reaches target depth"
     (let* ((world (tiny-world :width 40 :height 20))
            (anchor (make-creature :world world :kind :anchor :frames (list "( o )")
                                   :x 10 :y 5 :dx 0 :dy 1 :policy :none
                                   :data (list :target-depth 8 :dropped nil))))
-      (push anchor (world-creatures world))
+      (world-add-creature world anchor)
       (dotimes (i 3) (world-advance world))
       (with-soft-assertions
         (expect (creature-y anchor) :to-be 8)
         (expect (getf (creature-data anchor) :dropped) :to-be-truthy)
         (expect (entity-dy (creature-entity anchor)) :to-be 0)
-        (expect (creature-ttl anchor) :to-be +anchor-dropped-ticks+)))))
+        (expect (creature-ttl anchor) :to-be +anchor-dropped-ticks+)
+        (expect (cl-asciiquarium::world-active-predator-count world) :to-be 1))
+      (world-advance world)
+      (expect (cl-asciiquarium::world-active-predator-count world) :to-be 1))))
+
+(describe "spawn-guest-now"
+  (it "adds one ship when requested explicitly"
+    (let* ((world (tiny-world :width 40 :height 20))
+           (before (length (world-creatures world))))
+      (spawn-guest-now world :ship)
+      (expect (world-creatures world) :to-have-length (1+ before))
+      (expect (count :ship (world-creatures world) :key (function creature-kind)) :to-be 1))))
+
+(describe "static spawned sprite ownership"
+  (it "keeps each entity and public art result private"
+    (let* ((world (tiny-world :width 80 :height 24))
+           (first (make-ship world :facing :right))
+           (second (make-ship world :facing :left))
+           (art (creature-art first)))
+      (setf (char art 0) #\X)
+      (expect (creature-entity first) :not :to-be (creature-entity second))
+      (expect (creature-art first) :not :to-equal art))))
 
 (describe "off-screen crossing factories position and aim consistently by facing"
   (it-each ((make-shark :right) (make-shark :left)
@@ -89,6 +67,14 @@
       (expect (if (eq facing :right)
                   (plusp (entity-dx (creature-entity creature)))
                   (minusp (entity-dx (creature-entity creature))))
+              :to-be-truthy))))
+
+(describe "off-screen crossing factory velocities"
+  (it-each ((make-shark) (make-ship) (make-duck-line) (make-dolphin) (make-sea-monster))
+      "~A uses a single-float velocity on the per-frame movement path"
+      (constructor)
+    (let ((creature (funcall constructor (tiny-world :width 40 :height 20))))
+      (expect (typep (entity-dx (creature-entity creature)) 'single-float)
               :to-be-truthy))))
 
 (describe "define-off-screen-guest's clause validation"
@@ -115,14 +101,14 @@
     (let* ((world (tiny-world :width 60 :height 30))
            (dolphin (make-dolphin world :facing :right))
            (baseline (getf (creature-data dolphin) :baseline-y)))
-      (push dolphin (world-creatures world))
+      (world-add-creature world dolphin)
       (dotimes (i (round (/ +dolphin-arc-period+ 4))) (world-advance world))
       (expect (/= (creature-y dolphin) baseline) :to-be-truthy)))
   (it "returns to its baseline row after exactly one full arc period"
     (let* ((world (tiny-world :width 60 :height 30))
            (dolphin (make-dolphin world :facing :right))
            (baseline (getf (creature-data dolphin) :baseline-y)))
-      (push dolphin (world-creatures world))
+      (world-add-creature world dolphin)
       (dotimes (i +dolphin-arc-period+) (world-advance world))
       (expect (creature-y dolphin) :to-be baseline))))
 
@@ -143,6 +129,12 @@
            (segments (sea-monster-segments world leader)))
       (dolist (segment segments)
         (expect (< (creature-x segment) (creature-x leader)) :to-be-truthy))))
+  (it "positions every segment behind a left-facing head"
+    (let* ((world (tiny-world :width 40 :height 20))
+           (leader (make-sea-monster world :facing :left))
+           (segments (sea-monster-segments world leader)))
+      (dolist (segment segments)
+        (expect (> (creature-x segment) (creature-x leader)) :to-be-truthy))))
   (it "keeps a constant offset from the head once both have ticked together"
     ;; Segments are pushed after (so ticked before, per SPAWN-GUEST-NOW's own
     ;; push order) the head in the shared creature list every tick, so a
@@ -153,8 +145,8 @@
     (let* ((world (tiny-world :width 60 :height 20))
            (leader (make-sea-monster world :facing :right))
            (segment (first (sea-monster-segments world leader))))
-      (push leader (world-creatures world))
-      (push segment (world-creatures world))
+      (world-add-creature world leader)
+      (world-add-creature world segment)
       (world-advance world)
       (let ((offset-1 (- (creature-x segment) (creature-x leader))))
         (world-advance world)
@@ -162,15 +154,17 @@
   (it "despawns every segment one tick after the head exits the world"
     (let* ((world (tiny-world :width 20 :height 20))
            (leader (make-sea-monster world :facing :right)))
-      (push leader (world-creatures world))
+      (world-add-creature world leader)
       (dolist (segment (sea-monster-segments world leader))
-        (push segment (world-creatures world)))
+        (world-add-creature world segment))
       (setf (entity-x (creature-entity leader)) (1- (world-width world)))
       (setf (entity-dx (creature-entity leader)) 1)
       (world-advance world)
       (world-advance world)
       (expect (find :sea-monster (world-creatures world) :key #'creature-kind) :to-be-null)
       (expect (find :monster-segment (world-creatures world) :key #'creature-kind) :to-be-null))))
+
+
 
 (describe "random-guest-kind"
   (it "only ever returns one of the four known guest kinds, given many draws"

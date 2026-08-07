@@ -113,35 +113,25 @@ toward -- the far edge it is *leaving through*, never the near edge it
 
 ## Render-order and blit-run caching
 
-`CREATURE` (`src/creature.lisp`) and `WORLD` (`src/world.lisp`) each cache the
-derived data `DRAW-WORLD` needs every frame, so a tick that touches nothing
-relevant repaints without recomputing it:
+`CREATURE`'s data model (`src/creature.lisp`) and private prepared-sprite cache
+(`src/creature-cache.lisp`), plus `WORLD` (`src/world.lisp`), cache the derived
+data `DRAW-WORLD` needs every frame. A tick that touches nothing relevant
+therefore repaints without recomputing it:
 
-- Each `CREATURE` keeps its private `%FRAMES`/`%STYLE` alongside prepared,
-  already-mirrored copies and precomputed non-space "blit runs" (flat
-  X/Y/screen triples `CREATURE-BLIT` composites directly, without reparsing
-  sprite text). `%ENSURE-CREATURE-CACHES-CURRENT` only rebuilds these when the
-  public `CREATURE-FRAMES`/`CREATURE-STYLE` accessors have been used to
-  plausibly mutate the source data (tracked via `%FRAMES-ESCAPED-P` and
-  `%STYLE-ESCAPED-P`) and the current value no longer matches the last
-  prepared snapshot -- a getter alone does not force a rebuild, only a getter
-  *followed by* a change does.
-- `WORLD` keeps a private `%CREATURES` list alongside a cached
-  `Z`-sorted render order. Internal mutation paths (`%ADD-WORLD-CREATURE`,
-  `%SET-WORLD-CREATURES`) invalidate that cache directly; the public
-  `WORLD-CREATURES` accessor additionally marks the cache "escaped" the same
-  way `CREATURE-FRAMES` does, since taking the raw list out through the public
-  API means it could be destructively reordered without going through a
-  setter. `%WORLD-RENDER-ORDER` rebuilds only when the cache is stale or an
-  escape can no longer be ruled out by a cheap identity/`Z`-value scan.
-- `MAKE-BUBBLE` (`src/bubble.lisp`) shares one prototype's prepared frame data
-  across every bubble it spawns (bubbles are the highest-churn creature, one
-  per fish roughly every 20-60 ticks) via `MAKE-CREATURE`'s
-  `%SPRITE-PROTOTYPE` argument. `STYLE` is deliberately excluded from that
-  sharing and resolved fresh through `SOLID-STYLE` on every call, so a bubble
-  still honors whatever `*MONOCHROME*` is bound to at the moment it is
-  spawned, rather than the value in effect when the shared prototype was
-  built once at load time.
+- Each `CREATURE` owns private `%FRAMES`/`%STYLE`, already-mirrored copies,
+  and precomputed non-space "blit runs" (flat X/Y/screen-width quadruples
+  `CREATURE-BLIT` composites directly, without reparsing sprite text). Inputs
+  and setter values are copied once; public frame/style/art getters return
+  copies. This removes alias and snapshot checks from the per-frame path.
+- `WORLD` owns its `%CREATURES` list and keeps a `Z`-sorted render-order
+  cache. `WORLD-CREATURES` returns a list copy, its setter takes ownership by
+  copying and rebuilding the cache, and `WORLD-ADD-CREATURE` is the explicit
+  incremental mutation API. `%WORLD-RENDER-ORDER` therefore reads a valid
+  cache without escape tracking or identity scans.
+- `MAKE-BUBBLE` (`src/bubble.lisp`) selects a colored or monochrome immutable
+  prototype at spawn time. `MAKE-CREATURE` copies that prototype into the new
+  creature's private state, preserving entity isolation while keeping the hot
+  render loop free of public-alias validation.
 
 ## Pure simulation, thin real I/O
 

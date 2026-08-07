@@ -29,7 +29,7 @@ the `h' key."
   (if (find :help-overlay (world-creatures world) :key #'creature-kind)
       (setf (world-creatures world)
             (remove :help-overlay (world-creatures world) :key #'creature-kind))
-      (push (make-help-overlay world) (world-creatures world)))
+      (world-add-creature world (make-help-overlay world)))
   world)
 
 (defun character-key-event-p (event code)

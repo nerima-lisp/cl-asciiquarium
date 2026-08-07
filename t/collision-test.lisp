@@ -7,9 +7,9 @@
                                   :x 10 :y 5 :dx 0 :dy 0 :policy :none))
            (caught-fish (make-fish world :species :dart :x 12 :y 5 :dx 0))
            (safe-fish (make-fish world :species :dart :x 30 :y 5 :dx 0)))
-      (push shark (world-creatures world))
-      (push caught-fish (world-creatures world))
-      (push safe-fish (world-creatures world))
+      (world-add-creature world shark)
+      (world-add-creature world caught-fish)
+      (world-add-creature world safe-fish)
       (apply-collisions world)
       (expect (getf (creature-data caught-fish) :dying) :to-be-truthy)
       (expect (creature-ttl caught-fish) :to-be +death-animation-ticks+)
@@ -21,9 +21,9 @@
            (shark-b (make-creature :world world :kind :shark :frames (list "=<{(o.o)}==>")
                                     :x 11 :y 5 :dx 0 :dy 0 :policy :none))
            (fish (make-fish world :species :dart :x 12 :y 5 :dx 0)))
-      (push shark-a (world-creatures world))
-      (push shark-b (world-creatures world))
-      (push fish (world-creatures world))
+      (world-add-creature world shark-a)
+      (world-add-creature world shark-b)
+      (world-add-creature world fish)
       (apply-collisions world)
       (expect (creature-ttl fish) :to-be +death-animation-ticks+)))
   (it "removes a caught fish from the world after its death animation expires"
@@ -31,8 +31,8 @@
            (shark (make-creature :world world :kind :shark :frames (list "=<{(o.o)}==>")
                                   :x 10 :y 5 :dx 0 :dy 0 :policy :none))
            (fish (make-fish world :species :dart :x 12 :y 5 :dx 0)))
-      (push shark (world-creatures world))
-      (push fish (world-creatures world))
+      (world-add-creature world shark)
+      (world-add-creature world fish)
       (dotimes (i (1+ +death-animation-ticks+)) (world-advance world))
       (expect (member fish (world-creatures world)) :to-be-falsy))))
 
@@ -43,8 +43,8 @@
                                   :x 10 :y 8 :dx 0 :dy 0 :policy :none
                                   :data (list :target-depth 8 :dropped t)))
            (fish (make-fish world :species :dart :x 10 :y 8 :dx 0)))
-      (push anchor (world-creatures world))
-      (push fish (world-creatures world))
+      (world-add-creature world anchor)
+      (world-add-creature world fish)
       (apply-collisions world)
       (expect (getf (creature-data fish) :dying) :to-be-truthy)))
   (it "does not kill a fish beneath an anchor that has not been dropped yet"
@@ -53,8 +53,8 @@
                                   :x 10 :y 8 :dx 0 :dy 1 :policy :none
                                   :data (list :target-depth 15 :dropped nil)))
            (fish (make-fish world :species :dart :x 10 :y 8 :dx 0)))
-      (push anchor (world-creatures world))
-      (push fish (world-creatures world))
+      (world-add-creature world anchor)
+      (world-add-creature world fish)
       (apply-collisions world)
       (expect (getf (creature-data fish) :dying) :to-be-falsy))))
 (describe "apply-collisions: single outer scan semantics"
@@ -79,35 +79,31 @@
                 :to-be-truthy)))))
 
 (describe "apply-collisions: validated bounds cache"
-          (it "uses dimensions rebuilt after a case-only and structural direct frame mutation"
+          (it "uses dimensions rebuilt through the frame setter"
               (let* ((world (tiny-world :width 20 :height 10))
                      (predator (make-creature :world world :kind :shark :frames (list "aa ")
                                               :x 0 :y 0 :dx 0 :dy 0 :policy :none))
                      (fish (make-creature :world world :kind :fish :frames (list "f")
                                           :x 0 :y 1 :dx 1 :dy 0 :policy :none
-                                          :data (list :species :test)))
-                     (frame (aref (creature-frames predator) 0)))
+                                          :data (list :species :test))))
                 (setf (world-creatures world) (list predator fish))
                 (apply-collisions world)
                 (expect (getf (creature-data fish) :dying) :to-be-falsy)
-                (setf (char frame 0) #\A)
-                (setf (char frame 1) #\Newline)
+                (setf (creature-frames predator) (list (format nil "A~% ")))
                 (apply-collisions world)
                 (expect (getf (creature-data fish) :dying) :to-be-truthy)))
 
-          (it "validates fish dimensions before scanning predators"
+          (it "rebuilds fish dimensions before scanning predators"
               (let* ((world (tiny-world :width 20 :height 10))
                      (predator (make-creature :world world :kind :shark :frames (list "p")
                                               :x 0 :y 1 :dx 0 :dy 0 :policy :none))
                      (fish (make-creature :world world :kind :fish :frames (list "ff ")
                                           :x 0 :y 0 :dx 1 :dy 0 :policy :none
-                                          :data (list :species :test)))
-                     (frame (aref (creature-frames fish) 0)))
+                                          :data (list :species :test))))
                 (setf (world-creatures world) (list predator fish))
                 (apply-collisions world)
                 (expect (getf (creature-data fish) :dying) :to-be-falsy)
-                (setf (char frame 0) #\F)
-                (setf (char frame 1) #\Newline)
+                (setf (creature-frames fish) (list (format nil "F~% ")))
                 (apply-collisions world)
                 (expect (getf (creature-data fish) :dying) :to-be-truthy)))
           (it "keeps the one-time death conversion when multiple predators overlap"
@@ -126,7 +122,45 @@
                 (expect (creature-art fish) :to-equal cl-asciiquarium::+fish-death-art+)
                 (expect (entity-dx (creature-entity fish)) :to-be 0)
                 (expect (entity-dy (creature-entity fish)) :to-be 0)
-                (expect (getf (creature-data fish) :species) :to-be :test))))
+                (expect (getf (creature-data fish) :species) :to-be :test)))
+          (it "retains non-overlapping fish across a dense predator pass"
+              (let* ((world (tiny-world :width 40 :height 12))
+                     (predators
+                       (loop for x in '(0 8 16 24)
+                             collect (make-creature :world world :kind :shark
+                                                    :frames (list "SSS")
+                                                    :x x :y 2 :dx 0 :dy 0
+                                                    :policy :none)))
+                     (overlapped
+                       (make-creature :world world :kind :fish :frames (list "fff")
+                                      :x 8 :y 2 :dx 1 :dy 0 :policy :none
+                                      :data (list :species :test)))
+                     (surviving
+                       (make-creature :world world :kind :fish :frames (list "fff")
+                                      :x 32 :y 9 :dx 1 :dy 0 :policy :none
+                                      :data (list :species :test))))
+                (setf (world-creatures world)
+                      (append predators (list overlapped surviving)))
+                (apply-collisions world)
+                (expect (getf (creature-data overlapped) :dying) :to-be-truthy)
+                (expect (getf (creature-data surviving) :dying) :to-be-falsy)))
+          (it "refreshes cached position bounds between collision passes"
+              (let* ((world (tiny-world :width 20 :height 10))
+                     (shark
+                       (make-creature :world world :kind :shark
+                                      :frames (list "SSS")
+                                      :x 0 :y 0 :dx 0 :dy 0 :policy :none))
+                     (fish
+                       (make-creature :world world :kind :fish
+                                      :frames (list "f")
+                                      :x 10 :y 0 :dx 0 :dy 0 :policy :none
+                                      :data (list :species :test))))
+                (setf (world-creatures world) (list shark fish))
+                (apply-collisions world)
+                (expect (getf (creature-data fish) :dying) :to-be-falsy)
+                (setf (entity-x (creature-entity fish)) 1)
+                (apply-collisions world)
+                (expect (getf (creature-data fish) :dying) :to-be-truthy))))
 
 (describe "deterministic predator/prey scenario via a seeded shark spawn"
   (it "eventually spawns a shark and kills a fish placed in its path, given a fixed seed"
@@ -137,9 +171,115 @@
         ;; long a shark's cooldown happens to draw.
         (setf (world-shark-cooldown world) 1)
         (let ((fish (make-fish world :species :dart :x 20 :y 4 :dx 0)))
-          (push fish (world-creatures world))
+          (world-add-creature world fish)
           (dotimes (i 200)
             (unless (member fish (world-creatures world))
               (return))
             (world-advance world))
           (expect (member fish (world-creatures world)) :to-be-falsy))))))
+(describe "apply-collisions: activation and ignored creatures"
+  (it "returns the original world without active predators or cache mutation"
+    (let* ((world (tiny-world :width 20 :height 10))
+           (anchor (make-creature :world world :kind :anchor :frames (list "AAA")
+                                  :x 0 :y 0 :dx 0 :dy 0 :policy :none
+                                  :data (list :dropped nil)))
+           (fish (make-creature :world world :kind :fish :frames (list "f")
+                                :x 0 :y 0 :dx 0 :dy 0 :policy :none
+                                :data (list :species :test))))
+      (setf (world-creatures world) (list anchor fish)
+            (cl-asciiquarium::creature-collision-left anchor) 71
+            (cl-asciiquarium::creature-collision-left fish) 72)
+      (expect (apply-collisions world) :to-be world)
+      (expect (getf (creature-data fish) :dying) :to-be-falsy)
+      (expect (cl-asciiquarium::creature-collision-left anchor) :to-be 71)
+      (expect (cl-asciiquarium::creature-collision-left fish) :to-be 72)))
+  (it "treats sharks as active and anchors as active only after dropping"
+    (let* ((world (tiny-world :width 30 :height 10))
+           (shark (make-creature :world world :kind :shark :frames (list "SSS")
+                                 :x 0 :y 0 :dx 0 :dy 0 :policy :none))
+           (anchor (make-creature :world world :kind :anchor :frames (list "AAA")
+                                  :x 10 :y 0 :dx 0 :dy 0 :policy :none
+                                  :data (list :dropped nil)))
+           (shark-fish (make-fish world :species :dart :x 0 :y 0 :dx 0))
+           (anchor-fish (make-fish world :species :dart :x 10 :y 0 :dx 0)))
+      (setf (world-creatures world) (list shark anchor shark-fish anchor-fish))
+      (expect (apply-collisions world) :to-be world)
+      (expect (getf (creature-data shark-fish) :dying) :to-be-truthy)
+      (expect (getf (creature-data anchor-fish) :dying) :to-be-falsy)
+      (setf (creature-data anchor) (list :dropped t))
+      (expect (apply-collisions world) :to-be world)
+      (expect (getf (creature-data anchor-fish) :dying) :to-be-truthy)))
+  (it "leaves dead fish outside cache and kill processing"
+    (let* ((world (tiny-world :width 20 :height 10))
+           (shark (make-creature :world world :kind :shark :frames (list "SSS")
+                                 :x 0 :y 0 :dx 0 :dy 0 :policy :none))
+           (fish (make-creature :world world :kind :fish :frames (list "f")
+                                :x 0 :y 0 :dx 0 :dy 0 :policy :none
+                                :data (list :species :test :dying t))))
+      (setf (world-creatures world) (list shark fish)
+            (creature-ttl fish) 7
+            (cl-asciiquarium::creature-collision-left fish) 91
+            (cl-asciiquarium::creature-collision-top fish) 92
+            (cl-asciiquarium::creature-collision-width fish) 93
+            (cl-asciiquarium::creature-collision-height fish) 94)
+      (expect (apply-collisions world) :to-be world)
+      (expect (getf (creature-data fish) :dying) :to-be-truthy)
+      (expect (creature-ttl fish) :to-be 7)
+      (expect (cl-asciiquarium::creature-collision-left fish) :to-be 91)
+      (expect (cl-asciiquarium::creature-collision-top fish) :to-be 92)
+      (expect (cl-asciiquarium::creature-collision-width fish) :to-be 93)
+      (expect (cl-asciiquarium::creature-collision-height fish) :to-be 94))))
+(describe "collision-predator index"
+  (it "tracks candidate additions and controlled world replacement"
+    (let* ((world (tiny-world :width 20 :height 10))
+           (shark (make-creature :world world :kind :shark :frames (list "SSS")
+                                 :x 0 :y 0 :dx 0 :dy 0 :policy :none)))
+      (expect (cl-asciiquarium::world-active-predator-count world) :to-be 0)
+      (cl-asciiquarium::%add-world-creature world shark)
+      (expect (cl-asciiquarium::world-active-predator-count world) :to-be 1)
+      (expect (member shark (cl-asciiquarium::world-collision-predators world))
+              :to-be-truthy)
+      (expect (cl-asciiquarium::%world-has-active-predator-p world) :to-be-truthy)
+      (setf (creature-kind shark) :fish)
+      (setf (world-creatures world) (world-creatures world))
+      (expect (cl-asciiquarium::world-active-predator-count world) :to-be 0)
+      (expect (cl-asciiquarium::world-collision-predators world) :to-be nil)
+      (expect (cl-asciiquarium::%world-has-active-predator-p world) :to-be-falsy))))
+
+(describe "apply-collisions: multiple predator public outcomes"
+  (it "kills only live fish overlapping either active predator"
+    (let* ((world (tiny-world :width 30 :height 10))
+           (shark (make-creature :world world :kind :shark :frames (list "SSS")
+                                 :x 0 :y 0 :dx 0 :dy 0 :policy :none))
+           (anchor (make-creature :world world :kind :anchor :frames (list "AAA")
+                                  :x 10 :y 0 :dx 0 :dy 0 :policy :none
+                                  :data (list :dropped t)))
+           (shark-fish (make-fish world :species :dart :x 0 :y 0 :dx 0))
+           (anchor-fish (make-fish world :species :dart :x 10 :y 0 :dx 0))
+           (already-dying (make-creature :world world :kind :fish :frames (list "f")
+                                         :x 0 :y 0 :dx 0 :dy 0 :policy :none
+                                         :data (list :species :test :dying t)))
+           (safe-fish (make-fish world :species :dart :x 20 :y 0 :dx 0)))
+      (setf (world-creatures world) (list shark anchor shark-fish anchor-fish
+                                          already-dying safe-fish)
+            (creature-ttl already-dying) 7)
+      (expect (apply-collisions world) :to-be world)
+      (expect (getf (creature-data shark-fish) :dying) :to-be-truthy)
+      (expect (getf (creature-data anchor-fish) :dying) :to-be-truthy)
+      (expect (getf (creature-data already-dying) :dying) :to-be-truthy)
+      (expect (creature-ttl already-dying) :to-be 7)
+      (expect (getf (creature-data safe-fish) :dying) :to-be-falsy))))
+
+(describe "apply-collisions: touching bounds"
+  (it "keeps fish alive when it only touches a predator edge"
+    (dolist (position '((2 0) (-1 0) (0 1) (0 -1)))
+      (destructuring-bind (fish-x fish-y) position
+        (let* ((world (tiny-world :width 20 :height 10))
+               (shark (make-creature :world world :kind :shark :frames (list "SS")
+                                     :x 0 :y 0 :dx 0 :dy 0 :policy :none))
+               (fish (make-creature :world world :kind :fish :frames (list "f")
+                                    :x fish-x :y fish-y :dx 0 :dy 0 :policy :none
+                                    :data (list :species :test))))
+          (setf (world-creatures world) (list shark fish))
+          (apply-collisions world)
+          (expect (getf (creature-data fish) :dying) :to-be-falsy))))))

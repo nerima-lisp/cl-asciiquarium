@@ -126,6 +126,26 @@
           (make-creature :kind :test-thing :frames (list "a") :frame-period 1 :x 0 :y 0)))
       (dotimes (i 5)
         (creature-tick-animation creature))
+      (expect (creature-frame-index creature) :to-be 0)))
+  (it
+    "does not animate multiple frames without a frame period"
+    (let ((creature (make-creature :kind :test-thing :frames (list "a" "b") :x 0 :y 0)))
+      (dotimes (i 5)
+        (creature-tick-animation creature))
+      (expect (creature-frame-index creature) :to-be 0)))
+  (it
+    "normalizes an out-of-range frame index on advance"
+    (let ((creature
+          (make-creature :kind :test-thing :frames (list "a" "b") :frame-period 1 :x 0 :y 0)))
+      (setf (creature-frame-index creature) 2)
+      (creature-tick-animation creature)
+      (expect (creature-frame-index creature) :to-be 1)))
+  (it
+    "normalizes a negative frame index on advance"
+    (let ((creature
+          (make-creature :kind :test-thing :frames (list "a" "b") :frame-period 1 :x 0 :y 0)))
+      (setf (creature-frame-index creature) -1)
+      (creature-tick-animation creature)
       (expect (creature-frame-index creature) :to-be 0))))
 
 (describe
@@ -230,363 +250,40 @@
         (expect (creature-style fish) :to-be-falsy)))))
 
 (describe
-  "make-bubble prepared sprite sharing"
+  "creature ownership boundaries"
   (it
-    "shares prototype sprite data until public access materializes private mutable values"
+    "preserves zero-width bubble placement and single-float velocity"
     (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
-           (fish (make-creature :world world :kind :fish :frames (list "F") :x 5 :y 5))
-           (prototype cl-asciiquarium::+bubble-sprite-prototype+)
-           (first (make-bubble world fish))
-           (art-accessed (make-bubble world fish))
-           (untouched (make-bubble world fish)))
-      (expect
-        (cl-asciiquarium::creature-%frames first)
-        :to-be
-        (cl-asciiquarium::creature-%frames prototype))
-      (expect
-        (cl-asciiquarium::creature-%mirrored-frames first)
-        :to-be
-        (cl-asciiquarium::creature-%mirrored-frames prototype))
-      (expect (cl-asciiquarium::creature-%frames-shared-p first) :to-be-truthy)
-      ;; STYLE is deliberately never shared from the prototype -- MAKE-BUBBLE
-      ;; resolves it fresh through SOLID-STYLE on every call so a bubble honors
-      ;; the current *MONOCHROME* setting (see bubble.lisp). That fresh style
-      ;; assignment rebuilds blit runs immediately, which is why -- unlike
-      ;; %FRAMES and %MIRRORED-FRAMES -- %PREPARED-FRAMES is never shared with
-      ;; the prototype even for an untouched bubble.
-      (expect (cl-asciiquarium::creature-%style-shared-p first) :to-be-falsy)
-      (let ((frames (creature-frames first)))
-        (expect frames :not :to-be (cl-asciiquarium::creature-%frames prototype))
-        (expect
-          (aref frames 0)
-          :not
-          :to-be
-          (aref (cl-asciiquarium::creature-%frames prototype) 0))
-        (expect (cl-asciiquarium::creature-%frames-shared-p first) :to-be-falsy))
-      (creature-art art-accessed)
-      (expect
-        (cl-asciiquarium::creature-%frames art-accessed)
-        :not
-        :to-be
-        (cl-asciiquarium::creature-%frames prototype))
-      (expect
-        (aref (cl-asciiquarium::creature-%frames art-accessed) 0)
-        :not
-        :to-be
-        (aref (cl-asciiquarium::creature-%frames prototype) 0))
-      (expect (cl-asciiquarium::creature-%frames-shared-p art-accessed) :to-be-falsy)
-      (expect
-        (cl-asciiquarium::creature-%frames untouched)
-        :to-be
-        (cl-asciiquarium::creature-%frames prototype))
-      (expect (creature-entity first) :not :to-be (creature-entity untouched))))
+           (fish (make-creature :world world :kind :fish :frames (list "") :x 5 :y 5))
+           (bubble (make-bubble world fish)))
+      (expect (creature-x bubble) :to-be 5)
+      (expect (creature-y bubble) :to-be 4)
+      (expect (typep (entity-dy (creature-entity bubble)) 'single-float) :to-be-truthy)))
   (it
-    "detaches cache slots and clears sharing flags when public setters are used"
-    (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
-           (fish (make-creature :world world :kind :fish :frames (list "F") :x 5 :y 5))
-           (changed (make-bubble world fish))
-           (unchanged (make-bubble world fish)))
-      (expect (cl-asciiquarium::creature-%frames-shared-p changed) :to-be-truthy)
-      (expect (cl-asciiquarium::creature-%style-shared-p changed) :to-be-falsy)
-      (setf (creature-frames changed) (list "X")
-            (creature-style changed) (make-style (style-fg (named-color :bright-green))))
-      (expect (cl-asciiquarium::creature-%frames-shared-p changed) :to-be-falsy)
-      (expect (cl-asciiquarium::creature-%style-shared-p changed) :to-be-falsy)
-      (expect (creature-art changed) :to-equal "X")
-      (expect (creature-art unchanged) :to-equal ".")
-      (expect (creature-style unchanged) :to-equal cl-asciiquarium::+bubble-style+)
-      (expect (creature-style unchanged) :not :to-be cl-asciiquarium::+bubble-style+)
-      (expect
-        (cl-asciiquarium::creature-%frame-runs changed)
-        :not
-        :to-be
-        (cl-asciiquarium::creature-%frame-runs unchanged))))
-  (it
-    "rebuilds caches after direct frame vector mutation"
-    (let* ((creature
-          (make-creature
-            :kind
-            :test-thing
-            :frames
-            (list "a")
-            :style
-            (make-style (style-fg (named-color :bright-white)))
-            :x
-            0
-            :y
-            0))
-           (screen (make-screen 4 1)))
-      (setf (aref (creature-frames creature) 0) "xyz")
-      (expect (creature-art creature) :to-equal "xyz")
-      (expect
-        (multiple-value-list (creature-dimensions creature))
-        :to-equal
-        (quote (3 1)))
-      (cl-asciiquarium::creature-blit screen creature)
-      (expect (cell-char (screen-cell screen 2 0)) :to-be #\z)))
-  (it
-    "rebuilds prepared cells after direct nested style mutation"
-    (let* ((style (make-style (style-fg (named-color :bright-white))))
-           (creature
-          (make-creature :kind :test-thing :frames (list "x") :style style :x 0 :y 0))
-           (before (make-screen 1 1))
-           (after (make-screen 1 1)))
-      (cl-asciiquarium::creature-blit before creature)
-      (setf (second (first (creature-style creature))) (named-color :bright-green))
-      (cl-asciiquarium::creature-blit after creature)
-      (expect
-        (cl-tty-kit:cell-style (screen-cell after 0 0))
-        :not
-        :to-equal
-        (cl-tty-kit:cell-style (screen-cell before 0 0)))))
-  (it
-    "isolates direct bubble style mutation from siblings and future bubbles"
-    (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
-           (fish (make-creature :world world :kind :fish :frames (list "F") :x 5 :y 5))
-           (first (make-bubble world fish))
-           (second (make-bubble world fish))
-           (canonical (copy-tree cl-asciiquarium::+bubble-style+)))
-      (setf (second (first (creature-style first))) (named-color :bright-green))
-      (expect (creature-style first) :not :to-equal (creature-style second))
-      (expect (creature-style second) :to-equal canonical)
-      (expect cl-asciiquarium::+bubble-style+ :to-equal canonical)
-      (let ((future (make-bubble world fish)))
-        (expect (creature-style future) :to-equal canonical)
-        (expect (creature-style future) :not :to-be (creature-style first)))))
-  (it
-    "rebuilds caches after a case-only direct frame string mutation"
-    (let* ((creature
-          (make-creature
-            :kind
-            :test-thing
-            :frames
-            (list "a")
-            :style
-            (make-style (style-fg (named-color :bright-white)))
-            :x
-            0
-            :y
-            0))
-           (screen (make-screen 1 1)))
-      (setf (char (aref (creature-frames creature) 0) 0) #\A)
-      (expect (creature-art creature) :to-equal "A")
-      (cl-asciiquarium::creature-blit screen creature)
-      (expect (cell-char (screen-cell screen 0 0)) :to-be #\A)))
-  (it
-    "isolates destructive bubble frame mutation from siblings and future bubbles"
-    (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
-           (fish (make-creature :world world :kind :fish :frames (list "F") :x 5 :y 5))
-           (first (make-bubble world fish))
-           (second (make-bubble world fish)))
-      (setf (char (aref (creature-frames first) 0) 0) #\X)
-      (expect (creature-art first) :to-equal "X")
-      (expect (creature-art second) :to-equal ".")
-      (expect (first cl-asciiquarium::+bubble-art-frames+) :to-equal ".")
-      (let ((future (make-bubble world fish)))
-        (expect (creature-art future) :to-equal "."))))
-  (it
-    "isolates the bubble prototype from destructive constant frame mutation"
-    (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
-           (fish (make-creature :world world :kind :fish :frames (list "F") :x 5 :y 5))
-           (existing (make-bubble world fish))
-           (constant-frame (first cl-asciiquarium::+bubble-art-frames+))
-           (original-char (char constant-frame 0)))
-      (unwind-protect (progn
-          (setf (char constant-frame 0) #\X)
-          (expect (creature-art existing) :to-equal ".")
-          (expect
-            (aref (creature-frames cl-asciiquarium::+bubble-sprite-prototype+) 0)
-            :to-equal
-            ".")
-          (let ((future (make-bubble world fish)))
-            (expect (creature-art future) :to-equal ".")))
-        (setf (char constant-frame 0) original-char))))
-  (it
-    "draws the same cells as an independently prepared bubble creature"
-    (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
-           (fish (make-creature :world world :kind :fish :frames (list "F") :x 5 :y 5))
-           (bubble (make-bubble world fish))
-           (expected-creature
-          (make-creature
-            :kind
-            :bubble
-            :frames
-            cl-asciiquarium::+bubble-art-frames+
-            :style
-            cl-asciiquarium::+bubble-style+
-            :x
-            (creature-x bubble)
-            :y
-            (creature-y bubble)))
-           (expected (make-screen 20 10))
-           (actual (make-screen 20 10)))
-      (setf (creature-frame-index bubble) 2
-            (creature-frame-index expected-creature) 2)
-      (cl-asciiquarium::creature-blit expected expected-creature)
-      (cl-asciiquarium::creature-blit actual bubble)
-      (dotimes (row 10)
-        (dotimes (column 20)
-          (expect
-            (cell-char (screen-cell actual column row))
-            :to-be
-            (cell-char (screen-cell expected column row)))
-          (expect
-            (cl-tty-kit:cell-style (screen-cell actual column row))
-            :to-equal
-            (cl-tty-kit:cell-style (screen-cell expected column row))))))))
-
-(describe
-  "creature cache escape tracking"
-  (it
-    "revalidates constructor frame aliases after a delayed destructive mutation"
-    (let* ((frame (copy-seq "a"))
-           (creature (make-creature :kind :test :frames (vector frame) :x 0 :y 0)))
+    "copies frame input, setter values, and getter results"
+    (let* ((input (vector (copy-seq "a")))
+           (creature (make-creature :kind :test :frames input :x 0 :y 0)))
+      (setf (char (aref input 0) 0) #\A)
       (expect (creature-art creature) :to-equal "a")
-      (setf (char frame 0) #\A)
-      (expect (creature-art creature) :to-equal "A")))
+      (let ((replacement (vector (copy-seq "b"))))
+        (setf (creature-frames creature) replacement)
+        (setf (char (aref replacement 0) 0) #\B)
+        (expect (creature-art creature) :to-equal "b"))
+      (let ((escaped (creature-frames creature)))
+        (setf (char (aref escaped 0) 0) #\X)
+        (expect (creature-art creature) :to-equal "b"))))
   (it
-    "revalidates setter frame aliases after a delayed destructive mutation"
-    (let* ((frame (copy-seq "b"))
-           (replacement (vector frame))
-           (creature (make-creature :kind :test :frames (list "a") :x 0 :y 0)))
-      (setf (creature-frames creature) replacement)
-      (expect (creature-art creature) :to-equal "b")
-      (setf (char frame 0) #\B)
-      (expect (creature-art creature) :to-equal "B")))
-  (it
-    "keeps getter escape tracking enabled after later cache hits"
-    (let* ((creature (make-creature :kind :test :frames (list (copy-seq "a")) :x 0 :y 0))
-           (escaped (creature-frames creature)))
-      (expect (creature-art creature) :to-equal "a")
-      (expect (creature-art creature) :to-equal "a")
-      (setf (char (aref escaped 0) 0) #\A)
-      (expect (creature-art creature) :to-equal "A")
-      (expect (cl-asciiquarium::creature-%frames-escaped-p creature) :to-be-truthy)))
-  (it
-    "revalidates constructor style aliases without requiring a getter"
+    "copies styles at public boundaries"
     (let* ((style (make-style (style-fg (named-color :bright-white))))
            (creature (make-creature :kind :test :frames (list "x") :style style :x 0 :y 0))
            (before (make-screen 1 1))
            (after (make-screen 1 1)))
       (cl-asciiquarium::creature-blit before creature)
       (setf (second (first style)) (named-color :bright-green))
+      (setf (second (first (creature-style creature))) (named-color :bright-green))
       (cl-asciiquarium::creature-blit after creature)
-      (expect
-        (cl-tty-kit:cell-style (screen-cell after 0 0))
-        :not
-        :to-equal
-        (cl-tty-kit:cell-style (screen-cell before 0 0)))))
-  (it
-    "revalidates setter style aliases after a delayed destructive mutation"
-    (let* ((style (make-style (style-fg (named-color :bright-white))))
-           (creature (make-creature :kind :test :frames (list "x") :x 0 :y 0))
-           (before (make-screen 1 1))
-           (after (make-screen 1 1)))
-      (setf (creature-style creature) style)
-      (cl-asciiquarium::creature-blit before creature)
-      (setf (second (first style)) (named-color :bright-green))
-      (cl-asciiquarium::creature-blit after creature)
-      (expect
-        (cl-tty-kit:cell-style (screen-cell after 0 0))
-        :not
-        :to-equal
-        (cl-tty-kit:cell-style (screen-cell before 0 0)))))
-  (it
-    "skips snapshot scans for privately owned trusted inputs"
-    (let ((creature
-          (make-creature
-            :kind
-            :test
-            :frames
-            (list "a")
-            :style
-            (make-style (style-fg (named-color :white)))
-            :%trusted-frames-p
-            t
-            :%trusted-style-p
-            t
-            :x
-            0
-            :y
-            0)))
-      (setf (cl-asciiquarium::creature-%prepared-frames creature) (vector 42))
-      (cl-asciiquarium::%ensure-creature-caches-current creature)
-      (expect (cl-asciiquarium::creature-%frames-escaped-p creature) :to-be-falsy)
-      (expect (cl-asciiquarium::creature-%style-escaped-p creature) :to-be-falsy)
-      (expect (creature-art creature) :to-equal "a"))))
-
-(describe
-  "creature cache monotonic escape tracking"
-  (it
-    "tracks right-facing creature-art strings as permanently escaped"
-    (let* ((creature
-          (make-creature
-            :kind
-            :test
-            :frames
-            (list (copy-seq "a<"))
-            :%trusted-frames-p
-            t
-            :x
-            0
-            :y
-            0))
-           (art (creature-art creature)))
-      (expect (cl-asciiquarium::creature-%frames-escaped-p creature) :to-be-truthy)
-      (setf (char art 0) #\A)
-      (setf (creature-facing creature) :left)
-      (expect (creature-art creature) :to-equal ">A")))
-  (it
-    "preserves frame escape tracking across private replacement"
-    (let* ((creature
-          (make-creature
-            :kind
-            :test
-            :frames
-            (list (copy-seq "a<"))
-            :%trusted-frames-p
-            t
-            :x
-            0
-            :y
-            0))
-           (replacement (copy-seq "b<")))
-      (creature-frames creature)
-      (cl-asciiquarium::%set-creature-frames creature (vector replacement))
-      (expect (cl-asciiquarium::creature-%frames-escaped-p creature) :to-be-truthy)
-      (setf (char replacement 0) #\B)
-      (setf (creature-facing creature) :left)
-      (expect (creature-art creature) :to-equal ">B")))
-  (it
-    "preserves style escape tracking across private replacement"
-    (let* ((creature
-          (make-creature
-            :kind
-            :test
-            :frames
-            (list "x")
-            :style
-            (make-style (style-fg (named-color :bright-white)))
-            :%trusted-style-p
-            t
-            :x
-            0
-            :y
-            0))
-           (replacement (make-style (style-fg (named-color :bright-white))))
-           (before (make-screen 1 1))
-           (after (make-screen 1 1)))
-      (creature-style creature)
-      (cl-asciiquarium::%set-creature-style creature replacement)
-      (expect (cl-asciiquarium::creature-%style-escaped-p creature) :to-be-truthy)
-      (cl-asciiquarium::creature-blit before creature)
-      (setf (second (first replacement)) (named-color :bright-green))
-      (cl-asciiquarium::creature-blit after creature)
-      (expect
-        (cl-tty-kit:cell-style (screen-cell after 0 0))
-        :not
-        :to-equal
-        (cl-tty-kit:cell-style (screen-cell before 0 0))))))
+      (expect (cl-tty-kit:cell-style (screen-cell after 0 0))
+              :to-equal (cl-tty-kit:cell-style (screen-cell before 0 0))))))
 
 (describe
   "left-facing creature-art isolation"

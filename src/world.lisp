@@ -10,90 +10,107 @@
 (defparameter +guest-cooldown-range+ '(140 360))
 
 (progn
-  (defstruct (world (:constructor %make-world))
-    "The whole simulation state. WIDTH and HEIGHT are the drawable area, TICK
-counts ticks elapsed, %CREATURES holds every CREATURE (background, fish,
-predator, bubbles, guests -- everything) and remains privately mutable so
-internal paths can preserve an O(1) render-order-cache fast path;
-WORLD-CREATURES exposes the compatible raw list API. QUITP is the quit flag
-input.lisp sets on `q'. FISH-COUNT is how many fish WORLD-REDRAW repopulates
-(the count MAKE-WORLD was originally given, and what the `+'/`-' keys adjust
-live -- see WORLD-INCREASE-FISH-COUNT/WORLD-DECREASE-FISH-COUNT), and the two
--COOLDOWN slots count down the ticks until the next shark or special-guest
-spawn (see spawn.lisp). PAUSED-P, set by the space key, makes WORLD-ADVANCE a
-no-op while true (update.lisp). SHARK-ENABLED-P, set once at MAKE-WORLD time
-from the --no-shark CLI flag, gates MAYBE-SPAWN-SHARK (spawn.lisp); it is not
-exposed as a live toggle the way PAUSED-P is, since no key currently binds
-it. Input `r' does not set a flag; it calls WORLD-REDRAW directly."
-    (width 0 :type fixnum)
-    (height 0 :type fixnum)
-    (tick 0 :type fixnum)
-    (%creatures nil :type list)
-    (fish-count 0 :type fixnum)
-    (quitp nil :type boolean)
-    (paused-p nil :type boolean)
-    (shark-enabled-p t :type boolean)
-    (shark-cooldown 0 :type fixnum)
-    (guest-cooldown 0 :type fixnum)
-    (render-order-cache nil :type list)
-    (render-order-creatures #() :type simple-vector)
-    (render-order-z-values #() :type simple-vector)
-    (render-order-valid-p nil :type boolean)
-    (render-order-escaped-p nil :type boolean))
+  (defstruct (world (:constructor %make-world)) "The whole simulation state. WIDTH and HEIGHT are the drawable area, TICK counts ticks elapsed, %CREATURES holds every CREATURE (background, fish, predator, bubbles, guests -- everything) and remains privately mutable so internal paths can preserve O(1) render-order and active-predator-cache fast paths; WORLD-CREATURES returns a list copy and WORLD-ADD-CREATURE is the explicit mutation operation. QUITP is the quit flag input.lisp sets on `q`. FISH-COUNT is how many fish WORLD-REDRAW repopulates (the count MAKE-WORLD was originally given, and what the `+`/`-` keys adjust live -- see WORLD-INCREASE-FISH-COUNT/WORLD-DECREASE-FISH-COUNT), and the two -COOLDOWN slots count down the ticks until the next shark or special-guest spawn (see spawn.lisp). PAUSED-P, set by the space key, makes WORLD-ADVANCE a no-op while true (update.lisp). SHARK-ENABLED-P, set once at MAKE-WORLD time from the --no-shark CLI flag, gates MAYBE-SPAWN-SHARK (spawn.lisp); it is not exposed as a live toggle the way PAUSED-P is, since no key currently binds it. Input `r` does not set a flag; it calls WORLD-REDRAW directly." (width 0 :type fixnum) (height 0 :type fixnum) (tick 0 :type fixnum) (%creatures nil :type list) (removal-pending-p nil :type boolean) (active-predator-count 0 :type fixnum) (collision-predators nil :type list) (fish-count 0 :type fixnum) (quitp nil :type boolean) (paused-p nil :type boolean) (shark-enabled-p t :type boolean) (shark-cooldown 0 :type fixnum) (guest-cooldown 0 :type fixnum) (render-order-cache nil :type list) (render-order-valid-p nil :type boolean) (render-change-count 0 :type fixnum))
   (defun world-creatures (world)
-    (setf (world-render-order-escaped-p world) t)
-    (world-%creatures world))
+    "Return a list copy of WORLD's creatures in internal update order."
+    (copy-list (world-%creatures world)))
   (defun (setf world-creatures) (creatures world)
-    (setf (world-render-order-escaped-p world) t)
-    (%set-world-creatures world creatures)))
+    "Replace WORLD's creatures with a privately owned list copy."
+    (%set-world-creatures world (copy-list creatures))))
 
 (defun assert-dimensions (width height)
   (unless (and (integerp width) (plusp width) (integerp height) (plusp height))
     (error 'asciiquarium-invalid-dimensions :width width :height height)))
 
 (progn
+  (declaim (inline %active-predator-p %collision-predator-p))
+  (defun %active-predator-p (creature)
+    (case (creature-kind creature)
+      (:shark t)
+      (:anchor (getf (creature-data creature) :dropped))))
+  (defun %collision-predator-p (creature)
+    (case (creature-kind creature)
+      ((:shark :anchor) t)))
+  (defun %rebuild-world-collision-predators (world creatures)
+    (let ((predators nil)
+          (active-count 0))
+      (dolist (creature creatures)
+        (when (%collision-predator-p creature)
+          (push creature predators)
+          (when (%active-predator-p creature)
+            (incf active-count))))
+      (setf (world-collision-predators world) (nreverse predators)
+            (world-active-predator-count world) active-count)))
+  (defun %world-has-active-predator-p (world)
+    (loop for predator in (world-collision-predators world)
+          thereis (%active-predator-p predator)))
+  (defun %note-world-predator-activation (world)
+    (incf (world-active-predator-count world))
+    world)
   (defun %invalidate-world-render-order (world)
     (setf (world-render-order-valid-p world) nil)
     world)
   (defun %set-world-creatures (world creatures)
-    (setf (world-%creatures world) creatures)
+    (setf (world-%creatures world) creatures
+          (world-removal-pending-p world) nil)
+    (%rebuild-world-collision-predators world creatures)
     (%invalidate-world-render-order world)
     creatures)
+
+(defun %remove-world-creatures (world creatures removed-active-predator-count)
+  "Install CREATURES after internal removal while preserving the render-order cache."
+  (setf (world-%creatures world) creatures
+        (world-removal-pending-p world) nil)
+  (decf (world-active-predator-count world) removed-active-predator-count)
+  (setf (world-collision-predators world)
+        (delete-if (function creature-removep)
+                   (world-collision-predators world)))
+  (if (world-render-order-valid-p world)
+      (setf (world-render-order-cache world)
+            (delete-if (function creature-removep)
+                       (world-render-order-cache world)))
+      (%invalidate-world-render-order world))
+  creatures)
+  (defun %insert-creature-into-render-order (world creature)
+    (let ((z (creature-z creature))
+          (render-order (world-render-order-cache world)))
+      (if (or (null render-order)
+              (>= (creature-z (car render-order)) z))
+          (push creature (world-render-order-cache world))
+          (let ((cursor render-order))
+            (loop while (and (cdr cursor)
+                             (< (creature-z (cadr cursor)) z))
+                  do (setf cursor (cdr cursor)))
+            (setf (cdr cursor) (cons creature (cdr cursor))))))
+    world)
   (defun %add-world-creature (world creature)
     (push creature (world-%creatures world))
-    (%invalidate-world-render-order world)
+    (when (%collision-predator-p creature)
+      (push creature (world-collision-predators world)))
+    (when (%active-predator-p creature)
+      (incf (world-active-predator-count world)))
+    (if (world-render-order-valid-p world)
+        (%insert-creature-into-render-order world creature)
+        (%invalidate-world-render-order world))
     creature)
-  (defun %world-render-order-snapshot-valid-p (world)
-    (let ((creature-snapshot (world-render-order-creatures world))
-          (z-snapshot (world-render-order-z-values world))
-          (index 0))
-      (and (= (length creature-snapshot) (length z-snapshot))
-           (dolist (creature (world-%creatures world)
-                    (= index (length creature-snapshot)))
-             (unless (and (< index (length creature-snapshot))
-                          (eq creature (aref creature-snapshot index))
-                          (eql (creature-z creature) (aref z-snapshot index)))
-               (return nil))
-             (incf index)))))
   (defun %world-render-order-cache-valid-p (world)
-    (and (world-render-order-valid-p world)
-         (or (not (world-render-order-escaped-p world))
-             (%world-render-order-snapshot-valid-p world))))
+    (world-render-order-valid-p world))
   (defun %rebuild-world-render-order (world)
     (let* ((creatures (world-%creatures world))
-           (creature-snapshot (coerce creatures (quote vector)))
-           (z-snapshot (map (quote vector) (function creature-z) creatures))
            (render-order (stable-sort (copy-list creatures) (function <)
                                       :key (function creature-z))))
       (setf (world-render-order-cache world) render-order
-            (world-render-order-creatures world) creature-snapshot
-            (world-render-order-z-values world) z-snapshot
             (world-render-order-valid-p world) t)
       render-order))
   (defun %world-render-order (world)
     (if (%world-render-order-cache-valid-p world)
         (world-render-order-cache world)
         (%rebuild-world-render-order world))))
+
+  (defun world-add-creature (world creature)
+    "Add CREATURE to WORLD and return CREATURE.
+The world owns its creature list; callers never mutate that list directly."
+    (%add-world-creature world creature))
 
 (progn
   (defun populate-background (world)

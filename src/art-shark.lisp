@@ -20,17 +20,17 @@ what lets a test exercise one crossing direction deterministically."
          (lane-top 3)
          (lane-bottom (max lane-top (- height 5)))
          (facing (or facing (random-facing)))
-         (speed (1+ (/ (random 3) 3))))
+         (speed (+ 1.0f0 (/ (random 3) 3.0f0))))
     (multiple-value-bind (x dx)
         (off-screen-entry facing (sprite-width +shark-art+) (world-width world) speed)
       (make-creature :world world
-                      :kind :shark
-                      :frames (list +shark-art+)
-                      :facing facing
-                      :style (solid-style :white)
-                      :z 6
-                      :policy :despawn
-                      :x x
-                      :y (random-between lane-top lane-bottom)
-                      :dx dx
-                      :data nil))))
+                     :kind :shark
+                     :%sprite-prototype
+                     (%static-sprite-prototype :shark +shark-art+ :white)
+                     :facing facing
+                     :z 6
+                     :policy :despawn
+                     :x x
+                     :y (random-between lane-top lane-bottom)
+                     :dx dx
+                     :data nil))))

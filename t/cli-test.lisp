@@ -71,3 +71,108 @@
                                        :stdout out))
                             :to-be-truthy))))
       (expect (search "asciiquarium" output) :to-be-truthy))))
+
+(describe "run-handler"
+  (it "uses the detected terminal dimensions and default frame interval"
+    (let* ((terminal-size-symbol 'cl-asciiquarium::terminal-size)
+           (run-symbol 'cl-asciiquarium:run)
+           (original-terminal-size (symbol-function terminal-size-symbol))
+           (original-run (symbol-function run-symbol))
+           (arguments nil))
+      (unwind-protect
+           (progn
+             (setf (symbol-function terminal-size-symbol)
+                   (lambda () (values 100 40))
+                   (symbol-function run-symbol)
+                   (lambda (&rest received) (setf arguments received)))
+             (expect (zerop (cl-asciiquarium::run-handler
+                             (parse-argv *app* '("asciiquarium"))))
+                     :to-be-truthy)
+             (expect (equal arguments
+                            '(:width 100 :height 40 :seed nil :interval 1/20
+                              :shark-enabled-p t :monochrome-p nil))
+                     :to-be-truthy))
+        (setf (symbol-function terminal-size-symbol) original-terminal-size
+              (symbol-function run-symbol) original-run))))
+
+  (it "passes explicit CLI options to run instead of terminal defaults"
+    (let* ((terminal-size-symbol 'cl-asciiquarium::terminal-size)
+           (run-symbol 'cl-asciiquarium:run)
+           (original-terminal-size (symbol-function terminal-size-symbol))
+           (original-run (symbol-function run-symbol))
+           (arguments nil))
+      (unwind-protect
+           (progn
+             (setf (symbol-function terminal-size-symbol)
+                   (lambda () (values 100 40))
+                   (symbol-function run-symbol)
+                   (lambda (&rest received) (setf arguments received)))
+             (expect (zerop (cl-asciiquarium::run-handler
+                             (parse-argv *app*
+                                         '("asciiquarium" "--width" "90" "--height" "30"
+                                           "--seed" "42" "--fps" "25" "--no-shark"
+                                           "--monochrome"))))
+                     :to-be-truthy)
+             (expect (equal arguments
+                            '(:width 90 :height 30 :seed 42 :interval 1/25
+                              :shark-enabled-p nil :monochrome-p t))
+                     :to-be-truthy))
+        (setf (symbol-function terminal-size-symbol) original-terminal-size
+              (symbol-function run-symbol) original-run)))))
+(describe "CLI entry points"
+  (it "uses the ASDF version when available and falls back when unavailable"
+    (let* ((find-system-symbol (quote asdf:find-system))
+           (original-find-system (symbol-function find-system-symbol)))
+      (unwind-protect
+           (progn
+             (expect (string= (cl-asciiquarium::asciiquarium-version)
+                              (asdf:component-version
+                               (asdf:find-system "cl-asciiquarium" nil)))
+                     :to-be-truthy)
+             (setf (symbol-function find-system-symbol)
+                   (lambda (&rest ignored)
+                     (declare (ignore ignored))
+                     nil))
+             (expect (string= (cl-asciiquarium::asciiquarium-version) "0.0.0")
+                     :to-be-truthy))
+        (setf (symbol-function find-system-symbol) original-find-system))))
+
+  (it "passes the process argv to RUN-APP and quits with its result"
+    (let* ((argv-symbol (quote cl-asciiquarium::current-process-argv))
+           (run-app-symbol (quote cl-asciiquarium::run-app))
+           (quit-symbol (quote uiop:quit))
+           (original-argv (symbol-function argv-symbol))
+           (original-run-app (symbol-function run-app-symbol))
+           (original-quit (symbol-function quit-symbol))
+           (received-argv nil)
+           (exit-code nil))
+      (unwind-protect
+           (progn
+             (setf (symbol-function argv-symbol)
+                   (lambda () (quote ("asciiquarium" "--help")))
+                   (symbol-function run-app-symbol)
+                   (lambda (app &key argv)
+                     (declare (ignore app))
+                     (setf received-argv argv)
+                     23)
+                   (symbol-function quit-symbol)
+                   (lambda (code) (setf exit-code code)))
+             (cl-asciiquarium:main)
+             (with-soft-assertions
+               (expect (equal received-argv (quote ("asciiquarium" "--help")))
+                       :to-be-truthy)
+               (expect (= exit-code 23) :to-be-truthy)))
+        (setf (symbol-function argv-symbol) original-argv
+              (symbol-function run-app-symbol) original-run-app
+              (symbol-function quit-symbol) original-quit))))
+
+  (it "delegates the delivered-image entry point to MAIN"
+    (let* ((main-symbol (quote cl-asciiquarium:main))
+           (original-main (symbol-function main-symbol))
+           (called nil))
+      (unwind-protect
+           (progn
+             (setf (symbol-function main-symbol) (lambda () (setf called t)))
+             (cl-asciiquarium:image-entry-point)
+             (expect called :to-be-truthy))
+        (setf (symbol-function main-symbol) original-main)))))

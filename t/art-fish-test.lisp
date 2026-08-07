@@ -38,7 +38,13 @@
     (let* ((world (tiny-world))
            (fish (make-fish world :species :dart :facing :left :dx 1)))
       (expect (creature-facing fish) :to-be :left)
-      (expect (entity-dx (creature-entity fish)) :to-be 1))))
+      (expect (entity-dx (creature-entity fish)) :to-be 1)))
+
+  (it "uses a single-float velocity for generated movement"
+    (let* ((world (tiny-world))
+           (fish (make-fish world :species :dart)))
+      (expect (typep (entity-dx (creature-entity fish)) 'single-float)
+              :to-be-truthy))))
 
 (describe "fish species color variation"
   (it "paints every individual with a style, none of them monochrome by default"
@@ -54,3 +60,12 @@
       (let* ((world (tiny-world))
              (styles (loop repeat 30 collect (creature-style (make-fish world :species :guppy)))))
         (expect (> (length (remove-duplicates styles :test #'equalp)) 1) :to-be-truthy)))))
+(describe "make-fish sprite ownership"
+  (it "does not expose mutable sprite frames through the public getter"
+    (let ((cl-asciiquarium::*monochrome* t))
+      (let* ((world (tiny-world))
+             (fish (make-fish world :species :dart :x 3 :y 4 :dx 0 :facing :right))
+             (original (creature-art fish))
+             (frames (creature-frames fish)))
+        (setf (char (aref frames 0) 0) #\X)
+        (expect (creature-art fish) :to-equal original)))))

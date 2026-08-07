@@ -25,6 +25,7 @@
                 #:entity-y
                 #:entity-dx
                 #:entity-dy
+                #:entity-on-exit
                 #:make-renderer
                 #:renderer-screen
                 #:renderer-width
@@ -97,6 +98,7 @@
    #:world-height
    #:world-tick
    #:world-creatures
+   #:world-add-creature
    #:world-fish-count
    #:world-quitp
    #:world-paused-p

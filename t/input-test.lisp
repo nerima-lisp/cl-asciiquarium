@@ -16,7 +16,13 @@
           (world-apply-key-event world event))
         (let ((new-fish (remove :fish (world-creatures world) :key #'creature-kind :test-not #'eq)))
           (expect (= (length new-fish) 3) :to-be-truthy)
-          (expect (intersection original-fish new-fish) :to-be-falsy))))))
+          (expect (intersection original-fish new-fish) :to-be-falsy)))))
+  (it "ignores an unbound special key without changing world state"
+    (let ((world (tiny-world)))
+      (world-apply-key-events world (decode-input (format nil "~C[A" #\Escape)))
+      (with-soft-assertions
+        (expect (world-quitp world) :to-be-null)
+        (expect (world-paused-p world) :to-be-null)))))
 
 (describe "world-apply-key-events"
   (it "applies a sequence of decoded events in order"

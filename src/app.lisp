@@ -80,7 +80,7 @@ cl-tty-kit:TICK-LOOP-RUN-REALTIME; SHARK-ENABLED-P and MONOCHROME-P forward the
              (tick-loop-run-realtime
               world
               #'world-advance
-              (lambda (state) (render-frame renderer state))
+              (lambda (state) (render-frame renderer state :stream session-stream))
               #'world-quitp
               :stream session-stream
               :interval interval
