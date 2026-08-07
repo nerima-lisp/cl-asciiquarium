@@ -21,7 +21,7 @@
     # `lispDerivation` below), never these repos' own flake outputs -- see
     # DEPENDENCY_POLICY.md "姉妹パッケージは flake = false で引きます".
     cl-tty-kit = {
-      url = "github:nerima-lisp/cl-tty-kit/v1.4.0";
+      url = "github:nerima-lisp/cl-tty-kit/v1.5.0";
       flake = false;
     };
 
@@ -38,25 +38,34 @@
     # below) -- flattening every sibling into this repository's own list
     # would not reach a nested build. See DEPENDENCY_POLICY.md's L1 table.
     cl-codec-kit = {
-      url = "github:nerima-lisp/cl-codec-kit/v0.4.0";
+      url = "github:nerima-lisp/cl-codec-kit/v0.5.0";
       flake = false;
     };
 
     cl-host-kit = {
-      url = "github:nerima-lisp/cl-host-kit/v0.3.0";
+      url = "github:nerima-lisp/cl-host-kit/v0.3.1";
       flake = false;
     };
 
     cl-weave = {
-      url = "github:nerima-lisp/cl-weave/v1.2.0";
+      url = "github:nerima-lisp/cl-weave/v1.3.0";
       flake = false;
+    };
+
+    # cl-concurrent-kit is a runtime sibling package; its release flake
+    # publishes the complete package and its transitive runtime dependencies.
+    cl-concurrent-kit = {
+      url = "github:nerima-lisp/cl-concurrent-kit/v0.6.1";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.cl-nix-forge.follows = "cl-nix-forge";
+      inputs.treefmt-nix.follows = "treefmt-nix";
     };
 
     # Unlike the sibling *packages* above, this is consumed for its `lib`
     # output (`mkLintCheck`), which a `flake = false` source tree cannot
     # provide -- the same reason cl-cli keeps it a real flake input.
     paredit-cli = {
-      url = "github:nerima-lisp/paredit-cli/v1.4.0";
+      url = "github:nerima-lisp/paredit-cli/v1.5.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -76,6 +85,7 @@
       cl-codec-kit,
       cl-host-kit,
       cl-weave,
+      cl-concurrent-kit,
       paredit-cli,
       treefmt-nix,
     }:
@@ -129,19 +139,25 @@
             lispSystem = "cl-codec-kit";
           };
           hostKit = ctx.cl.lispDerivation {
-            pname = "cl-host-kit";
+            pname = "cl-cli-host-kit";
             version = ctx.cl.fromAsdSystem "${cl-host-kit}/cl-host-kit.asd";
             src = cl-host-kit;
             lispSystem = "cl-host-kit";
           };
         in
         [
+          # cl-concurrent-kit is published as a sibling mkPackageFlake package,
+          # so retain its complete runtime dependency graph.
+          cl-concurrent-kit.packages.${ctx.system}.cl-concurrent-kit
           (ctx.cl.lispDerivation {
             pname = "cl-tty-kit";
             version = ctx.cl.fromAsdSystem "${cl-tty-kit}/cl-tty-kit.asd";
             src = cl-tty-kit;
             lispSystem = "cl-tty-kit";
-            lispDependencies = [ codecKit ];
+            lispDependencies = [
+              codecKit
+              cl-concurrent-kit.packages.${ctx.system}.cl-concurrent-kit
+            ];
           })
           (ctx.cl.lispDerivation {
             pname = "cl-cli";
@@ -187,49 +203,40 @@
       # check` evaluates each attribute as its own derivation, in parallel,
       # with build caching -- see cl-cli's flake.nix, which this follows.
       extraOutputs = ctx: {
-        checks =
-          # paredit-cli's latest tagged release (v1.4.0, pinned above) has not
-          # cut a release carrying aarch64-darwin in its own `systems` list yet
-          # -- that support exists only on its main branch so far, and
-          # DEPENDENCY_POLICY.md's "姉妹パッケージは flake = false で引きます"
-          # rule pins every sibling to a release tag, never a branch. Guard
-          # this one check on the sibling actually publishing it for
-          # ctx.system, rather than reverting cl-asciiquarium's own `systems`
-          # list: `nix build` / `nix develop` and every other check are
-          # unaffected on aarch64-darwin, and this check reappears with no
-          # further change here once paredit-cli tags a release that has it.
-          (
-            if paredit-cli.lib ? ${ctx.system} then
-              {
-                # Structural parse gate over every Lisp source in the filtered
-                # tree: fails if any .lisp/.asd file is not a balanced S-expression
-                # document. The test suite would not catch it -- an unbalanced file
-                # makes ASDF fail to load the system, which reads like any other
-                # build error and points at the wrong cause.
-                paredit-lint = paredit-cli.lib.${ctx.system}.mkLintCheck {
-                  inherit (ctx) src;
-                  name = "cl-asciiquarium-paredit-lint";
-                };
-              }
-            else
-              { }
-          )
-          // {
-            # An sb-cover HTML coverage report for src/, as a buildable
-            # artifact rather than a pass/fail gate: `nix build
-            # .#checks.<system>.coverage --no-link --print-out-paths` prints a
-            # store path whose cover-index.html is the report to open. No
-            # minimum-coverage threshold -- see cl-nix-forge's
-            # lib/batteries/coverage.nix for why one would gate on the wrong
-            # thing here (sb-cover's raw expression percentage under-attributes
-            # top-level defstruct/define-condition forms by design).
-            coverage = ctx.cl.mkCoverageReport {
-              drv = ctx.package;
-              systems = [ "cl-asciiquarium" ];
-              name = "cl-asciiquarium-coverage";
-              timeoutSeconds = 900;
-            };
+        checks = {
+          # Structural parse gate over every Lisp source in the filtered tree:
+          # fails if any .lisp/.asd file is not a balanced S-expression document.
+          paredit-lint = paredit-cli.lib.${ctx.system}.mkLintCheck {
+            inherit (ctx) src;
+            name = "cl-asciiquarium-paredit-lint";
           };
+
+          # Run the registered suite through cl-weave's public coverage API.
+          # The excluded files contain immutable art data or declarations;
+          # executable application logic remains subject to both gates.
+          coverage = ctx.cl.mkCoverageReport {
+            drv = ctx.package;
+            systems = [ "cl-asciiquarium" ];
+            entryPointText = ''
+              (require "asdf")
+              (asdf:load-system "cl-asciiquarium/test")
+              (uiop:symbol-call
+               :cl-asciiquarium/test
+               :run-tests
+               :coverage t
+               :coverage-minimum-expression 88
+               :coverage-minimum-branch 90
+               :coverage-exclude-pathnames
+               '("src/art-decor-data.lisp"
+                 "src/art-fish-data.lisp"
+                 "src/art-guests-data.lisp"
+                 "src/bubble-data.lisp"
+                 "src/package.lisp"))
+            '';
+            name = "cl-asciiquarium-coverage";
+            timeoutSeconds = 900;
+          };
+        };
       };
     };
 }

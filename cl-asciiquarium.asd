@@ -21,7 +21,8 @@ repository. SBCL only."
   :homepage "https://github.com/nerima-lisp/cl-asciiquarium"
   :bug-tracker "https://github.com/nerima-lisp/cl-asciiquarium/issues"
   :source-control (:git "https://github.com/nerima-lisp/cl-asciiquarium.git")
-  :depends-on ("cl-tty-kit"    ; screens, sprites, entities, tick loop, raw mode, input decoding
+  :depends-on ("cl-concurrent-kit" ; bounded concurrency toolkit
+               "cl-tty-kit"    ; screens, sprites, entities, tick loop, raw mode, input decoding
                "cl-cli")       ; --width/--height/--seed/--fps command-line parsing
   :pathname "src"
   :serial t
@@ -29,6 +30,7 @@ repository. SBCL only."
                (:file "conditions")
                (:file "geometry")
                (:file "creature")
+               (:file "creature-cache")
                (:file "world")
                (:file "art-fish-data")
                (:file "art-fish")
@@ -37,11 +39,13 @@ repository. SBCL only."
                (:file "art-decor")
                (:file "art-guests-data")
                (:file "art-guests")
+               (:file "bubble-data")
                (:file "bubble")
                (:file "spawn")
                (:file "collision")
                (:file "update")
                (:file "input")
+               (:file "render-state")
                (:file "render")
                (:file "app")
                (:file "cli"))
@@ -50,7 +54,7 @@ repository. SBCL only."
   ;; see cl-weave.asd, which this follows, and flake.nix's `executable` block.
   :build-operation "program-op"
   :build-pathname "asciiquarium"
-  :entry-point "cl-asciiquarium::image-entry-point"
+  :entry-point "cl-asciiquarium:image-entry-point"
   ;; Mandatory. Without it `asdf:test-system "cl-asciiquarium"` succeeds while
   ;; running zero tests. See PACKAGE_STANDARD.md.
   :in-order-to ((test-op (test-op "cl-asciiquarium/test"))))

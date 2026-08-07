@@ -49,7 +49,8 @@ t/app-test.lisp)."
   (values))
 
 (defun run (&key (width +default-width+) (height +default-height+) fish-count seed
-            (interval 1/20) (stream *standard-output*) (shark-enabled-p t) monochrome-p)
+            (interval 1/20) (stream *standard-output*) (shark-enabled-p t)
+            monochrome-p (theme :abyss))
   "Run the aquarium in the real terminal until `q' is pressed, or SIGTERM/
 SIGHUP arrives from outside (see INSTALL-QUIT-SIGNAL-HANDLER) -- both quit
 exactly as cleanly, restoring the terminal via WITH-TERMINAL-SESSION's
@@ -59,7 +60,8 @@ MAKE-WORLD-POLLER); SEED, when supplied, seeds *RANDOM-STATE* for a
 reproducible run; INTERVAL is the target seconds between frames, forwarded to
 cl-tty-kit:TICK-LOOP-RUN-REALTIME; SHARK-ENABLED-P and MONOCHROME-P forward the
 --no-shark and --monochrome CLI flags (cli.lisp) to MAKE-WORLD and *MONOCHROME*
-(creature.lisp) respectively."
+(creature.lisp) respectively. THEME selects the initial visual palette; it
+accepts one of +VISUAL-THEMES+ and can be changed while running."
   (when seed
     (setf *random-state* (sb-ext:seed-random-state seed)))
   ;; LET*, not LET: MAKE-WORLD's init-form must run after *MONOCHROME* is
@@ -70,7 +72,8 @@ cl-tty-kit:TICK-LOOP-RUN-REALTIME; SHARK-ENABLED-P and MONOCHROME-P forward the
   (let* ((*monochrome* monochrome-p)
          (world (make-world :width width :height height
                              :fish-count (or fish-count +default-fish-count+)
-                             :shark-enabled-p shark-enabled-p))
+                             :shark-enabled-p shark-enabled-p
+                             :theme theme))
          (renderer (make-renderer width height))
          (decoder (make-input-decoder)))
     (with-raw-mode ()
@@ -80,10 +83,11 @@ cl-tty-kit:TICK-LOOP-RUN-REALTIME; SHARK-ENABLED-P and MONOCHROME-P forward the
              (tick-loop-run-realtime
               world
               #'world-advance
-              (lambda (state) (render-frame renderer state))
+              (lambda (state) (render-frame renderer state :stream session-stream))
               #'world-quitp
               :stream session-stream
               :interval interval
               :poll (make-world-poller renderer *standard-input* decoder))
           (sb-sys:enable-interrupt sb-unix:sigterm :default)
-          (sb-sys:enable-interrupt sb-unix:sighup :default))))))
+          (sb-sys:enable-interrupt sb-unix:sighup :default)
+          (shutdown-renderer renderer))))))

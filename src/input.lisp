@@ -1,7 +1,8 @@
 ;;;; src/input.lisp -- turning decoded cl-tty-kit KEY-EVENTs into WORLD state
 ;;;; changes: `q' to quit, `r' to redraw/reshuffle, space to pause/resume,
 ;;;; `+'/`-' to adjust the live fish count, `s'/`g' to force an immediate
-;;;; shark/guest spawn, and `h' to toggle the on-screen help panel.
+;;;; shark/guest spawn, `t' to cycle the visual theme, `u' to toggle the HUD,
+;;;; and `h' to toggle the on-screen help panel.
 (in-package #:cl-asciiquarium)
 
 (defparameter +quit-characters+ (list #\q #\Q)
@@ -25,11 +26,12 @@ byte this file would have to inspect itself.")
 (defun world-toggle-help-overlay (world)
   "Add WORLD's :HELP-OVERLAY CREATURE (see MAKE-HELP-OVERLAY, art-decor.lisp)
 if none is present, or remove it if one already is, returning WORLD. Bound to
-the `h' key."
-  (if (find :help-overlay (world-creatures world) :key #'creature-kind)
-      (setf (world-creatures world)
-            (remove :help-overlay (world-creatures world) :key #'creature-kind))
-      (push (make-help-overlay world) (world-creatures world)))
+the `h` key."
+  (if (find :help-overlay (world-%creatures world) :key #'creature-kind)
+      (%set-world-creatures
+       world
+       (remove :help-overlay (world-%creatures world) :key #'creature-kind))
+      (%add-world-creature world (make-help-overlay world)))
   world)
 
 (defun character-key-event-p (event code)
@@ -41,6 +43,7 @@ factored out so each binding states only which character it cares about."
 (defun world-toggle-pause (world)
   "Toggle WORLD-PAUSED-P, returning WORLD. Bound to the space key."
   (setf (world-paused-p world) (not (world-paused-p world)))
+  (world-refresh-hud world)
   world)
 
 (defun world-spawn-random-guest (world)
@@ -55,6 +58,8 @@ Bound to the `g' key; see RANDOM-GUEST-KIND and SPAWN-GUEST-NOW, spawn.lisp."
         (cons (list #\+ #\=) #'world-increase-fish-count)
         (cons (list #\- #\_) #'world-decrease-fish-count)
         (cons (list #\g #\G) #'world-spawn-random-guest)
+        (cons (list #\t #\T) #'world-cycle-theme)
+        (cons (list #\u #\U) #'world-toggle-hud)
         (cons (list #\h #\H) #'world-toggle-help-overlay))
   "Every ordinary key binding as data: each entry maps the CHARACTERs that
 trigger it to the one-argument (WORLD) action WORLD-APPLY-KEY-EVENT below

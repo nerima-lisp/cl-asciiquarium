@@ -41,19 +41,27 @@
 
 (in-package #:cl-asciiquarium/test)
 
-(defun run-tests ()
-  "Run every registered spec, signalling on any failure so ASDF's TEST-OP
-fails. Randomness in the specs below is pinned via SB-EXT:SEED-RANDOM-STATE
-inside each test that needs a deterministic scenario (predator/prey removal,
-special-guest spawn), not via cl-weave's own --seed replay mechanism, since
-those scenarios bind CL:*RANDOM-STATE* around a handful of direct calls into
-cl-asciiquarium rather than around cl-weave's own attempt machinery.
-*DEFAULT-TIMEOUT-MS* is set here, not left at cl-weave's NIL default, so a
-runaway loop (e.g. a fuzz-generated width/height that never terminates
-WORLD-ADVANCE) fails this one `it' in seconds instead of exhausting CI's
-6-hour job default; see TEST_STANDARD.md's 実行 section."
+(defun run-tests (&key coverage
+                       coverage-output
+                       coverage-report-directory
+                       coverage-include-pathnames
+                       coverage-exclude-pathnames
+                       coverage-minimum-expression
+                       coverage-minimum-branch)
+  "Run every registered spec and signal on any failure.
+COVERAGE and its keyword arguments are passed to cl-weave so the same test
+entry point can run either the normal suite or a coverage-gated report."
   (setf *default-timeout-ms* 5000)
-  (unless (run-all :reporter :spec)
+  (unless
+      (run-all :reporter :spec
+               :coverage coverage
+               :coverage-output coverage-output
+               :coverage-report-directory coverage-report-directory
+               :coverage-include-pathnames coverage-include-pathnames
+               :coverage-exclude-pathnames coverage-exclude-pathnames
+               :coverage-minimum-expression coverage-minimum-expression
+               :coverage-minimum-branch coverage-minimum-branch
+               :pass-with-no-tests nil)
     (error "cl-asciiquarium test suite failed"))
   (format t "~&cl-asciiquarium/test: successful completion with 0 failures~%")
   t)

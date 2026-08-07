@@ -25,7 +25,9 @@ the detected terminal size, then run the aquarium. Returns 0 once RUN returns
          :seed (option-value invocation :seed)
          :interval (/ 1 (or (option-value invocation :fps) 20))
          :shark-enabled-p (not (option-value invocation :no-shark))
-         :monochrome-p (option-value invocation :monochrome)))
+         :monochrome-p (option-value invocation :monochrome)
+         :theme (parse-visual-theme
+                 (or (option-value invocation :theme) "abyss"))))
   0)
 
 (defparameter *app*
@@ -37,7 +39,8 @@ the detected terminal size, then run the aquarium. Returns 0 once RUN returns
 periodic special guests (a ship that drops an anchor, a line of ducks, a
 leaping dolphin, a segmented sea monster), rendered live in the terminal.
 Press q to quit, r to redraw, space to pause, +/- to grow or shrink the fish
-count, s/g to spawn a shark/guest on demand, and h for the full key list."
+count, s/g to spawn a shark/guest on demand, t to cycle themes, u to toggle
+the HUD, and h for the full key list."
    :global-options
    (list (make-option :name "width" :kind :value :type :integer
                        :description
@@ -49,6 +52,9 @@ count, s/g to spawn a shark/guest on demand, and h for the full key list."
                        :description "Seed the random number generator for a reproducible run.")
          (make-option :name "fps" :kind :value :type :integer :min 1 :max 60
                        :description "Target frames per second (default 20).")
+         (make-option :name "theme" :kind :value
+                       :choices '("abyss" "coral" "moonlight")
+                       :description "Initial visual theme (default abyss).")
          (make-option :name "no-shark" :kind :flag
                        :description "Disable the shark, so fish are never eaten.")
          (make-option :name "monochrome" :kind :flag
