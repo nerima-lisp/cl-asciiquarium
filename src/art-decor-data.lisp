@@ -5,9 +5,9 @@
 ;;;; read it.
 (in-package #:cl-asciiquarium)
 
-(defparameter +waterline-row+ 2
-  "The screen row the waterline sits on. Bubbles are removed once they rise
-to this row or above; see update.lisp.")
+(defparameter +waterline-row+ 5
+  "The screen row the four-row waterline sits on. Bubbles are removed once they rise
+ to this row or above; see update.lisp.")
 
 (defparameter +castle-art+
   (format nil (concatenate 'string
@@ -25,7 +25,8 @@ to this row or above; see update.lisp.")
  controls~%~
  --------~%~
  q       quit~%~
- r       redraw~%~
+ r/R     redraw~%~
+ p/P     pause~%~
  space   pause~%~
  + / -   fish count~%~
  s       spawn shark~%~

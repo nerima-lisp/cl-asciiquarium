@@ -5,11 +5,16 @@
 (in-package #:cl-asciiquarium)
 
 (defun waterline-art (width)
-  "Return a WIDTH-wide wavy waterline pattern, repeating a 4-character motif."
-  (let ((motif "^^~~"))
+  "Return a WIDTH-wide, four-row wavy waterline pattern."
+  (let ((motifs (list "^^~~" "~~^^" "~~^^" "^^~~")))
     (with-output-to-string (out)
-      (loop for column below width
-            do (write-char (char motif (mod column (length motif))) out)))))
+      (loop for row from 0 below (length motifs)
+            for motif = (nth row motifs)
+            do (when (plusp row)
+                 (write-char #\Newline out))
+               (loop for column below width
+                     do (write-char
+                         (char motif (mod column (length motif))) out))))))
 
 (defun make-waterline (world)
   "Create the waterline decoration spanning the full width of WORLD."
@@ -26,17 +31,17 @@
                   :dx 0 :dy 0))
 
 (defun make-castle (world)
-  "Create the castle decoration near the bottom-left of WORLD."
+  "Create the castle decoration near the bottom-right of WORLD."
   (multiple-value-bind (width height) (sprite-dimensions +castle-art+)
-    (declare (ignore width))
     (make-creature :world world
                     :kind :castle
                     :frames (list +castle-art+)
                     :style (solid-style :yellow)
                     :z 1
                     :policy :none
-                    :x 2
-                    :y (max (1+ +waterline-row+) (- (world-height world) height 1))
+                    :x (max 0 (- (world-width world) width))
+                    :y (max (1+ +waterline-row+)
+                            (- (world-height world) height))
                     :dx 0 :dy 0)))
 
 (defun make-seaweed (world x)
@@ -57,11 +62,11 @@ WORLD."
 
 (defun make-help-overlay (world)
   "Create the :HELP-OVERLAY CREATURE toggled by the `h' key (see
-WORLD-TOGGLE-HELP-OVERLAY, input.lisp): a fixed panel near the top-left
-corner, painted at Z 99 so it always sits above every other creature. Unlike
-every other decoration, its policy is :NONE and it is never touched by
-WORLD-REDRAW (excluded from +TRANSIENT-CREATURE-KINDS+, world.lisp): it is UI
-state, not aquarium population."
+ WORLD-TOGGLE-HELP-OVERLAY, input.lisp): a fixed panel near the top-left
+ corner, painted at Z 99 so it always sits above every other creature. Unlike
+ every other decoration, its policy is :NONE and it is never touched by
+ WORLD-REDRAW (excluded from +REDRAW-PRESERVED-CREATURE-KINDS+, world.lisp): it
+ is UI state, not aquarium population."
   (declare (ignore world))
   (make-creature :kind :help-overlay
                   :frames (list +help-overlay-art+)

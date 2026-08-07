@@ -1,6 +1,6 @@
 ;;;; src/input.lisp -- turning decoded cl-tty-kit KEY-EVENTs into WORLD state
-;;;; changes: `q' to quit, `r' to redraw/reshuffle, space to pause/resume,
-;;;; `+'/`-' to adjust the live fish count, `s'/`g' to force an immediate
+;;;; changes: `q' to quit, `r'/`R' to redraw/reshuffle, `p'/`P' or space
+;;;; to pause/resume, `+'/`-' to adjust the live fish count, `s'/`g' to force an immediate
 ;;;; shark/guest spawn, and `h' to toggle the on-screen help panel.
 (in-package #:cl-asciiquarium)
 
@@ -25,11 +25,12 @@ byte this file would have to inspect itself.")
 (defun world-toggle-help-overlay (world)
   "Add WORLD's :HELP-OVERLAY CREATURE (see MAKE-HELP-OVERLAY, art-decor.lisp)
 if none is present, or remove it if one already is, returning WORLD. Bound to
-the `h' key."
-  (if (find :help-overlay (world-creatures world) :key #'creature-kind)
-      (setf (world-creatures world)
-            (remove :help-overlay (world-creatures world) :key #'creature-kind))
-      (push (make-help-overlay world) (world-creatures world)))
+the `h` key."
+  (if (find :help-overlay (world-%creatures world) :key #'creature-kind)
+      (%set-world-creatures
+       world
+       (remove :help-overlay (world-%creatures world) :key #'creature-kind))
+      (%add-world-creature world (make-help-overlay world)))
   world)
 
 (defun character-key-event-p (event code)
@@ -39,7 +40,7 @@ factored out so each binding states only which character it cares about."
   (and (eq (key-event-type event) :character) (char= (key-event-code event) code)))
 
 (defun world-toggle-pause (world)
-  "Toggle WORLD-PAUSED-P, returning WORLD. Bound to the space key."
+  "Toggle WORLD-PAUSED-P, returning WORLD. Bound to the p/P and space keys."
   (setf (world-paused-p world) (not (world-paused-p world)))
   world)
 
@@ -51,7 +52,7 @@ Bound to the `g' key; see RANDOM-GUEST-KIND and SPAWN-GUEST-NOW, spawn.lisp."
 
 (defparameter +key-bindings+
   (list (cons (list #\r #\R) #'world-redraw)
-        (cons (list #\Space) #'world-toggle-pause)
+        (cons (list #\p #\P #\Space) #'world-toggle-pause)
         (cons (list #\+ #\=) #'world-increase-fish-count)
         (cons (list #\- #\_) #'world-decrease-fish-count)
         (cons (list #\g #\G) #'world-spawn-random-guest)

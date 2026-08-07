@@ -69,7 +69,7 @@ cl-tty-kit:TICK-LOOP-RUN-REALTIME; SHARK-ENABLED-P and MONOCHROME-P forward the
   ;; *MONOCHROME* instead.
   (let* ((*monochrome* monochrome-p)
          (world (make-world :width width :height height
-                             :fish-count (or fish-count +default-fish-count+)
+                             :fish-count (or fish-count (default-fish-count-for-dimensions width height))
                              :shark-enabled-p shark-enabled-p))
          (renderer (make-renderer width height))
          (decoder (make-input-decoder)))
@@ -80,7 +80,7 @@ cl-tty-kit:TICK-LOOP-RUN-REALTIME; SHARK-ENABLED-P and MONOCHROME-P forward the
              (tick-loop-run-realtime
               world
               #'world-advance
-              (lambda (state) (render-frame renderer state))
+              (lambda (state) (render-frame renderer state :stream session-stream))
               #'world-quitp
               :stream session-stream
               :interval interval

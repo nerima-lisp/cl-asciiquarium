@@ -111,11 +111,13 @@ it only removes the creature on the edge its own velocity is carrying it
 toward -- the far edge it is *leaving through*, never the near edge it
 *entered from*.
 
-## Render-order and blit-run caching
+## Render order, blit runs, and incremental frames
 
-`CREATURE` (`src/creature.lisp`) and `WORLD` (`src/world.lisp`) each cache the
-derived data `DRAW-WORLD` needs every frame, so a tick that touches nothing
-relevant repaints without recomputing it:
+`CREATURE`'s data model (`src/creature.lisp`) and private prepared-sprite cache
+(`src/creature-cache.lisp`), plus `WORLD` (`src/world.lisp`), cache the derived
+data needed for compositing. `DRAW-WORLD` remains the simple full-repaint
+reference path; `RENDER-FRAME` (`src/render.lisp`) uses the same cached data to
+update only the screen regions affected since its previous call:
 
 - Each `CREATURE` keeps its private `%FRAMES`/`%STYLE` alongside prepared,
   already-mirrored copies and precomputed non-space "blit runs" (flat
@@ -128,20 +130,22 @@ relevant repaints without recomputing it:
   *followed by* a change does.
 - `WORLD` keeps a private `%CREATURES` list alongside a cached
   `Z`-sorted render order. Internal mutation paths (`%ADD-WORLD-CREATURE`,
-  `%SET-WORLD-CREATURES`) invalidate that cache directly; the public
-  `WORLD-CREATURES` accessor additionally marks the cache "escaped" the same
-  way `CREATURE-FRAMES` does, since taking the raw list out through the public
-  API means it could be destructively reordered without going through a
-  setter. `%WORLD-RENDER-ORDER` rebuilds only when the cache is stale or an
-  escape can no longer be ruled out by a cheap identity/`Z`-value scan.
-- `MAKE-BUBBLE` (`src/bubble.lisp`) shares one prototype's prepared frame data
+  `%SET-WORLD-CREATURES`) invalidate that cache directly.
+- `RENDER-FRAME` stores renderer-owned snapshots in a weak table. It compares
+  the current creature state with the previous frame, coalesces each changed
+  creature's old and new clipped bounds, clears those rectangles, and blits
+  only creatures intersecting them. Added, removed, and reordered creatures
+  all invalidate the necessary regions. It falls back to a full repaint when
+  the dirty area covers at least half the screen or there are too many dirty
+  rectangles, avoiding pathological incremental work after large changes.
+- `MAKE-BUBBLE` (`src/bubble.lisp`) selects one of two immutable prototypes,
+  colored or monochrome, and shares its prepared frames, style, and blit runs
   across every bubble it spawns (bubbles are the highest-churn creature, one
   per fish roughly every 20-60 ticks) via `MAKE-CREATURE`'s
-  `%SPRITE-PROTOTYPE` argument. `STYLE` is deliberately excluded from that
-  sharing and resolved fresh through `SOLID-STYLE` on every call, so a bubble
-  still honors whatever `*MONOCHROME*` is bound to at the moment it is
-  spawned, rather than the value in effect when the shared prototype was
-  built once at load time.
+  `%SPRITE-PROTOTYPE` argument. Selection happens at spawn time, so a dynamic
+  `*MONOCHROME*` binding remains correct without reconstructing the equivalent
+  style and prepared runs for every bubble. Public frame/style access still
+  materializes private mutable copies before exposing them.
 
 ## Pure simulation, thin real I/O
 

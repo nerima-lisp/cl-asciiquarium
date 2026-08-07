@@ -126,7 +126,14 @@
           (make-creature :kind :test-thing :frames (list "a") :frame-period 1 :x 0 :y 0)))
       (dotimes (i 5)
         (creature-tick-animation creature))
-      (expect (creature-frame-index creature) :to-be 0))))
+      (expect (creature-frame-index creature) :to-be 0)))
+  (it
+    "normalizes an out-of-range frame index on advance"
+    (let ((creature
+          (make-creature :kind :test-thing :frames (list "a" "b") :frame-period 1 :x 0 :y 0)))
+      (setf (creature-frame-index creature) 2)
+      (creature-tick-animation creature)
+      (expect (creature-frame-index creature) :to-be 1))))
 
 (describe
   "creature-bounds and creatures-overlap-p"
@@ -232,6 +239,12 @@
 (describe
   "make-bubble prepared sprite sharing"
   (it
+    "uses a single-float vertical velocity"
+    (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
+           (fish (make-creature :world world :kind :fish :frames (list "F") :x 5 :y 5))
+           (bubble (make-bubble world fish)))
+      (expect (typep (entity-dy (creature-entity bubble)) 'single-float) :to-be-truthy)))
+  (it
     "shares prototype sprite data until public access materializes private mutable values"
     (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
            (fish (make-creature :world world :kind :fish :frames (list "F") :x 5 :y 5))
@@ -248,13 +261,11 @@
         :to-be
         (cl-asciiquarium::creature-%mirrored-frames prototype))
       (expect (cl-asciiquarium::creature-%frames-shared-p first) :to-be-truthy)
-      ;; STYLE is deliberately never shared from the prototype -- MAKE-BUBBLE
-      ;; resolves it fresh through SOLID-STYLE on every call so a bubble honors
-      ;; the current *MONOCHROME* setting (see bubble.lisp). That fresh style
-      ;; assignment rebuilds blit runs immediately, which is why -- unlike
-      ;; %FRAMES and %MIRRORED-FRAMES -- %PREPARED-FRAMES is never shared with
-      ;; the prototype even for an untouched bubble.
-      (expect (cl-asciiquarium::creature-%style-shared-p first) :to-be-falsy)
+      (expect (cl-asciiquarium::creature-%style-shared-p first) :to-be-truthy)
+      (expect
+        (cl-asciiquarium::creature-%prepared-style first)
+        :to-be
+        (cl-asciiquarium::creature-%prepared-style prototype))
       (let ((frames (creature-frames first)))
         (expect frames :not :to-be (cl-asciiquarium::creature-%frames prototype))
         (expect
@@ -287,7 +298,7 @@
            (changed (make-bubble world fish))
            (unchanged (make-bubble world fish)))
       (expect (cl-asciiquarium::creature-%frames-shared-p changed) :to-be-truthy)
-      (expect (cl-asciiquarium::creature-%style-shared-p changed) :to-be-falsy)
+      (expect (cl-asciiquarium::creature-%style-shared-p changed) :to-be-truthy)
       (setf (creature-frames changed) (list "X")
             (creature-style changed) (make-style (style-fg (named-color :bright-green))))
       (expect (cl-asciiquarium::creature-%frames-shared-p changed) :to-be-falsy)
@@ -301,6 +312,38 @@
         :not
         :to-be
         (cl-asciiquarium::creature-%frame-runs unchanged))))
+  (it
+    "selects a shared monochrome prototype without a colored style"
+    (let ((cl-asciiquarium::*monochrome* t))
+      (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
+             (fish (make-creature :world world :kind :fish :frames (list "F") :x 5 :y 5))
+             (bubble (make-bubble world fish))
+             (prototype cl-asciiquarium::+monochrome-bubble-sprite-prototype+))
+        (expect (cl-asciiquarium::creature-%style-shared-p bubble) :to-be-truthy)
+        (expect
+          (cl-asciiquarium::creature-%prepared-style bubble)
+          :to-be
+          (cl-asciiquarium::creature-%prepared-style prototype))
+        (expect (creature-style bubble) :to-be-falsy))))
+  (it
+    "materializes a shared prototype style before exposing it for mutation"
+    (let* ((prototype
+             (make-creature
+               :kind :prototype :frames (list "x")
+               :style (make-style (style-fg (named-color :bright-white)))
+               :%trusted-frames-p t :%trusted-style-p t :x 0 :y 0))
+           (creature
+             (make-creature :kind :child :%sprite-prototype prototype :x 0 :y 0))
+           (prototype-style (cl-asciiquarium::creature-%style prototype))
+           (expected-prototype-style (copy-tree prototype-style))
+           (style (creature-style creature)))
+      (expect (cl-asciiquarium::creature-%style-shared-p creature) :to-be-falsy)
+      (expect style :not :to-be prototype-style)
+      (setf (second (first style)) (named-color :bright-green))
+      (expect
+        (cl-asciiquarium::creature-%style prototype)
+        :to-equal
+        expected-prototype-style)))
   (it
     "rebuilds caches after direct frame vector mutation"
     (let* ((creature
@@ -513,7 +556,19 @@
       (cl-asciiquarium::%ensure-creature-caches-current creature)
       (expect (cl-asciiquarium::creature-%frames-escaped-p creature) :to-be-falsy)
       (expect (cl-asciiquarium::creature-%style-escaped-p creature) :to-be-falsy)
-      (expect (creature-art creature) :to-equal "a"))))
+      (expect (creature-art creature) :to-equal "a")))
+  (it
+    "marks factory-owned fish caches escaped after frame and style access"
+    (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
+           (fish (make-fish world :species :dart :x 5 :y 5 :dx 0 :facing :right)))
+      (expect (cl-asciiquarium::creature-%frames-escaped-p fish) :to-be-falsy)
+      (expect (cl-asciiquarium::creature-%style-escaped-p fish) :to-be-falsy)
+      (let ((frames (creature-frames fish)))
+        (creature-style fish)
+        (expect (cl-asciiquarium::creature-%frames-escaped-p fish) :to-be-truthy)
+        (expect (cl-asciiquarium::creature-%style-escaped-p fish) :to-be-truthy)
+        (setf (char (aref frames 0) 0) #\X)
+        (expect (char (creature-art fish) 0) :to-be #\X)))))
 
 (describe
   "creature cache monotonic escape tracking"

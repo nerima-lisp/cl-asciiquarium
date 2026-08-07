@@ -17,20 +17,22 @@ cooldown rather than having it wrap forever like a fish. FACING defaults to a
 random :LEFT or :RIGHT, as with MAKE-FISH's :X/:Y/:DX; an explicit override is
 what lets a test exercise one crossing direction deterministically."
   (let* ((height (world-height world))
-         (lane-top 3)
-         (lane-bottom (max lane-top (- height 5)))
+         (lane-top (min +fish-lane-top+ (max 0 (1- height))))
+         (lane-bottom (max lane-top (- height 3)))
          (facing (or facing (random-facing)))
-         (speed (1+ (/ (random 3) 3))))
+         (speed (+ 1.0f0 (/ (random 3) 3.0f0))))
     (multiple-value-bind (x dx)
         (off-screen-entry facing (sprite-width +shark-art+) (world-width world) speed)
       (make-creature :world world
-                      :kind :shark
-                      :frames (list +shark-art+)
-                      :facing facing
-                      :style (solid-style :white)
-                      :z 6
-                      :policy :despawn
-                      :x x
-                      :y (random-between lane-top lane-bottom)
-                      :dx dx
-                      :data nil))))
+                     :kind :shark
+                     :frames (list +shark-art+)
+                     :facing facing
+                     :style (solid-style :white)
+                     :%trusted-frames-p t
+                     :%trusted-style-p t
+                     :z 6
+                     :policy :despawn
+                     :x x
+                     :y (random-between lane-top lane-bottom)
+                     :dx dx
+                     :data nil))))

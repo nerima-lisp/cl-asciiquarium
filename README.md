@@ -92,6 +92,11 @@ special-guest spawn scenarios are exactly reproducible; see
 [paredit-cli](https://github.com/nerima-lisp/paredit-cli)'s structural lint
 over every Lisp source file.
 
+The collision pass validates mutable sprite caches and refreshes internal scalar
+bounds once for each active predator and live fish before scanning overlaps. Its
+steady-state path creates no temporary collision lists or records; those bounds
+are implementation details and do not expand the public `creature` API.
+
 ## Contributing
 
 See the org-wide [CONTRIBUTING](https://github.com/nerima-lisp/.github/blob/main/CONTRIBUTING.md)

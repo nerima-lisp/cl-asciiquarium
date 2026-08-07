@@ -36,24 +36,25 @@ the detected terminal size, then run the aquarium. Returns 0 once RUN returns
    :description "Swimming fish, a shark, rising bubbles, swaying seaweed, and
 periodic special guests (a ship that drops an anchor, a line of ducks, a
 leaping dolphin, a segmented sea monster), rendered live in the terminal.
-Press q to quit, r to redraw, space to pause, +/- to grow or shrink the fish
-count, s/g to spawn a shark/guest on demand, and h for the full key list."
+Press q to quit, r/R to redraw all aquarium entities, p/P or space to pause,
++/- to grow or shrink the fish count, s/g to spawn a shark/guest on demand, and
+h for the full key list."
    :global-options
    (list (make-option :name "width" :kind :value :type :integer
-                       :description
-                       "Terminal width override; defaults to the detected terminal size.")
+                      :description
+                      "Terminal width override; defaults to the detected terminal size.")
          (make-option :name "height" :kind :value :type :integer
-                       :description
-                       "Terminal height override; defaults to the detected terminal size.")
+                      :description
+                      "Terminal height override; defaults to the detected terminal size.")
          (make-option :name "seed" :kind :value :type :integer
-                       :description "Seed the random number generator for a reproducible run.")
+                      :description "Seed the random number generator for a reproducible run.")
          (make-option :name "fps" :kind :value :type :integer :min 1 :max 60
-                       :description "Target frames per second (default 20).")
+                      :description "Target frames per second (default 20).")
          (make-option :name "no-shark" :kind :flag
-                       :description "Disable the shark, so fish are never eaten.")
+                      :description "Disable the shark, so fish are never eaten.")
          (make-option :name "monochrome" :kind :flag
-                       :description
-                       "Render every creature in the terminal's default foreground color."))
+                      :description
+                      "Render every creature in the terminal's default foreground color."))
    :handler #'run-handler))
 
 (defun main ()

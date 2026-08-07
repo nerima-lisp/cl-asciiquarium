@@ -17,15 +17,16 @@
   (it "populates the requested number of fish"
     (with-seeded-random-state (1)
       (let ((world (make-world :width 40 :height 20 :fish-count 5)))
-        (expect (count :fish (world-creatures world) :key #'creature-kind) :to-be 5))))
-  (it "populates a fixed background regardless of fish count"
+        (expect (count :fish (cl-asciiquarium::world-%creatures world) :key #'creature-kind) :to-be 5))))
+  (it "populates a width-dependent background regardless of fish count"
     (with-seeded-random-state (1)
       (let ((world (make-world :width 40 :height 20 :fish-count 5)))
-        (expect (count :waterline (world-creatures world) :key #'creature-kind) :to-be 1)
-        (expect (count :castle (world-creatures world) :key #'creature-kind) :to-be 1)
-        ;; +default-seaweed-count+ (world.lisp) is 4; populate-background spawns
-        ;; that many regardless of the requested fish count.
-        (expect (count :seaweed (world-creatures world) :key #'creature-kind) :to-be 4)))))
+        (expect (count :waterline (cl-asciiquarium::world-%creatures world) :key #'creature-kind) :to-be 1)
+        (expect (count :castle (cl-asciiquarium::world-%creatures world) :key #'creature-kind) :to-be 1)
+        (expect (count :seaweed (cl-asciiquarium::world-%creatures world) :key #'creature-kind)
+                :to-be
+                (cl-asciiquarium::default-seaweed-count-for-width
+                 (world-width world)))))))
 
 (describe "world-advance"
   (it "increments the tick counter exactly once per call"
@@ -38,7 +39,7 @@
   (it "moves a fish's position according to its velocity each tick"
     (let* ((world (tiny-world :width 40 :height 20))
            (fish (make-fish world :species :dart :x 5 :y 5 :dx 1)))
-      (push fish (world-creatures world))
+      (cl-asciiquarium::%add-world-creature world fish)
       (world-advance world)
       (expect (creature-x fish) :to-be 6)
       (world-advance world)
@@ -46,10 +47,17 @@
   (it "wraps a fish back into the world when it swims off the right edge"
     (let* ((world (tiny-world :width 10 :height 10))
            (fish (make-fish world :species :dart :x 8 :y 3 :dx 1)))
-      (push fish (world-creatures world))
+      (cl-asciiquarium::%add-world-creature world fish)
       (dotimes (i 5) (world-advance world))
       (expect (>= (creature-x fish) 0) :to-be-truthy)
       (expect (< (creature-x fish) (world-width world)) :to-be-truthy)))
+  (it "still runs an exit callback for a stationary creature"
+    (let* ((world (tiny-world :width 10 :height 10))
+           (creature (make-creature :world world :kind :test :frames (list ".")
+                                    :x -1 :y 3 :dx 0 :dy 0 :policy :wrap)))
+      (cl-asciiquarium::%add-world-creature world creature)
+      (world-advance world)
+      (expect (creature-x creature) :to-be 9)))
   (it-fuzz "never signals an error across many random world sizes and fish counts"
       ((width (gen-integer :min 5 :max 120))
        (height (gen-integer :min 5 :max 60))
@@ -58,13 +66,29 @@
       (:trials 50 :timeout-per-trial 2)
     (let ((world (make-world :width width :height height :fish-count fish-count)))
       (dotimes (i ticks) (world-advance world))))
+  (it-property "increments the tick counter for random unpaused worlds"
+      ((width (gen-integer :min 5 :max 120))
+       (height (gen-integer :min 5 :max 60))
+       (fish-count (gen-integer :min 0 :max 20))
+       (ticks (gen-integer :min 1 :max 60)))
+    (let ((world (make-world :width width :height height :fish-count fish-count)))
+      (dotimes (i ticks) (world-advance world))
+      (= (world-tick world) ticks)))
   (it "removes a bubble once it rises to the waterline row"
     (let* ((world (tiny-world :width 40 :height 20))
            (bubble (make-creature :world world :kind :bubble :frames (list ".")
                                   :x 5 :y (1+ +waterline-row+) :dx 0 :dy -1 :policy :none)))
-      (push bubble (world-creatures world))
+      (cl-asciiquarium::%add-world-creature world bubble)
       (world-advance world)
-      (expect (member bubble (world-creatures world)) :to-be-falsy))))
+      (expect (member bubble (cl-asciiquarium::world-%creatures world)) :to-be-falsy))))
+  (it "removes internally managed bubbles without exposing the creature list"
+    (let* ((world (make-world :width 40 :height 20 :fish-count 0))
+           (bubble (make-creature :world world :kind :bubble :frames (list ".")
+                                  :x 5 :y (1+ +waterline-row+) :dx 0 :dy -1 :policy :none)))
+      (cl-asciiquarium::%add-world-creature world bubble)
+      (world-advance world)
+      (expect (member bubble (cl-asciiquarium::world-%creatures world)) :to-be-falsy)
+      (expect (cl-asciiquarium::world-removal-pending-p world) :to-be-falsy)))
 
 (describe "world-advance while paused"
   (it "does not increment the tick counter"
@@ -76,14 +100,14 @@
   (it "does not move a fish's position"
     (let* ((world (tiny-world :width 40 :height 20))
            (fish (make-fish world :species :dart :x 5 :y 5 :dx 1)))
-      (push fish (world-creatures world))
+      (cl-asciiquarium::%add-world-creature world fish)
       (setf (world-paused-p world) t)
       (world-advance world)
       (expect (creature-x fish) :to-be 5)))
   (it "resumes advancing once unpaused"
     (let* ((world (tiny-world :width 40 :height 20))
            (fish (make-fish world :species :dart :x 5 :y 5 :dx 1)))
-      (push fish (world-creatures world))
+      (cl-asciiquarium::%add-world-creature world fish)
       (setf (world-paused-p world) t)
       (world-advance world)
       (setf (world-paused-p world) nil)
@@ -97,7 +121,7 @@
       (let ((world (tiny-world :width 40 :height 20 :fish-count 2)))
         (world-increase-fish-count world)
         (expect (world-fish-count world) :to-be 3)
-        (expect (count :fish (world-creatures world) :key #'creature-kind) :to-be 3))))
+        (expect (count :fish (cl-asciiquarium::world-%creatures world) :key #'creature-kind) :to-be 3))))
   (it "increase refuses to grow past +max-fish-count+"
     (with-seeded-random-state (8)
       (let ((world (tiny-world :width 40 :height 20 :fish-count 0)))
@@ -109,12 +133,12 @@
       (let ((world (tiny-world :width 40 :height 20 :fish-count 2)))
         (world-decrease-fish-count world)
         (expect (world-fish-count world) :to-be 1)
-        (expect (count :fish (world-creatures world) :key #'creature-kind) :to-be 1))))
+        (expect (count :fish (cl-asciiquarium::world-%creatures world) :key #'creature-kind) :to-be 1))))
   (it "decrease at zero fish is a no-op"
     (let ((world (tiny-world :width 40 :height 20 :fish-count 0)))
       (world-decrease-fish-count world)
       (expect (world-fish-count world) :to-be 0)
-      (expect (count :fish (world-creatures world) :key #'creature-kind) :to-be 0))))
+      (expect (count :fish (cl-asciiquarium::world-%creatures world) :key #'creature-kind) :to-be 0))))
 
 (describe "%delete-removed-creatures"
   (labels ((marker (kind) (make-creature :kind kind :frames (list "x") :x 0 :y 0))
@@ -140,27 +164,56 @@
   (it "repopulates the requested number of fresh fish, none reused from before"
     (with-seeded-random-state (3)
       (let* ((world (make-world :width 40 :height 20 :fish-count 4))
-             (original-fish (remove :fish (world-creatures world) :key #'creature-kind :test-not #'eq)))
+             (original-fish
+              (remove :fish
+                      (cl-asciiquarium::world-%creatures world)
+                      :key #'creature-kind
+                      :test-not #'eq)))
         (world-redraw world)
-        (let ((new-fish (remove :fish (world-creatures world) :key #'creature-kind :test-not #'eq)))
+        (let ((new-fish
+               (remove :fish
+                       (cl-asciiquarium::world-%creatures world)
+                       :key #'creature-kind
+                       :test-not #'eq)))
           (expect (= (length new-fish) 4) :to-be-truthy)
           (expect (intersection original-fish new-fish) :to-be-falsy)))))
-  (it "leaves the background in place"
+  (it "recreates the background along with the aquarium population"
     (with-seeded-random-state (3)
-      (let ((world (make-world :width 40 :height 20 :fish-count 4)))
+      (let* ((world (make-world :width 40 :height 20 :fish-count 4))
+             (original-background
+              (remove-if-not
+               (lambda (creature)
+                 (member (creature-kind creature)
+                         '(:waterline :castle :seaweed)))
+               (cl-asciiquarium::world-%creatures world))))
         (world-redraw world)
-        (expect (count :waterline (world-creatures world) :key #'creature-kind) :to-be 1)
-        (expect (count :castle (world-creatures world) :key #'creature-kind) :to-be 1))))
+        (let ((creatures (cl-asciiquarium::world-%creatures world)))
+          (expect (count :waterline creatures :key #'creature-kind) :to-be 1)
+          (expect (count :castle creatures :key #'creature-kind) :to-be 1)
+          (expect (count :seaweed creatures :key #'creature-kind)
+                  :to-be
+                  (cl-asciiquarium::default-seaweed-count-for-width
+                   (world-width world)))
+          (expect (intersection original-background creatures :test #'eq)
+                  :to-be-falsy)))))
   (it "clears every dolphin and sea-monster segment, the newer guest kinds"
     (let ((world (make-world :width 40 :height 20 :fish-count 0)))
       (spawn-guest-now world :dolphin)
       (spawn-guest-now world :sea-monster)
       (world-redraw world)
-      (expect (find :dolphin (world-creatures world) :key #'creature-kind) :to-be-null)
-      (expect (find :sea-monster (world-creatures world) :key #'creature-kind) :to-be-null)
-      (expect (find :monster-segment (world-creatures world) :key #'creature-kind) :to-be-null)))
+      (expect (find :dolphin (cl-asciiquarium::world-%creatures world)
+                    :key #'creature-kind)
+              :to-be-null)
+      (expect (find :sea-monster (cl-asciiquarium::world-%creatures world)
+                    :key #'creature-kind)
+              :to-be-null)
+      (expect (find :monster-segment (cl-asciiquarium::world-%creatures world)
+                    :key #'creature-kind)
+              :to-be-null)))
   (it "leaves the help overlay in place, since it is UI state, not aquarium population"
     (let ((world (make-world :width 40 :height 20 :fish-count 0)))
       (world-toggle-help-overlay world)
       (world-redraw world)
-      (expect (find :help-overlay (world-creatures world) :key #'creature-kind) :to-be-truthy))))
+      (expect (find :help-overlay (cl-asciiquarium::world-%creatures world)
+                    :key #'creature-kind)
+              :to-be-truthy))))

@@ -35,8 +35,8 @@ Run `asciiquarium --help` for the full option list.
 | Key | Effect |
 |---|---|
 | `q` / `Q` / Ctrl-C | Quit |
-| `r` / `R` | Redraw: remove and respawn every fish, shark, and guest; background stays |
-| Space | Pause / resume the simulation |
+| `r` / `R` | Redraw: recreate all aquarium entities; the help panel stays |
+| `p` / `P` / Space | Pause / resume the simulation |
 | `+` / `=` | Grow the live fish count by one (up to 40) |
 | `-` / `_` | Shrink the live fish count by one |
 | `s` / `S` | Spawn a shark immediately (no-op under `--no-shark`) |

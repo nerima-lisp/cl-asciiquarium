@@ -64,6 +64,8 @@ and DOCSTRING and an OFF-SCREEN-GUEST-SPEC already validated by
                              :frames (list ,(off-screen-guest-spec-art spec))
                              :facing facing
                              :style (solid-style ,(off-screen-guest-spec-color spec))
+                             :%trusted-frames-p t
+                             :%trusted-style-p t
                              :z ,(off-screen-guest-spec-z spec)
                              :policy :despawn
                              :x x
@@ -105,7 +107,7 @@ direction deterministically."
   :art +ship-art+
   :color :white
   :z 7
-  :speed 1/2
+  :speed 0.5f0
   :let* ((distance-to-midpoint (abs (- (/ width 2) x)))
          (travel-to-midpoint (round (/ distance-to-midpoint speed))))
   :y (max 0 (1- +waterline-row+))
@@ -124,6 +126,8 @@ COLLISION.LISP) for +ANCHOR-DROPPED-TICKS+ before despawning."
                     :kind :anchor
                     :frames (list +anchor-art+)
                     :style (solid-style :bright-black)
+                    :%trusted-frames-p t
+                    :%trusted-style-p t
                     :z 3
                     :policy :none
                     :x (+ (creature-x ship) (round (/ (sprite-width +ship-art+) 2)))
@@ -140,7 +144,7 @@ exercise one crossing direction deterministically."
   :art +duck-line-art+
   :color :yellow
   :z 7
-  :speed 1/2
+  :speed 0.5f0
   :y (max 0 (1- +waterline-row+))
   :data nil)
 
@@ -156,7 +160,7 @@ other off-screen crossing factory."
   :art +dolphin-art+
   :color :bright-blue
   :z 7
-  :speed 1
+  :speed 1.0f0
   :let* ((baseline (random-between (+ +waterline-row+ 1 +dolphin-arc-amplitude+)
                                     (max (+ +waterline-row+ 2 +dolphin-arc-amplitude+)
                                          (- height 4)))))
@@ -178,7 +182,7 @@ defaults to a random :LEFT or :RIGHT."
   :art +sea-monster-head-art+
   :color :bright-green
   :z 7
-  :speed 1/2
+  :speed 0.5f0
   :let* ((lane (random-between (1+ +waterline-row+) (max (+ 2 +waterline-row+) (- height 4)))))
   :y lane
   :data nil)
@@ -196,6 +200,8 @@ trail rather than each segment separately simulating its own off-screen exit."
                     :kind :monster-segment
                     :frames (list +sea-monster-segment-art+)
                     :style (solid-style :green)
+                    :%trusted-frames-p t
+                    :%trusted-style-p t
                     :z 6
                     :policy :none
                     :x (+ (creature-x leader) offset-x)

@@ -18,9 +18,9 @@
   monster (a head `CREATURE` plus several trailing `:MONSTER-SEGMENT`
   `CREATURE`s that follow it as a synchronized trail). See
   [Architecture](../reference/architecture.md) for both motion patterns.
-- `q`/Ctrl-C to quit, `r` to redraw/reshuffle, space to pause/resume, `+`/`-`
-  to grow/shrink the live fish count, `h` to toggle an on-screen help panel,
-  and polled terminal-resize handling.
+- `q`/Ctrl-C to quit, `r`/`R` to redraw all aquarium entities, `p`/`P` or
+  space to pause/resume, `+`/`-` to grow/shrink the live fish count, `h` to
+  toggle an on-screen help panel, and polled terminal-resize handling.
 - `--monochrome` to render every creature in the terminal's default
   foreground color.
 

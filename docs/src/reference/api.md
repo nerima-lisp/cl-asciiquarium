@@ -136,9 +136,10 @@ The one shape every sprite type goes through; see
 
 - `WORLD-APPLY-KEY-EVENT (world event)` / `WORLD-APPLY-KEY-EVENTS (world
   events)` -- apply decoded `cl-tty-kit:KEY-EVENT`s: `q`/`Q`/Ctrl-C quit,
-  `r`/`R` redraw, space pauses/resumes, `+`/`=`/`-`/`_` adjust the live fish
-  count, `s`/`S` force-spawns a shark, `g`/`G` force-spawns a guest, `h`/`H`
-  toggles the help panel.
+  `r`/`R` redraws all aquarium entities (the help overlay is preserved),
+  `p`/`P`/Space pauses/resumes, `+`/`=`/`-`/`_` adjust the live fish count,
+  `s`/`S` force-spawns a shark, `g`/`G` force-spawns a guest, `h`/`H` toggles
+  the help panel.
 - `WORLD-TOGGLE-HELP-OVERLAY (world)` -- add or remove the `:HELP-OVERLAY`
   creature (bound to `h`); excluded from `WORLD-REDRAW`, since it is UI state,
   not aquarium population.
