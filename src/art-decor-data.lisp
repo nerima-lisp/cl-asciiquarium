@@ -20,6 +20,8 @@ to this row or above; see update.lisp.")
         (format nil "/~%|~%\\~%|~%/"))
   "The two-frame sway a seaweed strand loops between.")
 
+(defparameter +ambient-current-motif+ ".   .    .  ~")
+
 (defparameter +help-overlay-art+
   (format nil "~
  controls~%~
@@ -30,6 +32,8 @@ to this row or above; see update.lisp.")
  + / -   fish count~%~
  s       spawn shark~%~
  g       spawn guest~%~
+ t       cycle theme~%~
+ u       toggle HUD~%~
  h       toggle this help")
   "The text WORLD-TOGGLE-HELP-OVERLAY's CREATURE displays, listing every key
 this application binds (input.lisp).")

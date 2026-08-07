@@ -25,6 +25,7 @@
                 #:entity-y
                 #:entity-dx
                 #:entity-dy
+                #:entity-on-exit
                 #:make-renderer
                 #:renderer-screen
                 #:renderer-width
@@ -49,6 +50,14 @@
                 #:run-app
                 #:option-value
                 #:current-process-argv)
+  ;; cl-concurrent-kit: fixed executors and promises for bounded render
+  ;; preparation work. World mutation and terminal compositing remain local.
+  (:import-from #:cl-concurrent-kit
+                #:make-executor
+                #:submit
+                #:await
+                #:shutdown-executor
+                #:await-executor-termination)
   (:export
    ;; -- Conditions --
    #:asciiquarium-error
@@ -96,8 +105,9 @@
    #:world-width
    #:world-height
    #:world-tick
-   #:world-creatures
    #:world-fish-count
+   #:world-theme
+   #:world-hud-visible-p
    #:world-quitp
    #:world-paused-p
    #:world-shark-enabled-p
@@ -105,9 +115,12 @@
    #:world-guest-cooldown
    #:world-resize
    #:world-redraw
+   #:world-cycle-theme
+   #:world-toggle-hud
    #:world-increase-fish-count
    #:world-decrease-fish-count
    #:+max-fish-count+
+   #:+visual-themes+
 
    ;; -- Simulation step --
    #:world-advance
@@ -149,6 +162,7 @@
    ;; -- Rendering --
    #:draw-world
    #:render-frame
+   #:shutdown-renderer
 
    ;; -- Application entry points --
    #:run

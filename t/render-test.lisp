@@ -12,14 +12,14 @@
     (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
            (screen (make-screen 20 10))
            (creature (make-creature :world world :kind :marker :frames (list "Z") :x 5 :y 1)))
-      (push creature (world-creatures world))
+      (cl-asciiquarium::%add-world-creature world creature)
       (draw-world screen world)
       (expect (cell-char (screen-cell screen 5 1)) :to-be #\Z)))
   (it "clears the screen before repainting, so a creature that has moved leaves no trail"
     (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
            (screen (make-screen 20 10))
            (creature (make-creature :world world :kind :marker :frames (list "Z") :x 5 :y 1)))
-      (push creature (world-creatures world))
+      (cl-asciiquarium::%add-world-creature world creature)
       (draw-world screen world)
       (setf (entity-x (creature-entity creature)) 10)
       (draw-world screen world)
@@ -29,7 +29,7 @@
            (screen (make-screen 20 10))
            (first (make-creature :world world :kind :marker :frames (list "A") :x 5 :y 4 :z 1))
            (second (make-creature :world world :kind :marker :frames (list "B") :x 5 :y 4 :z 1)))
-      (setf (world-creatures world) (list first second))
+      (cl-asciiquarium::%set-world-creatures world (list first second))
       (draw-world screen world)
       (expect (cell-char (screen-cell screen 5 4)) :to-be #\B)))
   (progn
@@ -38,32 +38,12 @@
            (screen (make-screen 20 10))
            (back (make-creature :world world :kind :marker :frames (list "A") :x 5 :y 4 :z 1))
            (front (make-creature :world world :kind :marker :frames (list "B") :x 5 :y 4 :z 2)))
-      (push back (world-creatures world))
+      (cl-asciiquarium::%add-world-creature world back)
       (draw-world screen world)
-      (push front (world-creatures world))
+      (cl-asciiquarium::%add-world-creature world front)
       (draw-world screen world)
       (expect (cell-char (screen-cell screen 5 4)) :to-be #\B)))
-  (it "invalidates the cached paint order when a creature z value changes"
-    (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
-           (screen (make-screen 20 10))
-           (first (make-creature :world world :kind :marker :frames (list "A") :x 5 :y 4 :z 1))
-           (second (make-creature :world world :kind :marker :frames (list "B") :x 5 :y 4 :z 2)))
-      (setf (world-creatures world) (list first second))
-      (draw-world screen world)
-      (setf (creature-z first) 3)
-      (draw-world screen world)
-      (expect (cell-char (screen-cell screen 5 4)) :to-be #\A)))
-  (it "invalidates the cached paint order after destructive list replacement"
-    (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
-           (screen (make-screen 20 10))
-           (back (make-creature :world world :kind :marker :frames (list "A") :x 5 :y 4 :z 1))
-           (front (make-creature :world world :kind :marker :frames (list "B") :x 5 :y 4 :z 2))
-           (replacement (make-creature :world world :kind :marker :frames (list "C") :x 5 :y 4 :z 3)))
-      (setf (world-creatures world) (list back front))
-      (draw-world screen world)
-      (setf (car (world-creatures world)) replacement)
-      (draw-world screen world)
-      (expect (cell-char (screen-cell screen 5 4)) :to-be #\C))))
+  (it "rebuilds cached paint order after explicit z-order invalidation" (let* ((world (tiny-world :width 20 :height 10 :fish-count 0)) (screen (make-screen 20 10)) (first (make-creature :world world :kind :marker :frames (list "A") :x 5 :y 4 :z 1)) (second (make-creature :world world :kind :marker :frames (list "B") :x 5 :y 4 :z 2))) (cl-asciiquarium::%set-world-creatures world (list first second)) (draw-world screen world) (setf (creature-z first) 3) (cl-asciiquarium::%invalidate-world-render-order world) (draw-world screen world) (expect (cell-char (screen-cell screen 5 4)) :to-be #\A))))
   (it "preserves transparent spaces and clips prepared runs at negative coordinates"
     (let* ((world (tiny-world :width 4 :height 2 :fish-count 0))
            (screen (make-screen 4 2))
@@ -73,7 +53,7 @@
            (front (make-creature :world world :kind :marker
                                  :frames (list (format nil " X X~%XYZ"))
                                  :x -1 :y 0 :z 2)))
-      (setf (world-creatures world) (list back front))
+      (cl-asciiquarium::%set-world-creatures world (list back front))
       (draw-world screen world)
       (expect (cell-char (screen-cell screen 0 0)) :to-be #\X)
       (expect (cell-char (screen-cell screen 1 0)) :to-be #\B)
@@ -85,17 +65,18 @@
            (screen (make-screen 4 2))
            (creature (make-creature :world world :kind :marker :x 0 :y 0
                                     :frames (list "Z") :style '(:bold))))
-      (push creature (world-creatures world))
+      (cl-asciiquarium::%add-world-creature world creature)
       (draw-world screen world)
       (expect (cl-tty-kit:cell-style (screen-cell screen 0 0)) :to-equal '(:bold))
       (setf (creature-style creature) '(:underline))
       (draw-world screen world)
       (expect (cl-tty-kit:cell-style (screen-cell screen 0 0)) :to-equal '(:underline))))
   (it "rebuilds normal and mirrored prepared runs when frames change"
-    (let* ((world (tiny-world :width 4 :height 2 :fish-count 0))
+    (let* ((world (make-world :width 4 :height 2 :fish-count 0
+                              :hud-visible-p nil))
            (screen (make-screen 4 2))
            (creature (make-creature :world world :kind :marker :x 0 :y 0 :z 2 :frames (list "A<"))))
-      (push creature (world-creatures world))
+      (cl-asciiquarium::%add-world-creature world creature)
       (setf (creature-frames creature) (list "B<")
             (creature-facing creature) :left)
       (draw-world screen world)
@@ -121,36 +102,527 @@
                       :to-equal (cl-tty-kit:cell-style
                                  (screen-cell expected column row))))))))))
 
-(describe "render-frame"
-  (it "produces non-empty output for the first frame of a populated world"
-    (with-seeded-random-state (6)
-      (let ((world (make-world :width 20 :height 10 :fish-count 2))
-            (renderer (make-renderer 20 10)))
-        (expect (plusp (length (render-frame renderer world))) :to-be-truthy)))))
+(describe
+ "%add-dirty-rectangle"
+ (it
+  "merges touching rectangles but leaves separated regions alone"
+  (let ((rectangles (cl-asciiquarium::%make-dirty-rectangles)))
+    (dolist (rectangle (list (list 0 0 1 1) (list 1 0 2 1) (list 4 0 5 1)))
+      (destructuring-bind (left top right bottom) rectangle
+        (cl-asciiquarium::%add-dirty-rectangle rectangles left top right bottom)))
+    (expect (cl-asciiquarium::%dirty-rectangles-count rectangles) :to-be 2)
+    (let ((data (cl-asciiquarium::%dirty-rectangles-data rectangles)))
+      (expect
+       (loop for index below (cl-asciiquarium::%dirty-rectangles-count rectangles)
+             for offset = (* index 4)
+             thereis (and (= (aref data offset) 0)
+                          (= (aref data (1+ offset)) 0)
+                          (= (aref data (+ offset 2)) 2)
+                          (= (aref data (+ offset 3)) 1)))
+       :to-be-truthy)
+      (expect
+       (loop for index below (cl-asciiquarium::%dirty-rectangles-count rectangles)
+             for offset = (* index 4)
+             thereis (and (= (aref data offset) 4)
+                          (= (aref data (1+ offset)) 0)
+                          (= (aref data (+ offset 2)) 1)
+                          (= (aref data (+ offset 3)) 1)))
+       :to-be-truthy)))))
+
+(describe
+ "%dirty-rectangles-exceed-render-budget-p"
+ (it
+  "switches to a full repaint when separated regions dominate layer checks"
+  (let ((rectangles (cl-asciiquarium::%make-dirty-rectangles)))
+    (dolist (left (list 0 2 4 6))
+      (cl-asciiquarium::%add-dirty-rectangle rectangles left 0 (1+ left) 1))
+    (expect
+     (cl-asciiquarium::%dirty-rectangles-exceed-render-budget-p
+      rectangles
+      (list :first :second :third :fourth :fifth :sixth :seventh :eighth))
+     :to-be-truthy)))
+ (it
+  "keeps a single local region incremental"
+  (let ((rectangles (cl-asciiquarium::%make-dirty-rectangles)))
+    (cl-asciiquarium::%add-dirty-rectangle rectangles 0 0 1 1)
+    (expect
+     (cl-asciiquarium::%dirty-rectangles-exceed-render-budget-p
+      rectangles
+      (list :first :second :third :fourth))
+     :to-be-falsy))))
+
+(describe
+ "render-frame"
+ (it
+  "produces non-empty output for the first frame of a populated world"
+  (with-seeded-random-state
+   (6)
+   (let ((world (make-world :width 20 :height 10 :fish-count 2))
+         (renderer (make-renderer 20 10)))
+     (expect (plusp (length (render-frame renderer world))) :to-be-truthy))))
+ (it
+  "emits no diff for an unchanged second frame"
+  (let ((world (tiny-world :width 20 :height 10 :fish-count 0))
+        (renderer (make-renderer 20 10)))
+    (render-frame renderer world)
+    (expect (render-frame renderer world) :to-equal "")))
+ (it
+  "clears a creature's old location after it moves"
+  (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
+         (renderer (make-renderer 20 10))
+         (creature
+          (make-creature
+           :world
+           world
+           :kind
+           :marker
+           :frames
+           (list "Z")
+           :x
+           5
+           :y
+           1)))
+    (cl-asciiquarium::%add-world-creature world creature)
+    (render-frame renderer world)
+    (setf (entity-x (creature-entity creature)) 10)
+    (render-frame renderer world)
+    (expect
+     (cell-char (screen-cell (cl-asciiquarium::renderer-screen renderer) 5 1))
+     :to-be
+     #\Space)
+    (expect
+     (cell-char (screen-cell (cl-asciiquarium::renderer-screen renderer) 10 1))
+     :to-be
+     #\Z)))
+ (it
+  "recomposes overlap after explicit z-order invalidation"
+  (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
+         (renderer (make-renderer 20 10))
+         (back
+          (make-creature
+           :world
+           world
+           :kind
+           :marker
+           :frames
+           (list "A")
+           :x
+           5
+           :y
+           1
+           :z
+           1))
+         (front
+          (make-creature
+           :world
+           world
+           :kind
+           :marker
+           :frames
+           (list "B")
+           :x
+           5
+           :y
+           1
+           :z
+           2)))
+    (cl-asciiquarium::%set-world-creatures world (list back front))
+    (render-frame renderer world)
+    (setf (creature-z back) 3)
+    (cl-asciiquarium::%invalidate-world-render-order world)
+    (render-frame renderer world)
+    (expect
+     (cell-char (screen-cell (cl-asciiquarium::renderer-screen renderer) 5 1))
+     :to-be
+     #\A)))
+ (it
+  "matches a full redraw after sparse changes beyond six creatures"
+  (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
+         (renderer (make-renderer 20 10))
+         (expected (make-screen 20 10))
+         (creatures
+          (loop for character across "ABCDEFG"
+                for x from 1 by 2
+                collect (make-creature
+                         :world
+                         world
+                         :kind
+                         :marker
+                         :frames
+                         (list (string character))
+                         :x
+                         x
+                         :y
+                         1))))
+    (cl-asciiquarium::%set-world-creatures world creatures)
+    (render-frame renderer world)
+    (dolist (creature creatures)
+      (incf (entity-y (creature-entity creature))))
+    (render-frame renderer world)
+    (draw-world expected world)
+    (dotimes (row 10)
+      (dotimes (column 20)
+        (expect
+         (cell-char
+          (screen-cell (cl-asciiquarium::renderer-screen renderer) column row))
+         :to-be
+         (cell-char (screen-cell expected column row)))))))
+ (it
+  "leaves distant sprites intact while recomposing a local dirty rectangle"
+  (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
+         (renderer (make-renderer 20 10))
+         (mover
+          (make-creature
+           :world
+           world
+           :kind
+           :marker
+           :frames
+           (list "M")
+           :x
+           1
+           :y
+           1))
+         (distant
+          (make-creature
+           :world
+           world
+           :kind
+           :marker
+           :frames
+           (list (format nil "FF~%FF"))
+           :x
+           15
+           :y
+           1)))
+    (cl-asciiquarium::%set-world-creatures world (list mover distant))
+    (render-frame renderer world)
+    (incf (entity-x (creature-entity mover)))
+    (render-frame renderer world)
+    (let ((screen (cl-asciiquarium::renderer-screen renderer)))
+      (expect (cell-char (screen-cell screen 1 1)) :to-be #\Space)
+      (expect (cell-char (screen-cell screen 2 1)) :to-be #\M)
+      (expect (cell-char (screen-cell screen 15 1)) :to-be #\F)
+      (expect (cell-char (screen-cell screen 16 1)) :to-be #\F)
+      (expect (cell-char (screen-cell screen 15 2)) :to-be #\F)))))
 
 (progn
-  (describe "render-order cache escape tracking"
-    (it "returns the raw creature list and permanently marks it escaped"
-      (let* ((world (tiny-world))
-             (creatures (world-creatures world)))
-        (expect creatures :to-be (cl-asciiquarium::world-%creatures world))
-        (expect (cl-asciiquarium::world-render-order-escaped-p world) :to-be-truthy)))
-    (it "detects a delayed destructive mutation through a setter alias"
-      (let* ((world (tiny-world :width 20 :height 10))
-             (screen (make-screen 20 10))
-             (back (make-creature :world world :kind :marker :frames (list "A") :x 5 :y 4 :z 1))
-             (front (make-creature :world world :kind :marker :frames (list "B") :x 5 :y 4 :z 2))
-             (replacement (make-creature :world world :kind :marker :frames (list "C") :x 5 :y 4 :z 3))
-             (alias (list back front)))
-        (setf (world-creatures world) alias)
-        (draw-world screen world)
-        (setf (car alias) replacement)
-        (draw-world screen world)
-        (expect (cell-char (screen-cell screen 5 4)) :to-be (code-char 67))))
-    (it "does not scan snapshots on an unescaped cache hit"
-      (let ((world (tiny-world)))
-        (cl-asciiquarium::%world-render-order world)
-        (setf (cl-asciiquarium::world-render-order-creatures world) #()
-              (cl-asciiquarium::world-render-order-z-values world) #())
-        (expect (cl-asciiquarium::world-render-order-escaped-p world) :to-be nil)
-        (expect (cl-asciiquarium::%world-render-order-cache-valid-p world) :to-be-truthy)))))
+  (describe
+   "render-frame output modes"
+   (it
+    "returns a diff string when no stream is supplied"
+    (let ((world (tiny-world :width 20 :height 10 :fish-count 0))
+          (renderer (make-renderer 20 10)))
+      (expect (stringp (render-frame renderer world)) :to-be-truthy)))
+   (it "recreates renderer state after an explicit shutdown" (let* ((world (tiny-world :width 20 :height 10 :fish-count 0)) (renderer (make-renderer 20 10))) (unwind-protect (progn (render-frame renderer world) (expect (gethash renderer cl-asciiquarium::*renderer-frame-states*) :to-be-truthy) (shutdown-renderer renderer) (expect (gethash renderer cl-asciiquarium::*renderer-frame-states*) :to-be-falsy) (expect (stringp (render-frame renderer world)) :to-be-truthy)) (shutdown-renderer renderer))))
+   (it
+    "writes directly to and returns an explicit stream"
+    (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
+           (renderer (make-renderer 20 10))
+           (stream (make-string-output-stream)))
+      (expect (render-frame renderer world :stream stream) :to-be stream)
+      (expect (plusp (length (get-output-stream-string stream))) :to-be-truthy))))
+  (describe
+   "render-frame snapshot reuse"
+   (it
+    "retains a creature snapshot across still and moved frames"
+    (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
+           (renderer (make-renderer 20 10))
+           (creature
+            (make-creature
+             :world
+             world
+             :kind
+             :marker
+             :frames
+             (list "Z")
+             :x
+             5
+             :y
+             1)))
+      (cl-asciiquarium::%add-world-creature world creature)
+      (render-frame renderer world)
+      (let* ((state (gethash renderer cl-asciiquarium::*renderer-frame-states*))
+             (snapshots
+              (cl-asciiquarium::%renderer-frame-state-snapshots state))
+             (snapshot (gethash creature snapshots)))
+        (render-frame renderer world)
+      (expect (gethash creature snapshots) :to-be snapshot)
+      (setf (entity-x (creature-entity creature)) 10)
+      (render-frame renderer world)
+      (expect (gethash creature snapshots) :to-be snapshot)))))
+   (it
+    "preserves non-square snapshot metadata during validation"
+    (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
+           (creature
+            (make-creature
+             :world
+             world
+             :kind
+             :marker
+             :frames
+             (list (format nil "AB~%CD~%EF"))
+             :x
+             5
+             :y
+             1
+             :facing
+             :right
+             :z
+             2)))
+      (multiple-value-bind (snapshot ignored)
+          (cl-asciiquarium::%snapshot-creature-for-rendering creature)
+        (declare (ignore ignored))
+        (multiple-value-bind
+              (current-p x y width height runs frame-index facing z cache-rebuilt-p)
+            (cl-asciiquarium::%creature-render-snapshot-current-p
+             snapshot
+             creature)
+          (expect current-p :to-be-truthy)
+          (expect x :to-be 5)
+          (expect y :to-be 1)
+          (expect width :to-be 2)
+          (expect height :to-be 3)
+          (expect runs :to-be
+                  (cl-asciiquarium::%creature-render-snapshot-runs snapshot))
+          (expect frame-index :to-be 0)
+          (expect facing :to-be :right)
+          (expect z :to-be 2)
+          (expect cache-rebuilt-p :to-be-falsy))))))
+
+(describe
+ "render-frame parallel preparation"
+ (it
+    "arms parallel cache preparation after heavy invalidation"
+    (let* ((world (tiny-world :width 80 :height 10 :fish-count 0))
+           (renderer (make-renderer 80 10))
+           (creatures
+            (loop for index below 64
+                  collect (make-creature
+                           :world
+                           world
+                           :kind
+                           :marker
+                           :frames
+                           (list "A")
+                           :x
+                           index
+                           :y
+                           1))))
+      (unwind-protect
+           (progn
+             (cl-asciiquarium::%set-world-creatures world creatures)
+             (render-frame renderer world)
+             (let ((state
+                     (gethash renderer cl-asciiquarium::*renderer-frame-states*)))
+               (expect
+                (cl-asciiquarium::%renderer-frame-state-executor state)
+                :to-be
+                nil)
+               (loop for creature in creatures
+                     do (setf (aref (creature-frames creature) 0) "B"))
+               (render-frame renderer world)
+               (expect
+                (cl-asciiquarium::%renderer-frame-state-parallel-cache-hot-p state)
+                :to-be-truthy)
+               (expect
+                (cl-asciiquarium::%renderer-frame-state-executor state)
+                :to-be
+                nil)
+               (loop for creature in creatures
+                     do (setf (aref (creature-frames creature) 0) "C"))
+               (render-frame renderer world)
+               (let* ((executor
+                       (cl-asciiquarium::%renderer-frame-state-executor state))
+                      (inputs
+                       (cl-asciiquarium::%renderer-frame-state-parallel-input-snapshots
+                        state))
+                      (results
+                       (cl-asciiquarium::%renderer-frame-state-parallel-results state)))
+                 (expect executor :to-be-truthy)
+                 (expect (length inputs) :to-be 64)
+                 (expect (length results) :to-be 64)
+                 (loop for creature in creatures
+                       do (setf (aref (creature-frames creature) 0) "D"))
+                 (render-frame renderer world)
+                 (expect
+                  (cl-asciiquarium::%renderer-frame-state-executor state)
+                  :to-be
+                  executor)
+                 (expect
+                  (cl-asciiquarium::%renderer-frame-state-parallel-input-snapshots state)
+                  :to-be
+                  inputs)
+                 (expect
+                  (cl-asciiquarium::%renderer-frame-state-parallel-results state)
+                  :to-be
+                  results))))
+        (shutdown-renderer renderer)))))
+
+(it
+ "keeps parallel cache preparation output-equivalent to serial preparation"
+ (let* ((serial-world (tiny-world :width 80 :height 10 :fish-count 0))
+        (parallel-world (tiny-world :width 80 :height 10 :fish-count 0))
+        (serial-renderer (make-renderer 80 10))
+        (parallel-renderer (make-renderer 80 10))
+        (serial-creatures
+         (loop for index below 64
+               collect (make-creature
+                        :world
+                        serial-world
+                        :kind
+                        :marker
+                        :frames
+                        (list "A")
+                        :x
+                        index
+                        :y
+                        1)))
+        (parallel-creatures
+         (loop for index below 64
+               collect (make-creature
+                        :world
+                        parallel-world
+                        :kind
+                        :marker
+                        :frames
+                        (list "A")
+                        :x
+                        index
+                        :y
+                        1)))
+        (serial-output nil)
+        (parallel-output nil))
+   (unwind-protect
+        (progn
+          (cl-asciiquarium::%set-world-creatures serial-world serial-creatures)
+          (cl-asciiquarium::%set-world-creatures parallel-world parallel-creatures)
+          (render-frame serial-renderer serial-world)
+          (render-frame parallel-renderer parallel-world)
+          (loop for creature in serial-creatures
+                do (setf (aref (creature-frames creature) 0) "B"))
+          (loop for creature in parallel-creatures
+                do (setf (aref (creature-frames creature) 0) "B"))
+          (setf serial-output (render-frame serial-renderer serial-world))
+          (let ((state
+                  (gethash parallel-renderer cl-asciiquarium::*renderer-frame-states*)))
+            (setf
+             (cl-asciiquarium::%renderer-frame-state-parallel-cache-hot-p state)
+             t))
+          (setf parallel-output (render-frame parallel-renderer parallel-world))
+          (let ((state
+                  (gethash parallel-renderer cl-asciiquarium::*renderer-frame-states*)))
+            (expect
+             (cl-asciiquarium::%renderer-frame-state-executor state)
+             :to-be-truthy))
+          (expect parallel-output :to-equal serial-output))
+     (shutdown-renderer serial-renderer)
+     (shutdown-renderer parallel-renderer))))
+
+(describe
+ "render-frame removal"
+ (it
+  "clears the last rendered location of a removed creature"
+  (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
+         (renderer (make-renderer 20 10))
+         (creature
+          (make-creature
+           :world
+           world
+           :kind
+           :marker
+           :frames
+           (list "Z")
+           :x
+           5
+           :y
+           1)))
+    (cl-asciiquarium::%add-world-creature world creature)
+    (render-frame renderer world)
+    (cl-asciiquarium::%set-world-creatures world nil)
+    (render-frame renderer world)
+    (expect
+     (cell-char (screen-cell (cl-asciiquarium::renderer-screen renderer) 5 1))
+     :to-be
+     #\Space))))
+(describe "render-frame mirrored snapshots" (it "reuses left-facing runs without changing the rendered sprite" (let* ((world (tiny-world :width 20 :height 10 :fish-count 0)) (renderer (make-renderer 20 10)) (creature (make-creature :world world :kind :marker :frames (list "abc") :facing :left :x 5 :y 1))) (cl-asciiquarium::%add-world-creature world creature) (render-frame renderer world) (let* ((state (gethash renderer cl-asciiquarium::*renderer-frame-states*)) (snapshots (cl-asciiquarium::%renderer-frame-state-snapshots state)) (snapshot (gethash creature snapshots))) (render-frame renderer world) (expect (gethash creature snapshots) :to-be snapshot) (let ((screen (cl-asciiquarium::renderer-screen renderer))) (expect (cell-char (screen-cell screen 5 1)) :to-be #\c) (expect (cell-char (screen-cell screen 6 1)) :to-be #\b) (expect (cell-char (screen-cell screen 7 1)) :to-be #\a))))))
+
+(describe
+ "render-frame full redraw fast path"
+ (it
+  "keeps snapshots when a large static world advances"
+  (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
+         (renderer (make-renderer 20 10))
+         (creatures
+          (loop for character across "ABCDEFG"
+                for x from 1 by 2
+                collect (make-creature
+                         :world
+                         world
+                         :kind
+                         :marker
+                         :frames
+                         (list (string character))
+                         :x
+                         x
+                         :y
+                         1))))
+    (cl-asciiquarium::%set-world-creatures world creatures)
+    (render-frame renderer world)
+    (let* ((state (gethash renderer cl-asciiquarium::*renderer-frame-states*))
+           (snapshots (cl-asciiquarium::%renderer-frame-state-snapshots state)))
+      (world-advance world)
+      (render-frame renderer world)
+      (expect
+       (cl-asciiquarium::%renderer-frame-state-snapshots state)
+       :to-be
+       snapshots)
+      (expect (hash-table-p snapshots) :to-be-truthy)
+      (expect
+       (cl-asciiquarium::%renderer-frame-state-last-world-tick state)
+       :to-be
+       (world-tick world)))))
+ (it
+  "reconciles retained snapshots after an incremental moving frame"
+  (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
+         (renderer (make-renderer 20 10))
+         (creatures
+          (loop for character across "ABCDEFG"
+                for x from 1 by 2
+                collect (make-creature
+                         :world
+                         world
+                         :kind
+                         :marker
+                         :frames
+                         (list (string character))
+                         :x
+                         x
+                         :y
+                         1
+                         :dx
+                         1))))
+    (cl-asciiquarium::%set-world-creatures world creatures)
+    (render-frame renderer world)
+    (let* ((state (gethash renderer cl-asciiquarium::*renderer-frame-states*))
+           (snapshots (cl-asciiquarium::%renderer-frame-state-snapshots state))
+           (first (first creatures)))
+      (world-advance world)
+      (render-frame renderer world)
+      (expect
+       (cl-asciiquarium::%creature-render-snapshot-x (gethash first snapshots))
+       :to-be
+       2)
+      (dolist (creature creatures)
+        (setf (entity-dx (creature-entity creature)) 0))
+      (setf (entity-dx (creature-entity first)) 1)
+      (world-advance world)
+      (render-frame renderer world)
+      (expect
+       (cl-asciiquarium::%creature-render-snapshot-x (gethash first snapshots))
+       :to-be
+       3)
+      (expect
+       (cl-asciiquarium::%renderer-frame-state-last-world-tick state)
+       :to-be
+       (world-tick world))))))
