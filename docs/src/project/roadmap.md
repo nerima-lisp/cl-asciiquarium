@@ -44,6 +44,28 @@ vary in color within a species. What remains cut, and why:
   out of scope; every creature is a plain `CREATURE` struct built by a plain
   Lisp function.
 
+## Renderer integration shipped
+
+The renderer now combines cached sprite preparation, non-space blit runs, and
+cached `Z` ordering with incremental frame rendering:
+
+- mirrored frames reuse prepared sprite data;
+- order caches are invalidated when the world changes;
+- `RENDER-FRAME` tracks renderer-owned snapshots and redraws only dirty regions
+  when that is cheaper than a full repaint;
+- cache preparation is bounded and can run in parallel while retaining a serial
+  path with equivalent output.
+
+`DRAW-WORLD` remains the simple full-redraw reference path. To inspect the
+deterministic update/render path locally, run:
+
+```sh
+nix develop --command sbcl --script scripts/benchmark-render.lisp
+```
+
+The full gate is `nix flake check`; it covers the test suite, documentation,
+formatting, and structural Lisp lint.
+
 ## Possible follow-up work
 
 - A treasure chest or other bottom-of-tank decoration, alongside the castle.
