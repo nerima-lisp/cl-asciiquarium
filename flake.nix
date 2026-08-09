@@ -21,7 +21,7 @@
     # `lispDerivation` below), never these repos' own flake outputs -- see
     # DEPENDENCY_POLICY.md "姉妹パッケージは flake = false で引きます".
     cl-tty-kit = {
-      url = "github:nerima-lisp/cl-tty-kit/v1.5.0";
+      url = "github:nerima-lisp/cl-tty-kit/v1.6.0";
       flake = false;
     };
 
@@ -191,6 +191,27 @@
       # this option this follows.
       executable = {
         installSource = true;
+
+        # `pname`, because cl-nix-forge's mkExecutable derives BOTH the
+        # installed `$out/bin/<name>` and `meta.mainProgram` from
+        # `args.pname or lispSystem` (lib/batteries/app.nix `outputName`),
+        # and the `mainProgram` declared in `meta` above is overwritten by
+        # it unconditionally. Without this the delivered command is
+        # `cl-asciiquarium`, contradicting the `:build-pathname` in the .asd
+        # and every `./result/bin/asciiquarium` in README.md and docs/.
+        pname = "asciiquarium";
+
+        # `programPath`, because mkExecutable's non-Darwin (program-op) path
+        # looks for the built program at `$out/<lispSystem>` unless told
+        # otherwise, and ASDF does not write it there. `:build-pathname
+        # "asciiquarium"` is merged against the system's own `:pathname
+        # "src"`, not against the .asd's directory, so `asdf:output-files`
+        # for program-op reports `<source-root>/src/asciiquarium` -- verify
+        # with `nix develop --command sbcl` and
+        # `(asdf:output-files (asdf:make-operation 'asdf:program-op)
+        #  (asdf:find-system "cl-asciiquarium"))`. Unused on the Darwin
+        # save-lisp-and-die fallback, which never reads it.
+        programPath = "src/asciiquarium";
       };
 
       docs.root = ./docs;
@@ -212,8 +233,25 @@
           };
 
           # Run the registered suite through cl-weave's public coverage API.
-          # The excluded files contain immutable art data or declarations;
-          # executable application logic remains subject to both gates.
+          #
+          # The exclusions below are STRUCTURAL. cl-weave resets sb-cover's
+          # counters before the suite runs (`coverage-reset` defaults to T --
+          # see `prepare-coverage-run` in cl-weave's runner-coverage.lisp), so
+          # an expression whose only execution is at LOAD time -- an
+          # `in-package`, a top-level `defparameter` -- is wiped before any
+          # test can mark it. A file that is almost nothing but such forms
+          # reports a ceiling no test can raise, and gating on it would
+          # penalise this repository for something unreachable rather than
+          # something untested.
+          #
+          # That is the whole criterion, and it is checkable: exclude a file
+          # only when its expressions cannot be reached from a test AT ALL,
+          # never because the tests have not been written yet. Load a file's
+          # system and report coverage before running anything -- if the
+          # number moves once tests run, the file is reachable and belongs in
+          # the measured set. src/bubble-data.lisp sat in this list until its
+          # themed-prototype cache turned out to hold live branching that no
+          # test exercised; it is measured now.
           coverage = ctx.cl.mkCoverageReport {
             drv = ctx.package;
             systems = [ "cl-asciiquarium" ];
@@ -230,7 +268,6 @@
                '("src/art-decor-data.lisp"
                  "src/art-fish-data.lisp"
                  "src/art-guests-data.lisp"
-                 "src/bubble-data.lisp"
                  "src/package.lisp"))
             '';
             name = "cl-asciiquarium-coverage";

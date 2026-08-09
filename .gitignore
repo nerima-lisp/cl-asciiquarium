@@ -48,3 +48,18 @@ coverage.dat
 .\#*
 
 # --- Repository-specific entries below this line ---
+
+# --- Nested paredit-cli scratch space ---
+# paredit-cli writes .paredit.cleanup/ beside the file it is rewriting, so a
+# copy appears under src/ and t/ as well as at the repository root. The
+# standard entry above is anchored with a leading slash and therefore matches
+# only the root copy; this unanchored form matches it at any depth.
+.paredit.cleanup/
+
+# --- Agent tool state ---
+# Both are ignored on the maintainer's machine by a personal
+# core.excludesFile, which does not exist on CI, in a fresh clone, or on
+# another contributor's machine. Declared here so the answer is the same
+# everywhere.
+.sisyphus/
+.serena/
