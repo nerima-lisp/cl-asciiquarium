@@ -25,13 +25,14 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
 - `u` or `U` -- toggle the HUD (`WORLD-TOGGLE-HUD`). The HUD shows the active
   theme, fish count, and paused/running state.
 - `+` or `=` -- grow the live fish count by one (`WORLD-INCREASE-FISH-COUNT`),
-  up to `+MAX-FISH-COUNT+` (40).
+  up to `+MAX-FISH-COUNT+`.
 - `-` or `_` -- shrink the live fish count by one (`WORLD-DECREASE-FISH-COUNT`),
   down to zero.
 - `s` or `S` -- spawn a shark immediately (`SPAWN-SHARK-NOW`), resetting its
   cooldown. A no-op when `--no-shark` is in effect.
-- `g` or `G` -- spawn a random special guest immediately (`SPAWN-GUEST-NOW`
-  with a `RANDOM-GUEST-KIND` draw), resetting the guest cooldown.
+- `g` or `G` -- spawn a random special guest immediately (`SPAWN-GUEST-NOW`),
+  drawing among ship, duck line, dolphin, and sea monster with equal
+  probability, and resetting the guest cooldown.
 - `h` or `H` -- toggle a fixed help panel (`WORLD-TOGGLE-HELP-OVERLAY`)
   listing every binding above.
 

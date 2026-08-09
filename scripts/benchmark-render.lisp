@@ -53,9 +53,9 @@
                                              :fish-count +benchmark-fish-count+)))
       (when predatorp
         (let ((shark (cl-asciiquarium:make-shark world :facing :right)))
-          (setf (cl-tty-kit:entity-x (cl-asciiquarium:creature-entity shark)) 0
-                (cl-tty-kit:entity-y (cl-asciiquarium:creature-entity shark)) 0
-                (cl-tty-kit:entity-dx (cl-asciiquarium:creature-entity shark)) 0)
+          (setf (cl-tty-kit:entity-x (cl-asciiquarium::creature-entity shark)) 0
+                (cl-tty-kit:entity-y (cl-asciiquarium::creature-entity shark)) 0
+                (cl-tty-kit:entity-dx (cl-asciiquarium::creature-entity shark)) 0)
           (cl-asciiquarium::%add-world-creature world shark)))
       world)))
 
@@ -85,7 +85,7 @@
           (allocations nil))
       (dotimes (sample +benchmark-samples+)
         (declare (ignore sample))
-        (let* ((world (make-benchmark-world)) (renderer (cl-tty-kit:make-renderer +benchmark-width+ +benchmark-height+)) (stream (make-broadcast-stream)) (moving-creatures (loop for creature in (cl-asciiquarium::world-%creatures world) repeat +benchmark-full-redraw-creature-count+ collect creature))) (cl-asciiquarium:render-frame renderer world :stream stream) (multiple-value-bind (milliseconds bytes) (%measure-per-iteration +benchmark-frames+ (loop repeat +benchmark-frames+ do (dolist (creature moving-creatures) (incf (cl-tty-kit:entity-x (cl-asciiquarium:creature-entity creature)))) (cl-asciiquarium:render-frame renderer world :stream stream))) (cl-asciiquarium:shutdown-renderer renderer) (push milliseconds elapsed) (push bytes allocations))))
+        (let* ((world (make-benchmark-world)) (renderer (cl-tty-kit:make-renderer +benchmark-width+ +benchmark-height+)) (stream (make-broadcast-stream)) (moving-creatures (loop for creature in (cl-asciiquarium::world-%creatures world) repeat +benchmark-full-redraw-creature-count+ collect creature))) (cl-asciiquarium:render-frame renderer world :stream stream) (multiple-value-bind (milliseconds bytes) (%measure-per-iteration +benchmark-frames+ (loop repeat +benchmark-frames+ do (dolist (creature moving-creatures) (incf (cl-tty-kit:entity-x (cl-asciiquarium::creature-entity creature)))) (cl-asciiquarium:render-frame renderer world :stream stream))) (cl-asciiquarium:shutdown-renderer renderer) (push milliseconds elapsed) (push bytes allocations))))
       (%report-benchmark label "ms/frame" "frame" elapsed allocations)))
 
 (defun benchmark-update-loop (label &key predatorp)

@@ -20,7 +20,7 @@
             :fish
             (cl-asciiquarium::world-%creatures world)
             :key
-            #'creature-kind
+            #'cl-asciiquarium::creature-kind
             :test-not
             #'eq)))
      (dolist (event (decode-input "r"))
@@ -30,7 +30,7 @@
              :fish
              (cl-asciiquarium::world-%creatures world)
              :key
-             #'creature-kind
+             #'cl-asciiquarium::creature-kind
              :test-not
              #'eq)))
        (expect (= (length new-fish) 3) :to-be-truthy)
@@ -61,14 +61,14 @@
     (expect (search "PAUSED"
                     (creature-art
                      (find :hud (cl-asciiquarium::world-%creatures world)
-                           :key #'creature-kind)))
+                           :key #'cl-asciiquarium::creature-kind)))
             :to-be-truthy)
     (world-apply-key-events world (decode-input " "))
     (expect (world-paused-p world) :to-be-falsy)
     (expect (search "SWIM"
                     (creature-art
                      (find :hud (cl-asciiquarium::world-%creatures world)
-                           :key #'creature-kind)))
+                           :key #'cl-asciiquarium::creature-kind)))
             :to-be-truthy))))
 
 (describe
@@ -82,9 +82,9 @@
   "toggles the HUD visibility"
   (let ((world (make-world :width 40 :height 20 :fish-count 0)))
     (world-apply-key-events world (decode-input "u"))
-    (expect (world-hud-visible-p world) :to-be-falsy)
+    (expect (cl-asciiquarium::world-hud-visible-p world) :to-be-falsy)
     (expect (find :hud (cl-asciiquarium::world-%creatures world)
-                  :key #'creature-kind)
+                  :key #'cl-asciiquarium::creature-kind)
             :to-be-null))))
 
 (describe
@@ -104,14 +104,14 @@
  (it
   "adds a shark immediately, without waiting for the cooldown"
   (let ((world (tiny-world :width 40 :height 20)))
-    (setf (world-shark-cooldown world) 999)
+    (setf (cl-asciiquarium::world-shark-cooldown world) 999)
     (world-apply-key-events world (decode-input "s"))
     (expect
      (find
       :shark
       (cl-asciiquarium::world-%creatures world)
       :key
-      #'creature-kind)
+      #'cl-asciiquarium::creature-kind)
      :to-be-truthy)))
  (it
   "is a no-op when sharks are disabled"
@@ -123,7 +123,7 @@
       :shark
       (cl-asciiquarium::world-%creatures world)
       :key
-      #'creature-kind)
+      #'cl-asciiquarium::creature-kind)
      :to-be-null))))
 
 (describe
@@ -138,7 +138,7 @@
       (find-if
        (lambda (creature)
          (member
-          (creature-kind creature)
+          (cl-asciiquarium::creature-kind creature)
           '(:ship :duck-line :dolphin :sea-monster)))
        (cl-asciiquarium::world-%creatures world))
       :to-be-truthy)))))
@@ -154,7 +154,7 @@
       :help-overlay
       (cl-asciiquarium::world-%creatures world)
       :key
-      (function creature-kind))
+      (function cl-asciiquarium::creature-kind))
      :to-be-truthy)
     (world-apply-key-events world (decode-input "h"))
     (expect
@@ -162,5 +162,5 @@
       :help-overlay
       (cl-asciiquarium::world-%creatures world)
       :key
-      (function creature-kind))
+      (function cl-asciiquarium::creature-kind))
      :to-be-null))))

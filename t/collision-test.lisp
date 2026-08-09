@@ -29,9 +29,9 @@
     (cl-asciiquarium::%add-world-creature world caught-fish)
     (cl-asciiquarium::%add-world-creature world safe-fish)
     (apply-collisions world)
-    (expect (getf (creature-data caught-fish) :dying) :to-be-truthy)
-    (expect (creature-ttl caught-fish) :to-be +death-animation-ticks+)
-    (expect (getf (creature-data safe-fish) :dying) :to-be-falsy)))
+    (expect (getf (cl-asciiquarium::creature-data caught-fish) :dying) :to-be-truthy)
+    (expect (cl-asciiquarium::creature-ttl caught-fish) :to-be +death-animation-ticks+)
+    (expect (getf (cl-asciiquarium::creature-data safe-fish) :dying) :to-be-falsy)))
  (it
   "does not kill the same fish twice when it overlaps two predators"
   (let* ((world (tiny-world :width 40 :height 20))
@@ -76,7 +76,7 @@
     (cl-asciiquarium::%add-world-creature world shark-b)
     (cl-asciiquarium::%add-world-creature world fish)
     (apply-collisions world)
-    (expect (creature-ttl fish) :to-be +death-animation-ticks+)))
+    (expect (cl-asciiquarium::creature-ttl fish) :to-be +death-animation-ticks+)))
  (it
   "removes a caught fish from the world after its death animation expires"
   (let* ((world (tiny-world :width 40 :height 20))
@@ -136,7 +136,7 @@
     (cl-asciiquarium::%add-world-creature world anchor)
     (cl-asciiquarium::%add-world-creature world fish)
     (apply-collisions world)
-    (expect (getf (creature-data fish) :dying) :to-be-truthy)))
+    (expect (getf (cl-asciiquarium::creature-data fish) :dying) :to-be-truthy)))
  (it
   "does not kill a fish beneath an anchor that has not been dropped yet"
   (let* ((world (tiny-world :width 40 :height 20))
@@ -164,7 +164,7 @@
     (cl-asciiquarium::%add-world-creature world anchor)
     (cl-asciiquarium::%add-world-creature world fish)
     (apply-collisions world)
-    (expect (getf (creature-data fish) :dying) :to-be-falsy))))
+    (expect (getf (cl-asciiquarium::creature-data fish) :dying) :to-be-falsy))))
 
 (describe
  "apply-collisions: single outer scan semantics"
@@ -217,9 +217,9 @@
      (list anchor-fish shark safe-fish anchor shark-fish))
     (let ((before (copy-list (cl-asciiquarium::world-%creatures world))))
       (apply-collisions world)
-      (expect (getf (creature-data anchor-fish) :dying) :to-be-truthy)
-      (expect (getf (creature-data shark-fish) :dying) :to-be-truthy)
-      (expect (getf (creature-data safe-fish) :dying) :to-be-falsy)
+      (expect (getf (cl-asciiquarium::creature-data anchor-fish) :dying) :to-be-truthy)
+      (expect (getf (cl-asciiquarium::creature-data shark-fish) :dying) :to-be-truthy)
+      (expect (getf (cl-asciiquarium::creature-data safe-fish) :dying) :to-be-falsy)
       (expect
        (every (function eq) before (cl-asciiquarium::world-%creatures world))
        :to-be-truthy)))))
@@ -270,11 +270,11 @@
          (frame (aref (creature-frames predator) 0)))
     (cl-asciiquarium::%set-world-creatures world (list predator fish))
     (apply-collisions world)
-    (expect (getf (creature-data fish) :dying) :to-be-falsy)
+    (expect (getf (cl-asciiquarium::creature-data fish) :dying) :to-be-falsy)
     (setf (char frame 0) #\A)
     (setf (char frame 1) #\Newline)
     (apply-collisions world)
-    (expect (getf (creature-data fish) :dying) :to-be-truthy)))
+    (expect (getf (cl-asciiquarium::creature-data fish) :dying) :to-be-truthy)))
  (it
   "validates fish dimensions before scanning predators"
   (let* ((world (tiny-world :width 20 :height 10))
@@ -319,11 +319,11 @@
          (frame (aref (creature-frames fish) 0)))
     (cl-asciiquarium::%set-world-creatures world (list predator fish))
     (apply-collisions world)
-    (expect (getf (creature-data fish) :dying) :to-be-falsy)
+    (expect (getf (cl-asciiquarium::creature-data fish) :dying) :to-be-falsy)
     (setf (char frame 0) #\F)
     (setf (char frame 1) #\Newline)
     (apply-collisions world)
-    (expect (getf (creature-data fish) :dying) :to-be-truthy)))
+    (expect (getf (cl-asciiquarium::creature-data fish) :dying) :to-be-truthy)))
  (it
   "keeps the one-time death conversion when multiple predators overlap"
   (let* ((world (tiny-world :width 30 :height 10))
@@ -385,12 +385,12 @@
            (list :species :test))))
     (cl-asciiquarium::%set-world-creatures world (list shark-a fish shark-b))
     (apply-collisions world)
-    (expect (getf (creature-data fish) :dying) :to-be-truthy)
-    (expect (creature-ttl fish) :to-be +death-animation-ticks+)
+    (expect (getf (cl-asciiquarium::creature-data fish) :dying) :to-be-truthy)
+    (expect (cl-asciiquarium::creature-ttl fish) :to-be +death-animation-ticks+)
     (expect (creature-art fish) :to-equal cl-asciiquarium::+fish-death-art+)
-    (expect (entity-dx (creature-entity fish)) :to-be 0)
-    (expect (entity-dy (creature-entity fish)) :to-be 0)
-    (expect (getf (creature-data fish) :species) :to-be :test)))
+    (expect (entity-dx (cl-asciiquarium::creature-entity fish)) :to-be 0)
+    (expect (entity-dy (cl-asciiquarium::creature-entity fish)) :to-be 0)
+    (expect (getf (cl-asciiquarium::creature-data fish) :species) :to-be :test)))
  (it
   "retains non-overlapping fish across a dense predator pass"
   (let* ((world (tiny-world :width 40 :height 12))
@@ -457,8 +457,8 @@
      world
      (append predators (list overlapped surviving)))
     (apply-collisions world)
-    (expect (getf (creature-data overlapped) :dying) :to-be-truthy)
-    (expect (getf (creature-data surviving) :dying) :to-be-falsy)))
+    (expect (getf (cl-asciiquarium::creature-data overlapped) :dying) :to-be-truthy)
+    (expect (getf (cl-asciiquarium::creature-data surviving) :dying) :to-be-falsy)))
  (it
   "refreshes cached position bounds between collision passes"
   (let* ((world (tiny-world :width 20 :height 10))
@@ -502,10 +502,10 @@
            (list :species :test))))
     (cl-asciiquarium::%set-world-creatures world (list shark fish))
     (apply-collisions world)
-    (expect (getf (creature-data fish) :dying) :to-be-falsy)
-    (setf (entity-x (creature-entity fish)) 1)
+    (expect (getf (cl-asciiquarium::creature-data fish) :dying) :to-be-falsy)
+    (setf (entity-x (cl-asciiquarium::creature-entity fish)) 1)
     (apply-collisions world)
-    (expect (getf (creature-data fish) :dying) :to-be-truthy))))
+    (expect (getf (cl-asciiquarium::creature-data fish) :dying) :to-be-truthy))))
 
 (describe "deterministic predator/prey scenario via a seeded shark spawn"
   (it "eventually spawns a shark and kills a fish placed in its path, given a fixed seed"
@@ -514,7 +514,7 @@
         ;; Force an immediate shark spawn regardless of the random initial
         ;; cooldown, so this scenario is about the collision, not about how
         ;; long a shark's cooldown happens to draw.
-        (setf (world-shark-cooldown world) 1)
+        (setf (cl-asciiquarium::world-shark-cooldown world) 1)
         (let ((fish (make-fish world :species :dart :x 20 :y 4 :dx 0)))
           (cl-asciiquarium::%add-world-creature world fish)
           (dotimes (i 200)
@@ -572,7 +572,7 @@
     (setf (cl-asciiquarium::creature-collision-left anchor) 71
           (cl-asciiquarium::creature-collision-left fish) 72)
     (expect (apply-collisions world) :to-be world)
-    (expect (getf (creature-data fish) :dying) :to-be-falsy)
+    (expect (getf (cl-asciiquarium::creature-data fish) :dying) :to-be-falsy)
     (expect (cl-asciiquarium::creature-collision-left anchor) :to-be 71)
     (expect (cl-asciiquarium::creature-collision-left fish) :to-be 72)))
  (it
@@ -622,11 +622,11 @@
      world
      (list shark anchor shark-fish anchor-fish))
     (expect (apply-collisions world) :to-be world)
-    (expect (getf (creature-data shark-fish) :dying) :to-be-truthy)
-    (expect (getf (creature-data anchor-fish) :dying) :to-be-falsy)
-    (setf (creature-data anchor) (list :dropped t))
+    (expect (getf (cl-asciiquarium::creature-data shark-fish) :dying) :to-be-truthy)
+    (expect (getf (cl-asciiquarium::creature-data anchor-fish) :dying) :to-be-falsy)
+    (setf (cl-asciiquarium::creature-data anchor) (list :dropped t))
     (expect (apply-collisions world) :to-be world)
-    (expect (getf (creature-data anchor-fish) :dying) :to-be-truthy)))
+    (expect (getf (cl-asciiquarium::creature-data anchor-fish) :dying) :to-be-truthy)))
  (it
   "leaves dead fish outside cache and kill processing"
   (let* ((world (tiny-world :width 20 :height 10))
@@ -669,14 +669,14 @@
            :data
            (list :species :test :dying t))))
     (cl-asciiquarium::%set-world-creatures world (list shark fish))
-    (setf (creature-ttl fish) 7
+    (setf (cl-asciiquarium::creature-ttl fish) 7
           (cl-asciiquarium::creature-collision-left fish) 91
           (cl-asciiquarium::creature-collision-top fish) 92
           (cl-asciiquarium::creature-collision-width fish) 93
           (cl-asciiquarium::creature-collision-height fish) 94)
     (expect (apply-collisions world) :to-be world)
-    (expect (getf (creature-data fish) :dying) :to-be-truthy)
-    (expect (creature-ttl fish) :to-be 7)
+    (expect (getf (cl-asciiquarium::creature-data fish) :dying) :to-be-truthy)
+    (expect (cl-asciiquarium::creature-ttl fish) :to-be 7)
     (expect (cl-asciiquarium::creature-collision-left fish) :to-be 91)
     (expect (cl-asciiquarium::creature-collision-top fish) :to-be 92)
     (expect (cl-asciiquarium::creature-collision-width fish) :to-be 93)
@@ -779,10 +779,10 @@
     (cl-asciiquarium::%set-world-creatures
      world
      (list shark anchor shark-fish anchor-fish already-dying safe-fish))
-    (setf (creature-ttl already-dying) 7)
+    (setf (cl-asciiquarium::creature-ttl already-dying) 7)
     (expect (apply-collisions world) :to-be world)
-    (expect (getf (creature-data shark-fish) :dying) :to-be-truthy)
-    (expect (getf (creature-data anchor-fish) :dying) :to-be-truthy)
-    (expect (getf (creature-data already-dying) :dying) :to-be-truthy)
-    (expect (creature-ttl already-dying) :to-be 7)
-    (expect (getf (creature-data safe-fish) :dying) :to-be-falsy))))
+    (expect (getf (cl-asciiquarium::creature-data shark-fish) :dying) :to-be-truthy)
+    (expect (getf (cl-asciiquarium::creature-data anchor-fish) :dying) :to-be-truthy)
+    (expect (getf (cl-asciiquarium::creature-data already-dying) :dying) :to-be-truthy)
+    (expect (cl-asciiquarium::creature-ttl already-dying) :to-be 7)
+    (expect (getf (cl-asciiquarium::creature-data safe-fish) :dying) :to-be-falsy))))
