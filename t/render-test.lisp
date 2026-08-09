@@ -21,7 +21,7 @@
            (creature (make-creature :world world :kind :marker :frames (list "Z") :x 5 :y 1)))
       (cl-asciiquarium::%add-world-creature world creature)
       (draw-world screen world)
-      (setf (entity-x (creature-entity creature)) 10)
+      (setf (entity-x (cl-asciiquarium::creature-entity creature)) 10)
       (draw-world screen world)
       (expect (cell-char (screen-cell screen 5 1)) :to-be #\Space)))
   (it "preserves creature order when z values are equal"
@@ -184,7 +184,7 @@
            1)))
     (cl-asciiquarium::%add-world-creature world creature)
     (render-frame renderer world)
-    (setf (entity-x (creature-entity creature)) 10)
+    (setf (entity-x (cl-asciiquarium::creature-entity creature)) 10)
     (render-frame renderer world)
     (expect
      (cell-char (screen-cell (cl-asciiquarium::renderer-screen renderer) 5 1))
@@ -237,11 +237,20 @@
      #\A)))
  (it
   "matches a full redraw after sparse changes beyond six creatures"
+  ;; Only a strict subset moves. Each mover contributes one dirty rectangle
+  ;; (its old and new bounds touch and coalesce), and
+  ;; %DIRTY-RECTANGLES-EXCEED-RENDER-BUDGET-P trips once
+  ;; 4 * rectangles >= creatures -- so two movers over nine creatures (8 < 9)
+  ;; keeps the clipped-blit branch. Moving all of them, as this test once did,
+  ;; trips the budget and makes RENDER-FRAME fall back to DRAW-WORLD, which
+  ;; would leave the comparison below checking DRAW-WORLD against itself.
   (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
          (renderer (make-renderer 20 10))
          (expected (make-screen 20 10))
+         (sentinel-column 19)
+         (sentinel-row 9)
          (creatures
-          (loop for character across "ABCDEFG"
+          (loop for character across "ABCDEFGHI"
                 for x from 1 by 2
                 collect (make-creature
                          :world
@@ -253,20 +262,30 @@
                          :x
                          x
                          :y
-                         1))))
+                         1)))
+         (screen nil))
     (cl-asciiquarium::%set-world-creatures world creatures)
     (render-frame renderer world)
-    (dolist (creature creatures)
-      (incf (entity-y (creature-entity creature))))
+    (setf screen (cl-asciiquarium::renderer-screen renderer))
+    ;; A cell no dirty rectangle covers. The clipped-blit branch never writes
+    ;; outside its rectangles; the fallback branch runs DRAW-WORLD, whose
+    ;; SCREEN-CLEAR wipes the whole screen. Surviving ink is therefore an
+    ;; observation of which branch executed, and it does not route through the
+    ;; render-budget predicates that made the choice.
+    (cl-tty-kit:screen-fill-rect screen sentinel-column sentinel-row 1 1 #\!)
+    (dolist (creature (list (first creatures) (third creatures)))
+      (incf (entity-y (cl-asciiquarium::creature-entity creature))))
     (render-frame renderer world)
-    (draw-world expected world)
+    (expect (cell-char (screen-cell screen sentinel-column sentinel-row))
+            :to-be #\!)
+    (cl-asciiquarium::draw-world expected world)
     (dotimes (row 10)
       (dotimes (column 20)
-        (expect
-         (cell-char
-          (screen-cell (cl-asciiquarium::renderer-screen renderer) column row))
-         :to-be
-         (cell-char (screen-cell expected column row)))))))
+        (unless (and (= column sentinel-column) (= row sentinel-row))
+          (expect
+           (cell-char (screen-cell screen column row))
+           :to-be
+           (cell-char (screen-cell expected column row))))))))
  (it
   "leaves distant sprites intact while recomposing a local dirty rectangle"
   (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
@@ -297,7 +316,7 @@
            1)))
     (cl-asciiquarium::%set-world-creatures world (list mover distant))
     (render-frame renderer world)
-    (incf (entity-x (creature-entity mover)))
+    (incf (entity-x (cl-asciiquarium::creature-entity mover)))
     (render-frame renderer world)
     (let ((screen (cl-asciiquarium::renderer-screen renderer)))
       (expect (cell-char (screen-cell screen 1 1)) :to-be #\Space)
@@ -348,7 +367,7 @@
              (snapshot (gethash creature snapshots)))
         (render-frame renderer world)
       (expect (gethash creature snapshots) :to-be snapshot)
-      (setf (entity-x (creature-entity creature)) 10)
+      (setf (entity-x (cl-asciiquarium::creature-entity creature)) 10)
       (render-frame renderer world)
       (expect (gethash creature snapshots) :to-be snapshot)))))
    (it
@@ -614,8 +633,8 @@
        :to-be
        2)
       (dolist (creature creatures)
-        (setf (entity-dx (creature-entity creature)) 0))
-      (setf (entity-dx (creature-entity first)) 1)
+        (setf (entity-dx (cl-asciiquarium::creature-entity creature)) 0))
+      (setf (entity-dx (cl-asciiquarium::creature-entity first)) 1)
       (world-advance world)
       (render-frame renderer world)
       (expect
@@ -626,3 +645,130 @@
        (cl-asciiquarium::%renderer-frame-state-last-world-tick state)
        :to-be
        (world-tick world))))))
+
+(defun %render-frame-took-incremental-branch-p (renderer width height)
+  "Whether the frame RENDERER just composed took the clipped-blit branch rather
+than the DRAW-WORLD fallback. RENDER-FRAME picks between them from the dirty
+rectangles it retains on its frame state, and neither the rectangle buffer nor
+the recorded render order is reset until the next frame begins, so the decision
+is still readable afterwards. Used only to prove the equivalence harness below
+actually exercised the incremental path -- never as its oracle."
+  (let* ((state (gethash renderer cl-asciiquarium::*renderer-frame-states*))
+         (rectangles
+          (cl-asciiquarium::%renderer-frame-state-dirty-rectangles state))
+         (render-order
+          (cl-asciiquarium::%renderer-frame-state-render-order state)))
+    (not (or (cl-asciiquarium::%dirty-rectangles-cover-half-screen-p
+              rectangles width height)
+             (cl-asciiquarium::%dirty-rectangles-exceed-render-budget-p
+              rectangles render-order)))))
+
+(defun %render-frame-seed-divergence (width height seed frame-count)
+  "Advance two identically seeded WIDTH by HEIGHT worlds in lockstep, painting
+one with repeated RENDER-FRAME calls so incremental state accumulates across
+frames, and the other with a DRAW-WORLD full repaint. Return (VALUES REPORT
+INCREMENTAL-FRAMES): REPORT is NIL when every frame agreed cell-for-cell, or a
+string naming the first frame that diverged and a sample of its differing
+cells; INCREMENTAL-FRAMES counts how many frames took the clipped-blit branch.
+
+DRAW-WORLD is a sound control precisely because it shares no code with the
+clipped-blit path -- it clears and repaints through CREATURE-BLIT, which passes
+no clip arguments at all -- so this compares two independent renderers rather
+than one delegating to the other."
+  (let ((incremental-world
+         (with-seeded-random-state (seed)
+           (make-world :width width :height height)))
+        (control-world
+         (with-seeded-random-state (seed)
+           (make-world :width width :height height)))
+        (renderer (make-renderer width height))
+        (control-screen (make-screen width height))
+        (incremental-frames 0))
+    (unwind-protect
+         (values
+          (loop for frame below frame-count
+                do (render-frame renderer incremental-world)
+                   (cl-asciiquarium::draw-world control-screen control-world)
+                   (when (%render-frame-took-incremental-branch-p
+                          renderer width height)
+                     (incf incremental-frames))
+                   (let* ((screen (cl-asciiquarium::renderer-screen renderer))
+                          (differences
+                           (loop for row below height
+                                 nconc
+                                 (loop for column below width
+                                       for actual
+                                         = (cell-char
+                                            (screen-cell screen column row))
+                                       for control
+                                         = (cell-char
+                                            (screen-cell
+                                             control-screen column row))
+                                       unless (char= actual control)
+                                         collect (list column row
+                                                       actual control)))))
+                     (when differences
+                       (return
+                         (format
+                          nil
+                          "~Dx~D seed ~D frame ~D diverged in ~D of ~D cells; ~
+first ~D as (COLUMN ROW INCREMENTAL FULL-REPAINT): ~{~S~^ ~}"
+                          width height seed frame (length differences)
+                          (* width height)
+                          (min 8 (length differences))
+                          (subseq differences
+                                  0 (min 8 (length differences)))))))
+                   ;; Re-seeding per tick keeps both worlds drawing the same
+                   ;; random numbers even though they advance separately; a
+                   ;; single shared state would let the first world's draws
+                   ;; desynchronise the second and produce divergence that says
+                   ;; nothing about rendering.
+                   (with-seeded-random-state ((+ seed frame))
+                     (world-advance incremental-world))
+                   (with-seeded-random-state ((+ seed frame))
+                     (world-advance control-world)))
+          incremental-frames)
+      (shutdown-renderer renderer))))
+
+(defun %render-frame-equivalence-divergence (width height seeds frame-count)
+  "Run %RENDER-FRAME-SEED-DIVERGENCE over each of SEEDS, returning (VALUES
+REPORT TOTAL-INCREMENTAL-FRAMES) for the first seed that diverged, or NIL and
+the total when none did. Several seeds rather than one lucky seed: a single
+world is a thin sample of the geometries that expose a clipping defect."
+  (let ((incremental-frames 0))
+    (dolist (seed seeds (values nil incremental-frames))
+      (multiple-value-bind (report seed-incremental-frames)
+          (%render-frame-seed-divergence width height seed frame-count)
+        (incf incremental-frames seed-incremental-frames)
+        (when report
+          (return (values report incremental-frames)))))))
+
+(describe
+ "render-frame full-repaint equivalence"
+ ;; The incremental path had no cell-for-cell control anywhere in this suite,
+ ;; which is how a real clipping defect survived: %CREATURE-BLIT-CLIPPED
+ ;; expresses its entire right and bottom clip through SCREEN-BLIT's :WIDTH and
+ ;; :HEIGHT arguments, and cl-tty-kit 1.5.0 ignores both. A creature that
+ ;; overlaps a dirty rectangle therefore repaints its whole sprite, spilling
+ ;; outside the region that was cleared; where that spill lands on a creature
+ ;; with a higher Z that does not intersect the rectangle at all -- and so is
+ ;; skipped by the bounds test -- the lower creature wins a cell that a full
+ ;; repaint gives to the higher one.
+ (it
+  "matches a full repaint cell-for-cell at every frame of an 80x24 world"
+  (multiple-value-bind (report incremental-frames)
+      (%render-frame-equivalence-divergence 80 24 '(1 2 3) 120)
+    ;; Assert the branch under test actually ran before trusting agreement:
+    ;; the fallback branch is DRAW-WORLD, so a run that never went incremental
+    ;; would be comparing the control against itself.
+    (expect (plusp incremental-frames) :to-be-truthy)
+    (expect report :to-be nil)))
+ (it
+  "matches a full repaint cell-for-cell at every frame of a 40x12 world"
+  ;; The small size is not redundant with the large one. Dirty rectangles
+  ;; bisect sprites far more often here, and creatures crowd together: every
+  ;; seed sampled diverges at 40x12 while only a tenth of them do at 80x24.
+  (multiple-value-bind (report incremental-frames)
+      (%render-frame-equivalence-divergence 40 12 '(1 2 3) 120)
+    (expect (plusp incremental-frames) :to-be-truthy)
+    (expect report :to-be nil))))

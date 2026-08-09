@@ -7,14 +7,18 @@
       (expect (creature-y creature) :to-be 3)))
   (it "stores the given kind and frames"
     (let ((creature (make-creature :kind :test-thing :frames (list "hi") :x 2 :y 3 :dx 1 :dy 0)))
-      (expect (creature-kind creature) :to-be :test-thing)
+      (expect (cl-asciiquarium::creature-kind creature) :to-be :test-thing)
       (expect (creature-art creature) :to-equal "hi")))
+  ;; "<>" is a fixed point of MIRROR-SPRITE-TEXT -- reversing it swaps the two
+  ;; glyphs back into place -- so it cannot distinguish mirroring from a plain
+  ;; copy. "a<" reverses to "<a" and then swaps the directional glyph, so only
+  ;; real mirroring yields ">a".
   (it "mirrors its art when facing left"
-    (let ((creature (make-creature :kind :test-thing :frames (list "<>") :x 0 :y 0 :facing :left)))
-      (expect (creature-art creature) :to-equal "<>")))
+    (let ((creature (make-creature :kind :test-thing :frames (list "a<") :x 0 :y 0 :facing :left)))
+      (expect (creature-art creature) :to-equal ">a")))
   (it "leaves right-facing art unmirrored"
-    (let ((creature (make-creature :kind :test-thing :frames (list "<>") :x 0 :y 0 :facing :right)))
-      (expect (creature-art creature) :to-equal "<>")))
+    (let ((creature (make-creature :kind :test-thing :frames (list "a<") :x 0 :y 0 :facing :right)))
+      (expect (creature-art creature) :to-equal "a<")))
   (it "signals asciiquarium-invalid-policy for a :policy other than :wrap, :despawn, or :none"
     (signals asciiquarium-invalid-policy
       (make-creature :world (tiny-world) :kind :test-thing :frames (list "x") :x 0 :y 0
@@ -27,13 +31,13 @@
       (expect (creature-z creature) :to-be 0)))
   (it "defaults dx and dy to 0, so a tick leaves its position unchanged"
     (let ((creature (make-creature :kind :test-thing :frames (list "a") :x 5 :y 5)))
-      (entity-tick (creature-entity creature) 10 10)
+      (entity-tick (cl-asciiquarium::creature-entity creature) 10 10)
       (expect (creature-x creature) :to-be 5)))
   (it "defaults policy to :wrap"
     (let* ((world (tiny-world :width 10 :height 10))
            (creature (make-creature :world world :kind :test-thing :frames (list "a")
                                     :x 9 :y 0 :dx 1)))
-      (entity-tick (creature-entity creature) (world-width world) (world-height world))
+      (entity-tick (cl-asciiquarium::creature-entity creature) (world-width world) (world-height world))
       (expect (creature-x creature) :to-be 0)))
   (it
     "uses cached mirrored art and dimensions for every animation frame"
@@ -79,9 +83,9 @@
             :facing
             :left)))
       (creature-tick-animation creature)
-      (expect (creature-frame-index creature) :to-be 1)
+      (expect (cl-asciiquarium::creature-frame-index creature) :to-be 1)
       (setf (creature-frames creature) (vector (format nil "a<~%xyz")))
-      (expect (creature-frame-index creature) :to-be 0)
+      (expect (cl-asciiquarium::creature-frame-index creature) :to-be 0)
       (expect (creature-art creature) :to-equal (format nil ">a~%zyx"))
       (expect
         (multiple-value-list (creature-dimensions creature))
@@ -112,28 +116,28 @@
             0
             :y
             0)))
-      (expect (creature-frame-index creature) :to-be 0)
+      (expect (cl-asciiquarium::creature-frame-index creature) :to-be 0)
       (creature-tick-animation creature)
-      (expect (creature-frame-index creature) :to-be 0)
+      (expect (cl-asciiquarium::creature-frame-index creature) :to-be 0)
       (creature-tick-animation creature)
-      (expect (creature-frame-index creature) :to-be 1)
+      (expect (cl-asciiquarium::creature-frame-index creature) :to-be 1)
       (creature-tick-animation creature)
       (creature-tick-animation creature)
-      (expect (creature-frame-index creature) :to-be 0)))
+      (expect (cl-asciiquarium::creature-frame-index creature) :to-be 0)))
   (it
     "is a no-op with a single frame"
     (let ((creature
           (make-creature :kind :test-thing :frames (list "a") :frame-period 1 :x 0 :y 0)))
       (dotimes (i 5)
         (creature-tick-animation creature))
-      (expect (creature-frame-index creature) :to-be 0)))
+      (expect (cl-asciiquarium::creature-frame-index creature) :to-be 0)))
   (it
     "normalizes an out-of-range frame index on advance"
     (let ((creature
           (make-creature :kind :test-thing :frames (list "a" "b") :frame-period 1 :x 0 :y 0)))
-      (setf (creature-frame-index creature) 2)
+      (setf (cl-asciiquarium::creature-frame-index creature) 2)
       (creature-tick-animation creature)
-      (expect (creature-frame-index creature) :to-be 1))))
+      (expect (cl-asciiquarium::creature-frame-index creature) :to-be 1))))
 
 (describe
   "creature-bounds and creatures-overlap-p"
@@ -165,7 +169,7 @@
     (let* ((world (tiny-world :width 10 :height 10))
            (creature (make-creature :world world :kind :thing :frames (list "ab")
                                     :x x :y y :dx dx :dy dy :policy :wrap)))
-      (entity-tick (creature-entity creature) (world-width world) (world-height world))
+      (entity-tick (cl-asciiquarium::creature-entity creature) (world-width world) (world-height world))
       (expect (creature-x creature) :to-be expected-x)
       (expect (creature-y creature) :to-be expected-y)))
   (it-each (("right" 9 0 1 0)
@@ -177,9 +181,9 @@
     (let* ((world (tiny-world :width 10 :height 10))
            (creature (make-creature :world world :kind :thing :frames (list "ab")
                                     :x x :y y :dx dx :dy dy :policy :despawn)))
-      (expect (creature-removep creature) :to-be-falsy)
-      (entity-tick (creature-entity creature) (world-width world) (world-height world))
-      (expect (creature-removep creature) :to-be-truthy)))
+      (expect (cl-asciiquarium::creature-removep creature) :to-be-falsy)
+      (entity-tick (cl-asciiquarium::creature-entity creature) (world-width world) (world-height world))
+      (expect (cl-asciiquarium::creature-removep creature) :to-be-truthy)))
   ;; A :DESPAWN creature spawned already past the edge it is approaching (as
   ;; every off-screen crossing factory does) must NOT despawn on that first
   ;; tick -- see EXIT-EDGE-IN-TRAVEL-DIRECTION-P and the architecture doc's
@@ -188,8 +192,8 @@
     (let* ((world (tiny-world :width 10 :height 10))
            (creature (make-creature :world world :kind :thing :frames (list "ab")
                                     :x -5 :y 0 :dx 1 :policy :despawn)))
-      (entity-tick (creature-entity creature) (world-width world) (world-height world))
-      (expect (creature-removep creature) :to-be-falsy)))
+      (entity-tick (cl-asciiquarium::creature-entity creature) (world-width world) (world-height world))
+      (expect (cl-asciiquarium::creature-removep creature) :to-be-falsy)))
   (it ":none policy installs no callback, leaving a creature free to sit at the edge"
     (let* ((world (tiny-world :width 10 :height 10))
            (creature
@@ -211,10 +215,10 @@
             :policy
             :none)))
       (entity-tick
-        (creature-entity creature)
+        (cl-asciiquarium::creature-entity creature)
         (world-width world)
         (world-height world))
-      (expect (creature-removep creature) :to-be-falsy)
+      (expect (cl-asciiquarium::creature-removep creature) :to-be-falsy)
       (expect (creature-x creature) :to-be 0))))
 
 (describe "solid-style and *monochrome*"
@@ -243,7 +247,7 @@
     (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
            (fish (make-creature :world world :kind :fish :frames (list "F") :x 5 :y 5))
            (bubble (make-bubble world fish)))
-      (expect (typep (entity-dy (creature-entity bubble)) 'single-float) :to-be-truthy)))
+      (expect (typep (entity-dy (cl-asciiquarium::creature-entity bubble)) 'single-float) :to-be-truthy)))
   (it
     "shares prototype sprite data until public access materializes private mutable values"
     (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
@@ -290,7 +294,7 @@
         (cl-asciiquarium::creature-%frames untouched)
         :to-be
         (cl-asciiquarium::creature-%frames prototype))
-      (expect (creature-entity first) :not :to-be (creature-entity untouched))))
+      (expect (cl-asciiquarium::creature-entity first) :not :to-be (cl-asciiquarium::creature-entity untouched))))
   (it
     "detaches cache slots and clears sharing flags when public setters are used"
     (let* ((world (tiny-world :width 20 :height 10 :fish-count 0))
@@ -463,8 +467,8 @@
             (creature-y bubble)))
            (expected (make-screen 20 10))
            (actual (make-screen 20 10)))
-      (setf (creature-frame-index bubble) 2
-            (creature-frame-index expected-creature) 2)
+      (setf (cl-asciiquarium::creature-frame-index bubble) 2
+            (cl-asciiquarium::creature-frame-index expected-creature) 2)
       (cl-asciiquarium::creature-blit expected expected-creature)
       (cl-asciiquarium::creature-blit actual bubble)
       (dotimes (row 10)
@@ -674,3 +678,103 @@
       (let ((future (make-bubble world fish)))
         (setf (creature-facing future) :left)
         (expect (creature-art future) :to-equal ".")))))
+
+(defun %cold-bubble-prototype-table ()
+  "An empty stand-in for *BUBBLE-SPRITE-PROTOTYPES*.
+
+That table is global mutable state pre-seeded for :ABYSS only
+(src/bubble-data.lisp), so the cache-miss SETF arm -- and with it the only
+runtime call to %MAKE-BUBBLE-SPRITE-PROTOTYPE -- is taken by whichever test
+asks for a given (THEME MODE) key first, and every later test hits the cache
+instead. Binding a cold table per test makes the miss deterministic rather than
+an accident of execution order, and stops a non-:ABYSS entry leaking out to
+change which branch a later test reaches."
+  (make-hash-table :test (function equal)))
+
+(describe
+ "%themed-bubble-sprite-prototype"
+ (it
+  "builds, styles, and caches a colored prototype for each non-abyss theme"
+  ;; Expected styles are the palette's own answers (:CORAL remaps
+  ;; :BRIGHT-WHITE to :BRIGHT-YELLOW, :MOONLIGHT leaves it alone), written out
+  ;; rather than recomputed with VISUAL-STYLE, which is the same call the
+  ;; implementation makes and would agree with it by construction.
+  (dolist (case (list (list :coral (make-style (style-fg (named-color :bright-yellow))))
+                      (list :moonlight (make-style (style-fg (named-color :bright-white))))))
+    (destructuring-bind (theme expected-style) case
+      (let ((cl-asciiquarium::*monochrome* nil)
+            (cl-asciiquarium::*bubble-sprite-prototypes*
+             (%cold-bubble-prototype-table)))
+        (let ((key (list theme :colored)))
+          ;; Assert the precondition the branch depends on: without a cold
+          ;; table this test would pass on the cache hit and prove nothing.
+          (expect (gethash key cl-asciiquarium::*bubble-sprite-prototypes*)
+                  :to-be-falsy)
+          (let ((prototype
+                 (cl-asciiquarium::%themed-bubble-sprite-prototype theme)))
+            (expect (gethash key cl-asciiquarium::*bubble-sprite-prototypes*)
+                    :to-be prototype)
+            (expect (creature-style prototype) :to-equal expected-style)
+            (expect (creature-art prototype) :to-equal ".")
+            (expect (cl-asciiquarium::%themed-bubble-sprite-prototype theme)
+                    :to-be prototype)))))))
+ (it
+  "builds and caches a style-free prototype for each non-abyss theme in monochrome"
+  (dolist (theme (list :coral :moonlight))
+    (let ((cl-asciiquarium::*monochrome* t)
+          (cl-asciiquarium::*bubble-sprite-prototypes*
+           (%cold-bubble-prototype-table)))
+      (let ((key (list theme :monochrome)))
+        (expect (gethash key cl-asciiquarium::*bubble-sprite-prototypes*)
+                :to-be-falsy)
+        (let ((prototype
+               (cl-asciiquarium::%themed-bubble-sprite-prototype theme)))
+          (expect (gethash key cl-asciiquarium::*bubble-sprite-prototypes*)
+                  :to-be prototype)
+          ;; The UNLESS *MONOCHROME* arm yields NIL, so the prototype carries
+          ;; no colored style even though the theme has a palette entry.
+          (expect (creature-style prototype) :to-be-falsy)
+          (expect (creature-art prototype) :to-equal ".")
+          (expect (cl-asciiquarium::%themed-bubble-sprite-prototype theme)
+                  :to-be prototype))))))
+ (it
+  "keys the cache by theme and colour mode together, not by mode alone"
+  (let ((cl-asciiquarium::*bubble-sprite-prototypes*
+         (%cold-bubble-prototype-table)))
+    (let* ((coral (let ((cl-asciiquarium::*monochrome* nil))
+                    (cl-asciiquarium::%themed-bubble-sprite-prototype :coral)))
+           (moonlight (let ((cl-asciiquarium::*monochrome* nil))
+                        (cl-asciiquarium::%themed-bubble-sprite-prototype
+                         :moonlight)))
+           (coral-monochrome
+            (let ((cl-asciiquarium::*monochrome* t))
+              (cl-asciiquarium::%themed-bubble-sprite-prototype :coral))))
+      (expect coral :not :to-be moonlight)
+      (expect coral :not :to-be coral-monochrome)
+      ;; :CORAL recolours the bubble and :MOONLIGHT does not, so a cache keyed
+      ;; on mode alone would hand both themes the same style.
+      (expect (creature-style coral)
+              :not :to-equal (creature-style moonlight))
+      (expect (hash-table-count cl-asciiquarium::*bubble-sprite-prototypes*)
+              :to-be 3))))
+ (it
+  "gives a bubble spawned in a non-abyss world that world's themed prototype"
+  ;; Reaches %THEMED-BUBBLE-SPRITE-PROTOTYPE through the real spawn path
+  ;; (MAKE-BUBBLE -> %BUBBLE-SPRITE-PROTOTYPE, src/bubble.lisp:6), which every
+  ;; other bubble test drives with the default :ABYSS theme.
+  (let ((cl-asciiquarium::*monochrome* nil)
+        (cl-asciiquarium::*bubble-sprite-prototypes*
+         (%cold-bubble-prototype-table)))
+    (let* ((world (make-world :width 20 :height 10 :fish-count 0 :theme :coral))
+           (fish (make-creature :world world :kind :fish :frames (list "F")
+                                :x 5 :y 5))
+           (bubble (make-bubble world fish))
+           (prototype
+            (gethash (list :coral :colored)
+                     cl-asciiquarium::*bubble-sprite-prototypes*)))
+      (expect prototype :to-be-truthy)
+      (expect (cl-asciiquarium::creature-%prepared-style bubble)
+              :to-be
+              (cl-asciiquarium::creature-%prepared-style prototype))
+      (expect (creature-style bubble)
+              :to-equal (make-style (style-fg (named-color :bright-yellow))))))))

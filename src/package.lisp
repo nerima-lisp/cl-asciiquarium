@@ -80,16 +80,10 @@
    #:creature
    #:creature-p
    #:make-creature
-   #:creature-entity
-   #:creature-kind
    #:creature-frames
-   #:creature-frame-index
    #:creature-facing
    #:creature-style
    #:creature-z
-   #:creature-ttl
-   #:creature-removep
-   #:creature-data
    #:creature-x
    #:creature-y
    #:creature-art
@@ -107,12 +101,9 @@
    #:world-tick
    #:world-fish-count
    #:world-theme
-   #:world-hud-visible-p
    #:world-quitp
    #:world-paused-p
    #:world-shark-enabled-p
-   #:world-shark-cooldown
-   #:world-guest-cooldown
    #:world-resize
    #:world-redraw
    #:world-cycle-theme
@@ -133,26 +124,15 @@
    #:make-fish
    #:make-shark
    #:make-bubble
-   #:make-seaweed
-   #:make-waterline
-   #:make-castle
    #:make-ship
    #:make-duck-line
    #:make-dolphin
    #:make-sea-monster
-   #:make-monster-segment
    #:sea-monster-segments
-   #:make-help-overlay
-   #:maybe-spawn-shark
-   #:maybe-spawn-guest
-   #:maybe-emit-bubble
    #:spawn-shark-now
    #:spawn-guest-now
-   #:random-guest-kind
-   #:+dolphin-arc-amplitude+
    #:+dolphin-arc-period+
    #:+sea-monster-segment-count+
-   #:+sea-monster-segment-spacing+
 
    ;; -- Input --
    #:world-apply-key-event

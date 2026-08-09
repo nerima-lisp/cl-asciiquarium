@@ -23,7 +23,7 @@
   (it "regenerates the waterline art to span the new width"
     (let ((world (tiny-world :width 40 :height 20)))
       (world-resize world 15 20)
-      (let ((waterline (find :waterline (cl-asciiquarium::world-%creatures world) :key #'creature-kind)))
+      (let ((waterline (find :waterline (cl-asciiquarium::world-%creatures world) :key #'cl-asciiquarium::creature-kind)))
         (expect (sprite-width (creature-art waterline)) :to-be 15))))
   (it "continues advancing normally after a mid-run resize"
     (let* ((world (tiny-world :width 40 :height 20))
