@@ -30,31 +30,6 @@
   reads: they are simulation bookkeeping that `WORLD-ADVANCE` and the key
   handlers own.
 
-### The creature population is closed
-
-A `WORLD`'s creatures are deliberately unreachable from outside the package,
-and this is the reason the per-creature and per-cooldown accessors above are
-not part of the public API rather than an oversight to be corrected.
-
-The list lives in the private `%CREATURES` slot, and it is mutated only through
-the private `%SET-WORLD-CREATURES` and `%ADD-WORLD-CREATURE`, which is what
-keeps the derived state it feeds -- the render-order cache and the
-active-predator count -- in step with it. Nothing exported enumerates that list,
-searches it, or adds to it: the mutating operations (`WORLD-REDRAW`,
-`WORLD-TOGGLE-HUD`, `WORLD-TOGGLE-HELP-OVERLAY`, `WORLD-INCREASE-FISH-COUNT`)
-each return the `WORLD`, not the creature they placed.
-
-So an accessor such as a creature's TTL or kind would have been a surface with
-no way in: a consumer holding a `WORLD` had no route to a creature to call it
-on. One incidental exception survives -- `SPAWN-GUEST-NOW` returns whatever its
-last form produced, which for `:SHIP`, `:DUCK-LINE`, and `:DOLPHIN` is the
-creature it just placed. That return value is not part of its contract, it is
-`NIL` for `:SEA-MONSTER`, and it should not be relied on.
-
-Before re-exporting any of these accessors on request, check whether the closure
-still holds. If an enumeration point is ever added, the whole group becomes
-coherent again and should be reconsidered together rather than one at a time.
-See [Architecture](architecture.md).
 - `WORLD-RESIZE (world width height)` -- resize in place, clamping any
   creature the new bounds left outside.
 - `WORLD-REDRAW (world)` -- remove and repopulate fish/shark/bubbles/guests.
@@ -115,8 +90,7 @@ The one shape every sprite type goes through; see
 - `CREATURE-X`, `CREATURE-Y`, `CREATURE-STYLE`, `CREATURE-Z` -- accessors.
   The simulation-internal slots -- kind, data plist, TTL, removal flag, current
   frame index, and the underlying `cl-tty-kit:ENTITY` -- have no public
-  accessors, for the reason given under
-  [The creature population is closed](#the-creature-population-is-closed).
+  accessors. See [Architecture](architecture.md) for the entity model.
 - `CREATURE-FRAMES` -- the simple-vector of sprite-art strings backing the
   creature (more than one entry for a looping animation, such as swaying
   seaweed).
@@ -160,19 +134,6 @@ The one shape every sprite type goes through; see
   `:SEA-MONSTER`; the automatic path draws among those four with equal
   probability.
 
-Why these seven factories and not every one in the source: each of them builds
-a creature that crosses the aquarium under its own velocity, and each is
-self-contained -- given a `WORLD` for its dimensions it hands back a `CREATURE`
-you can measure and draw on your own. The factories for the fixed scenery
-(waterline, castle, seaweed), for the UI chrome (the HUD and the help panel),
-and for a sea monster's trailing segments are deliberately not exported,
-because none of those is self-contained. The scenery and the chrome are
-meaningful only at the position chosen by the operation that places them --
-`MAKE-WORLD` for the scenery, `WORLD-TOGGLE-HUD` and
-`WORLD-TOGGLE-HELP-OVERLAY` for the chrome -- and a segment is defined
-relative to a leader creature, which is exactly what `SEA-MONSTER-SEGMENTS`
-exists to supply. The HUD factory was never exported; the rest now match it.
-
 ## Collision
 
 - `APPLY-COLLISIONS (world)` -- the single collision pass: shark-vs-fish and
@@ -213,19 +174,10 @@ exists to supply. The HUD factory was never exported; the rest now match it.
   possible. When the scene is large enough to be worth splitting, it prepares
   the per-creature sprite snapshots on a pool of worker threads that the
   renderer creates on first use and then keeps.
-- `SHUTDOWN-RENDERER (renderer)` -- stop that worker executor and release the
-  renderer's reusable frame state. **Every caller that renders must eventually
-  call this**, in the cleanup form of an `UNWIND-PROTECT` rather than on the
-  normal path alone, since a quit key and a signal both leave through the same
-  exit. Skipping it leaks every thread in that pool for the lifetime of the
-  Lisp image -- the pool's width is fixed by an internal constant in
-  `src/render-state.lisp`, not by anything a caller passes or can read:
-  the frame state is held in a weak-keyed table, so dropping the last reference
-  to a renderer makes its executor unreachable without stopping it, and no later
-  call can shut it down. The call is idempotent and safe on a renderer that
-  never reached the parallel path and so has no executor. It blocks until the
-  workers have drained and terminated, which is what makes it safe to reuse the
-  frame buffers afterwards. `RUN` already does this for the renderer it owns.
+- `SHUTDOWN-RENDERER (renderer)` -- stop the renderer's worker executor and
+  release its frame state. Call it from cleanup such as `UNWIND-PROTECT`; it is
+  idempotent and waits for workers to terminate. `RUN` handles its own
+  renderer.
 
 ## Conditions
 

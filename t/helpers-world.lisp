@@ -1,6 +1,4 @@
-;;;; t/helpers-world.lisp -- shared test fixtures. Not a test file itself
-;;;; (hence the `helpers-' prefix rather than `-test'); see
-;;;; CODING_STANDARD.md "テスト補助ファイルは helpers- で始める".
+;;;; t/helpers-world.lisp -- shared test fixtures, not a test file itself.
 (in-package #:cl-asciiquarium/test)
 
 (defmacro with-seeded-random-state ((seed) &body body)

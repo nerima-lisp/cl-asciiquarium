@@ -1,8 +1,7 @@
 ;;;; src/conditions.lisp -- the package's condition hierarchy.
 ;;;;
 ;;;; Every condition this package signals derives from ASCIIQUARIUM-ERROR, so
-;;;; a caller can catch all of them with one HANDLER-CASE clause. See
-;;;; CODING_STANDARD.md "コンディションの設計".
+;;;; a caller can catch all of them with one HANDLER-CASE clause.
 (in-package #:cl-asciiquarium)
 
 (define-condition asciiquarium-error (error) ()

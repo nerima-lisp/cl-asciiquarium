@@ -5,14 +5,8 @@
 ;;;; QUIT-ON-SIGNAL is the plain, directly callable logic it wires to
 ;;;; SIGTERM/SIGHUP, so that part is unit-tested below.
 ;;;;
-;;;; RUN, however, IS exercised -- see "run terminal restoration" at the end of
-;;;; this file. An earlier version of this header claimed RUN could only be
-;;;; observed through a real controlling terminal. That is not so: RUN takes its
-;;;; output :STREAM as an argument, and the one thing that genuinely needs a
-;;;; terminal is CL-TTY-KIT:ENABLE-RAW-MODE, a single exported function. Stubbing
-;;;; that one function makes every exit path through RUN reachable, which matters
-;;;; because RUN's terminal-restoration guarantee is the most user-visible
-;;;; promise this program makes and was previously asserted only by prose.
+;;;; RUN is exercised through its injectable output stream. Only
+;;;; CL-TTY-KIT:ENABLE-RAW-MODE needs to be stubbed for these tests.
 ;;;; MAKE-WORLD-POLLER's returned closure takes its
 ;;;; STREAM as a plain argument rather than reading *STANDARD-INPUT* directly,
 ;;;; so a WITH-INPUT-FROM-STRING stream exercises its input branch directly
@@ -153,12 +147,8 @@ or signal."
 
 (describe
  "run terminal restoration"
- ;; docs/src/reference/architecture.md claims WITH-TERMINAL-SESSION's
- ;; UNWIND-PROTECT restores the terminal -- cursor shown, alternate screen
- ;; exited, raw mode disabled -- on every exit path. That claim was prose only.
- ;; The error path is the one worth pinning: a user whose run dies on an
- ;; unhandled error otherwise keeps a terminal stuck in raw/alternate-screen
- ;; mode, needing `reset' or `stty sane'.
+ ;; Keep the error path covered: cleanup must restore the terminal when RUN
+ ;; exits through an unhandled condition.
  (it
   "restores the terminal when an unhandled error escapes the tick loop"
   (multiple-value-bind (outcome output disable-raw-mode-calls)

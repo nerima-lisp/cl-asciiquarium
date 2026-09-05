@@ -36,11 +36,7 @@ needing a manual `reset'/`stty sane' to recover."
 (defun install-quit-signal-handler (world)
   "Install QUIT-ON-SIGNAL as WORLD's SIGTERM and SIGHUP handler, so an
 external `kill' or a closed controlling terminal quits exactly as cleanly as
-the `q' key. Not itself unit-tested (see QUIT-ON-SIGNAL for the tested
-logic): sending a real signal to exercise this would risk terminating the
-test runner itself, which is exactly the real-terminal/real-process boundary
-RUN is already outside TEST_STANDARD.md's unit-test scope for (see
-t/app-test.lisp)."
+the `q' key. The signal boundary is not unit-tested; see t/app-test.lisp."
   (flet ((handle (signal info context)
            (declare (ignore signal info context))
            (quit-on-signal world)))

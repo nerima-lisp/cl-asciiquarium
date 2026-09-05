@@ -4,11 +4,9 @@
 ;;;; art-fish.lisp holds the logic that reads it (species lookup, color
 ;;;; choice, and the MAKE-FISH/KILL-FISH factory and mutator).
 ;;;;
-;;;; Three species, deliberately: the scope discipline in the project brief
-;;;; asks that a creature type be cut rather than left to balloon, and three
-;;;; well-behaved species plus one predator and two special guests is the
-;;;; line this repository draws. All art below is original, authored for this
-;;;; repository -- none of it is copied from the classic Perl `asciiquarium`.
+;;;; The five fish species and their art are defined here. All art below is
+;;;; original to this repository; none is copied from the classic Perl
+;;;; `asciiquarium`.
 ;;;; Every species is authored facing right; MIRROR-SPRITE-TEXT (geometry.lisp)
 ;;;; produces the left-facing form, so there is exactly one drawing per
 ;;;; species rather than a left/right pair to keep in sync by hand.
@@ -18,9 +16,8 @@
   "One entry of +FISH-SPECIES+: NAME identifies it, ART is its facing-right
 sprite text, COLORS a non-empty list of cl-tty-kit NAMED-COLOR keywords one of
 which MAKE-FISH picks at random for a spawned individual's foreground -- so two
-fish of the same species need not be identically colored, per the roadmap's
-'color variation within a fish species' follow-up. A struct rather than a
-plist so a typo'd slot (:COLOUR for :COLORS, say) is a compile-time error
+fish of the same species need not be identically colored. A struct rather than
+a plist so a typo'd slot (:COLOUR for :COLORS, say) is a compile-time error
 instead of a silently NIL GETF."
   (name nil :type keyword)
   (art "" :type string)

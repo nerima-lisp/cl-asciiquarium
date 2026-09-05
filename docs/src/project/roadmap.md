@@ -1,6 +1,6 @@
 # Roadmap
 
-## What this includes
+## Current scope
 
 - 5 original fish species (`:dart`, `:puffer`, `:ribbon`, `:angel`,
   `:guppy`), each multi-line, direction-mirrored art, each with a color
@@ -27,24 +27,15 @@
   foreground color.
 - `--theme abyss|coral|moonlight` to select the initial visual theme.
 
-## What was deliberately cut, and why -- and what has since shipped
+## Out of scope
 
-Both guests this document previously tracked as deliberate v1 cuts --
-dolphins and a sea monster -- are now implemented above, exactly along the
-lines this section originally sketched (a parametric arc for the dolphin and
-a multi-`CREATURE` synchronized trail for the monster). Likewise, fish now
-vary in color within a species. What remains cut, and why:
+- A general NxN interaction matrix. Only shark-vs-fish and
+  dropped-anchor-vs-fish are checked (`src/collision.lisp`); other guests are
+  decorative.
+- A generic ECS or config-driven guest-definition DSL. Creatures are plain
+  `CREATURE` structs built by plain Lisp functions.
 
-- **A general NxN interaction matrix.** The project brief explicitly asked
-  for this to be cut; only shark-vs-fish and dropped-anchor-vs-fish are
-  checked (`src/collision.lisp`). The dolphin and sea monster stay purely
-  decorative, like the duck line, rather than growing a third interaction
-  pair apiece.
-- **A generic ECS or config-driven guest-definition DSL.** Also explicitly
-  out of scope; every creature is a plain `CREATURE` struct built by a plain
-  Lisp function.
-
-## Renderer integration shipped
+## Renderer
 
 The renderer now combines cached sprite preparation, non-space blit runs, and
 cached `Z` ordering with incremental frame rendering:

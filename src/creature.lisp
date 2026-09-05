@@ -3,11 +3,8 @@
 ;;;; A CREATURE wraps a cl-tty-kit ENTITY (position + velocity + off-bounds
 ;;;; callback) with sprite art, an animation frame, a paint order, and an
 ;;;; optional lifetime. Fish, the shark, bubbles, seaweed, the waterline, the
-;;;; castle, the ship, its anchor, and the duck line are ALL CREATURE
-;;;; instances distinguished only by their :KIND keyword and the :DATA plist
-;;;; -- there is deliberately no per-kind struct or update function. See
-;;;; docs/src/reference/architecture.md for the rationale (this is the
-;;;; "single entity/collision contract" the architecture review asked for).
+;;;; castle, the ship, its anchor, and the duck line are all CREATURE
+;;;; instances distinguished by their :KIND keyword and :DATA plist.
 (in-package #:cl-asciiquarium)
 
 (defstruct (creature (:constructor %make-creature)) "A moving, drawable thing. Cached sprite data is revalidated after its mutable source frames or style escape through the public API."

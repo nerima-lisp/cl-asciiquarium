@@ -6,11 +6,6 @@
 (in-package #:cl-asciiquarium)
 
 (defparameter +ship-art+
-  ;; The hull's baseline is spelled with hyphens, not a run of `=' -- 7 or
-  ;; more consecutive `=' characters reads as a git merge-conflict marker to
-  ;; the org's pre-commit hook (and to a human skimming a diff); an earlier
-  ;; draft of this line used nine and tripped it on this repository's first
-  ;; commit attempt.
   (format nil "    |~%   /|\\~%  / | \\~% /__|__\\~%-o-o-o-o-")
   "Original ship art, authored facing right, mast and hull.")
 

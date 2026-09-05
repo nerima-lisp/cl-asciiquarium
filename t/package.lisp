@@ -13,10 +13,9 @@
   ;; them as part of its own public API -- an application does not need to
   ;; forward its rendering library's primitives -- so tests that exercise
   ;; ENTITY/SCREEN/RENDERER directly (rather than only through CREATURE/WORLD)
-  ;; import them here instead. DECODE-INPUT (a one-shot decoder building
-  ;; KEY-EVENTs from a plain string) is the simplest way for a test to drive
-  ;; WORLD-APPLY-KEY-EVENT without composing raw escape sequences; the shipped
-  ;; application only needs the incremental DECODE-INPUT-CHUNK (src/app.lisp).
+  ;; import them here instead. DECODE-INPUT builds KEY-EVENTs from a plain
+  ;; string, so tests can drive WORLD-APPLY-KEY-EVENT without composing raw
+  ;; escape sequences.
   (:import-from #:cl-tty-kit
                 #:decode-input
                 #:entity-tick #:entity-x #:entity-y #:entity-dx #:entity-dy

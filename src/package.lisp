@@ -1,8 +1,6 @@
 ;;;; src/package.lisp -- the sole DEFPACKAGE form for this repository.
 ;;;;
-;;;; CODING_STANDARD.md requires `:use` to name only #:cl and every sibling
-;;;; package to come in through `:import-from`, so the outsize import lists
-;;;; below are the price of that rule, not an oversight.
+;;;; `:use` names only #:cl; sibling packages enter through `:import-from`.
 (in-package #:cl-user)
 
 (defpackage #:cl-asciiquarium

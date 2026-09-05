@@ -17,11 +17,8 @@ opens for no reader benefit.
 
 ## The single entity/collision contract
 
-A prior architecture review of this project's plan warned that "the biggest
-risk is scope creep in the entity/collision model... without an early,
-explicit entity-update/collision contract, each new creature risks becoming
-bespoke code that doesn't compose." This repository's answer is `CREATURE`
-(`src/creature.lisp`): one struct, wrapping a `cl-tty-kit:ENTITY`
+`CREATURE` (`src/creature.lisp`) is the entity/collision contract: one struct,
+wrapping a `cl-tty-kit:ENTITY`
 (position/velocity/off-bounds callback) with sprite art, an animation frame,
 a paint order (`Z`), an optional lifetime (`TTL`), and a kind-specific `DATA`
 plist.
@@ -197,7 +194,7 @@ loop, not this application, owns when the next tick happens. `WORLD-ADVANCE`
 and everything it calls stay direct-style on purpose -- rewriting a pure,
 already-total state transition into continuation-passing form would add an
 indirection with no boundary to justify it, at the direct cost of the
-readability this project otherwise prioritizes (see `CODING_STANDARD.md`).
+readability this project otherwise prioritizes.
 
 `WORLD-QUITP` is also how `RUN` quits cleanly when nothing inside the tick
 loop asked it to. `INSTALL-QUIT-SIGNAL-HANDLER` (`src/app.lisp`) wires
@@ -219,14 +216,3 @@ guest, bubble timing) goes through `CL:RANDOM` against the ambient
 Binding `*RANDOM-STATE*` (via `SB-EXT:SEED-RANDOM-STATE`, as
 `t/helpers-world.lisp`'s `WITH-SEEDED-RANDOM-STATE` does) therefore makes an entire run,
 including predator/prey and special-guest spawn timing, exactly reproducible.
-
-## What this includes, and what remains deliberately cut
-
-Included: 5 fish species (each with a color palette rather than one fixed
-color), 3 visual themes, 1 predator (the shark, disable-able via
-`--no-shark`), 4 special guests (a ship that drops an anchor, a line of ducks,
-a leaping dolphin, and a segmented sea monster), an animated ambient current,
-and a live HUD -- plus a small set of interactive controls beyond quit/redraw:
-theme cycling, HUD visibility, pause, a live fish-count dial, on-demand
-shark/guest spawning, and a help panel. See [the roadmap](../project/roadmap.md)
-for what remains cut and why.

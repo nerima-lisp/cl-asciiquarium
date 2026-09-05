@@ -1,20 +1,13 @@
 ;;;; src/art-guests.lisp -- special guests: a ship that drops an anchor, a
-;;;; line of ducks, a leaping dolphin, and a segmented sea monster (see
-;;;; docs/src/project/roadmap.md, which tracks these as v1's follow-up work,
-;;;; now implemented). Per the interaction rule in the project brief, only the
+;;;; line of ducks, a leaping dolphin, and a segmented sea monster. Only the
 ;;;; ship's anchor is interactive (it can remove a fish directly beneath it);
 ;;;; every other guest, including the dolphin and sea monster, is purely
 ;;;; decorative.
 (in-package #:cl-asciiquarium)
 
-;;; MAKE-SHIP, MAKE-DUCK-LINE, MAKE-DOLPHIN, and MAKE-SEA-MONSTER (below) are
-;;; all an "enter WORLD fully off-screen on one edge, cross it, despawn past
-;;; the other" CREATURE, differing only in their art, color, paint order,
-;;; speed, and how their Y position and kind-specific :DATA are derived.
-;;; DEFINE-OFF-SCREEN-GUEST factors that shared shape into one place instead
-;;; of four near-identical bodies; see its own docstring for the anaphora
-;;; (WORLD, WIDTH, HEIGHT, ART-WIDTH, FACING, SPEED, X, DX) each guest's
-;;; :LET*/:Y/:DATA clauses are written against.
+;;; These four factories share the same off-screen entry, traversal, and
+;;; despawn behavior. DEFINE-OFF-SCREEN-GUEST factors that shape into one
+;;; place while leaving art, speed, placement, and kind-specific data local.
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defstruct (off-screen-guest-spec (:constructor %make-off-screen-guest-spec))
@@ -87,14 +80,9 @@ CLAUSES is a keyword plist: :KIND, :ART, :COLOR, and :Z are the creature's
 fixed identity (a kind keyword, a sprite-art form, a SOLID-STYLE color
 keyword, and paint order); :SPEED is the crossing speed passed to
 OFF-SCREEN-ENTRY. :LET*, :Y, and :DATA are forms evaluated, in that order,
-in an environment where WORLD, WIDTH, HEIGHT, ART-WIDTH, FACING, SPEED, X,
-and DX are all already bound -- these names are this macro's intentional
-anaphora, deliberately exposed so a guest's :LET*/:Y/:DATA clauses can
-compute a lane, a mid-screen ETA, or kind-specific :DATA state from them
-without restating OFF-SCREEN-ENTRY's own call. :LET*, when supplied, is an
-ordinary LET* binding list evaluated after X/DX are bound, so its bindings
-may reference X or DX (as MAKE-SHIP's ETA-to-midpoint calculation does) and
-are themselves visible to the :Y and :DATA forms that follow."
+with WORLD, WIDTH, HEIGHT, ART-WIDTH, FACING, SPEED, X, and DX bound. :LET*,
+when supplied, is an ordinary LET* binding list evaluated after X and DX are
+bound; its bindings are visible to the :Y and :DATA forms that follow."
   (%emit-off-screen-guest name docstring (%parse-off-screen-guest-clauses name clauses)))
 
 (define-off-screen-guest make-ship
@@ -153,10 +141,8 @@ exercise one crossing direction deterministically."
     "Create a leaping dolphin CREATURE crossing WORLD near the waterline. Unlike
 every other crossing guest, its vertical position is not a constant DY: each
 tick DOLPHIN-TICK (update.lisp) recomputes Y from a sine wave around its
-:BASELINE-Y, driven by WORLD-TICK -- the roadmap's suggested 'parametric Y
-offset' motion, the first creature in this codebase whose path is not simple
-linear travel. FACING defaults to a random :LEFT or :RIGHT, as with every
-other off-screen crossing factory."
+:BASELINE-Y, driven by WORLD-TICK. FACING defaults to a random :LEFT or
+:RIGHT, as with every other off-screen crossing factory."
   :kind :dolphin
   :art +dolphin-art+
   :color :bright-blue
@@ -173,12 +159,9 @@ other off-screen crossing factory."
 
 (define-off-screen-guest make-sea-monster
     "Create the head CREATURE (kind :SEA-MONSTER) of a segmented sea monster
-crossing WORLD near the waterline -- the roadmap's suggested 'longer,
-segmented body (multiple CREATUREs moving in a synchronized trail)'. Returns
-only the head; SEA-MONSTER-SEGMENTS below builds the trailing body from it,
-since a single CREATURE return value cannot carry a whole trail the way every
-other guest factory's single return value is enough on its own. FACING
-defaults to a random :LEFT or :RIGHT."
+crossing WORLD near the waterline. Returns only the head;
+SEA-MONSTER-SEGMENTS below builds the trailing body from it. FACING defaults to
+a random :LEFT or :RIGHT."
   :kind :sea-monster
   :art +sea-monster-head-art+
   :color :bright-green

@@ -1,11 +1,7 @@
 ;;;; t/cli-test.lisp
 ;;;;
-;;;; Flag parsing only: the handler calls RUN (src/app.lisp), which takes
-;;;; over a real terminal in raw mode via a realtime tick loop -- the same
-;;;; shape as cl-cmatrix's CLI (a persistent, full-screen loop) rather than
-;;;; cl-cowsay's one-shot print -- so these tests never invoke it (never
-;;;; RUN-APP without --help or --version); see
-;;;; cl-cmatrix/t/cli-test.lisp, which gives the same reasoning.
+;;;; Flag parsing only: these tests do not invoke RUN-APP without --help or
+;;;; --version because RUN takes over a real terminal in raw mode.
 
 (in-package #:cl-asciiquarium/test)
 

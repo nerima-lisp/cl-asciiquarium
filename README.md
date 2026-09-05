@@ -75,8 +75,7 @@ the delivered binary, not the ASDF system.
 - [Conditions](https://nerima-lisp.github.io/cl-asciiquarium/reference/conditions/) --
   the error hierarchy every condition this package signals descends from
 - [Architecture](https://nerima-lisp.github.io/cl-asciiquarium/reference/architecture/) --
-  the CREATURE contract every sprite type goes through, and what this v1
-  deliberately included versus cut
+  the CREATURE contract every sprite type goes through
 - [Roadmap](https://nerima-lisp.github.io/cl-asciiquarium/project/roadmap/)
 
 ## Development

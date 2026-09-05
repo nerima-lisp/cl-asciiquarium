@@ -66,12 +66,8 @@
     (expect (rects-overlap-p ax ay aw ah bx by bw bh)
             :to-be (rects-overlap-p bx by bw bh ax ay aw ah)))
 
-  ;; TEST_STANDARD.md requires at least one RUN-MUTATIONS target per
-  ;; repository, scoring 1.0; RECTS-OVERLAP-P is the densest branch site in
-  ;; src/ (four comparisons over four sums) and its "touching edges do not
-  ;; overlap" boundary is exactly what a </<= mutation would flip, so the
-  ;; case set below pins all four edge-touching boundaries (one per `<'
-  ;; clause) plus a clear overlap and a clear disjoint pair.
+  ;; Pin all four edge-touching boundaries, plus a clear overlap and a clear
+  ;; disjoint pair, so mutations of the boundary comparisons are detected.
   (it-sequential "kills every mutation of its four boundary comparisons"
     (let ((original-form '(defun rects-overlap-p (ax ay aw ah bx by bw bh)
                             (and (< ax (+ bx bw)) (< bx (+ ax aw))
