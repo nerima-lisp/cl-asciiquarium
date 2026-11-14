@@ -43,12 +43,20 @@ slightly as it ascends.")
   "Prepared bubble prototypes keyed by visual theme and color mode.")
 
 (defun %themed-bubble-sprite-prototype (theme)
-  "Return the immutable bubble prototype for THEME and *MONOCHROME*."
+  "Return the immutable bubble prototype for THEME and the effective color
+mode. The 16-color and monochrome entries keep their original
+(THEME :COLORED) and (THEME :MONOCHROME) keys; the RGB modes key by the mode
+itself and paint the theme's :BUBBLE color."
   (let* ((theme (parse-visual-theme theme))
-         (mode (if *monochrome* :monochrome :colored))
-         (key (list theme mode)))
+         (mode (effective-color-mode))
+         (key (list theme (case mode
+                            (:mono :monochrome)
+                            (:ansi16 :colored)
+                            (t mode)))))
     (or (gethash key *bubble-sprite-prototypes*)
         (setf (gethash key *bubble-sprite-prototypes*)
               (%make-bubble-sprite-prototype
-               (unless *monochrome*
-                 (visual-style theme :bright-white)))))))
+               (case mode
+                 (:mono nil)
+                 (:ansi16 (visual-style theme :bright-white))
+                 (t (color-style :bubble :theme theme))))))))

@@ -58,14 +58,15 @@
   (member theme +visual-themes+ :test #'eq))
 
 (defun parse-visual-theme (value)
-  (let ((theme (etypecase value
+  (let ((theme (typecase value
                  (keyword value)
                  (string (intern (string-upcase value) :keyword)))))
     (if (visual-theme-p theme)
         theme
-        (error "Unknown visual theme ~S. Choose one of ~{~A~^, ~}."
-               value
-               +visual-themes+))))
+        (error 'asciiquarium-invalid-argument
+               :value value
+               :expected (format nil "a visual theme, one of ~{~(~A~)~^, ~}"
+                                 +visual-themes+)))))
 
 (defun visual-theme-label (theme)
   (string-upcase (symbol-name (parse-visual-theme theme))))
@@ -77,12 +78,36 @@
       color))
 
 (defun visual-style (theme color &key bold-p)
-  (unless *monochrome*
-    (let ((foreground
-            (style-fg (named-color (visual-theme-color theme color)))))
-      (if bold-p
-          (make-style :bold foreground)
-          (make-style foreground)))))
+  "Return the style for named 16-color COLOR under THEME. In :ANSI16 this is
+the theme's 16-color mapping exactly as before; in :TRUECOLOR and :ANSI256
+the mapped color's xterm RGB is painted over THEME's background, so a creature
+not yet given its own RGB colors still sits on the water rather than on the
+terminal's default background."
+  (let ((named (visual-theme-color theme color)))
+    (case (effective-color-mode)
+      (:mono nil)
+      (:ansi16
+       (let ((foreground (style-fg (named-color named))))
+         (if bold-p
+             (make-style :bold foreground)
+             (make-style foreground))))
+      (t (color-style (multiple-value-list (color-256-to-rgb (named-color named)))
+                      :theme theme
+                      :bold-p bold-p)))))
+
+(defparameter +waterline-row+ 5
+  "The waterline row on a screen at least +FULL-LAYOUT-HEIGHT+ rows tall: the
+five rows above it are sky. Shorter screens scale it down; see
+LAYOUT-WATERLINE-ROW.")
+
+(defparameter +full-layout-height+ 24
+  "The smallest height that shows every band of the layout at full size.")
+
+(defun layout-waterline-row (height)
+  "Return the waterline row for a screen HEIGHT rows tall: +WATERLINE-ROW+
+from +FULL-LAYOUT-HEIGHT+ rows up, proportionally less below that (row 2 at
+the 10-row height the tests use)."
+  (min +waterline-row+ (floor (* +waterline-row+ height) +full-layout-height+)))
 
 (defun next-visual-theme (theme)
   (let* ((current (parse-visual-theme theme))
@@ -109,7 +134,62 @@
     (shark-cooldown 0 :type fixnum)
     (guest-cooldown 0 :type fixnum)
     (render-order-cache nil :type list)
-    (render-order-valid-p nil :type boolean)))
+    (render-order-valid-p nil :type boolean)
+    (ticks-per-second 20 :type fixnum)
+    (notification nil :type (or null string))
+    (notification-ttl 0 :type fixnum)
+    (discovered-species nil :type list)
+    (%background-cell nil)
+    (%background-theme nil)
+    (%background-mode nil)))
+
+(defun world-waterline-row (world)
+  (layout-waterline-row (world-height world)))
+
+(defun world-status-row (world)
+  "The bottom row, which the status bar always occupies."
+  (1- (world-height world)))
+
+(defun world-sand-top (world)
+  "The first of the sand rows, which run down to just above the status bar."
+  (max (+ (world-waterline-row world) 2) (- (world-height world) 4)))
+
+(defun world-swim-band (world)
+  "Return (VALUES TOP BOTTOM), the inclusive rows a swimmer's top line may use:
+below the waterline and its ripple row, above the sand. Callers subtract a
+sprite's own height from BOTTOM."
+  (let ((top (+ (world-waterline-row world) 2)))
+    (values top (max top (1- (world-sand-top world))))))
+
+(defun world-background-cell (world)
+  "Return WORLD's cached BACKGROUND-CELL for its current theme and color mode,
+recomputing it only when either has changed since the last call, so the
+renderer can ask for it every frame without allocating."
+  (let ((theme (world-theme world))
+        (mode (effective-color-mode)))
+    (unless (and (eq theme (world-%background-theme world))
+                 (eq mode (world-%background-mode world)))
+      (setf (world-%background-cell world) (background-cell theme)
+            (world-%background-theme world) theme
+            (world-%background-mode world) mode))
+    (world-%background-cell world)))
+
+(defun world-notify (world message)
+  "Show MESSAGE in the status bar's right-hand side for four seconds of
+WORLD's ticks, replacing any notification already showing."
+  (setf (world-notification world) message
+        (world-notification-ttl world) (* 4 (world-ticks-per-second world)))
+  (world-refresh-hud world))
+
+(defun world-tick-ui (world)
+  "Count the current notification down by one tick, clearing it (and
+refreshing the status bar) when it expires. Runs while paused too, so a
+notification never outlives its four seconds."
+  (when (world-notification world)
+    (when (<= (decf (world-notification-ttl world)) 0)
+      (setf (world-notification world) nil)
+      (world-refresh-hud world)))
+  world)
 
 (defun world-style (world color &key bold-p)
   (visual-style (world-theme world) color :bold-p bold-p))
@@ -144,6 +224,9 @@
     (%invalidate-world-render-order world)
     creatures)
   (defun %add-world-creature (world creature)
+    (when (eq (creature-kind creature) :fish)
+      (pushnew (getf (creature-data creature) :species)
+               (world-discovered-species world)))
     (push creature (world-%creatures world))
     (when (%active-predator-p creature)
       (incf (world-active-predator-count world)))
@@ -170,16 +253,8 @@
 
 (progn
   (defun populate-background (world)
-    (%add-world-creature world (make-ambient-current world))
-    (%add-world-creature world (make-waterline world))
-    (%add-world-creature world (make-castle world))
-    (let ((width (world-width world)))
-      (dotimes (i +default-seaweed-count+)
-        (%add-world-creature
-         world
-         (make-seaweed
-          world
-          (round (* width (/ (1+ i) (1+ +default-seaweed-count+)))))))))
+    (dolist (creature (make-background-creatures world))
+      (%add-world-creature world creature)))
   (defun populate-fish (world count)
     (dotimes (i count)
       (%add-world-creature world (make-fish world)))))
@@ -190,7 +265,8 @@
                    (fish-count +default-fish-count+)
                    (shark-enabled-p t)
                    (theme :abyss)
-                   (hud-visible-p t))
+                   (hud-visible-p t)
+                   (ticks-per-second 20))
   "Create a WORLD of WIDTH by HEIGHT, populated with the background decoration
 and FISH-COUNT fish at random lanes and speeds. The shark and guest cooldowns
 start at a random point in their range so a fresh run does not always wait the
@@ -221,6 +297,8 @@ NIL, disables MAYBE-SPAWN-SHARK for the life of this WORLD (see the
            hud-visible-p
            :shark-enabled-p
            shark-enabled-p
+           :ticks-per-second
+           ticks-per-second
            :shark-cooldown
            (apply #'random-between +shark-cooldown-range+)
            :guest-cooldown
@@ -231,13 +309,20 @@ NIL, disables MAYBE-SPAWN-SHARK for the life of this WORLD (see the
       (%add-world-creature world (make-hud world)))
     world))
 
+(defparameter +background-creature-kinds+
+  '(:ambient-current :waterline :ripple :sky :sand :castle :seaweed
+    :coral :rock :starfish :vent :chest)
+  "Every CREATURE-KIND MAKE-BACKGROUND-CREATURES (art-decor.lisp) lays out
+from the screen size, and so WORLD-RESIZE rebuilds.")
+
 (defun world-resize (world width height)
   "Resize WORLD to WIDTH by HEIGHT in place, returning WORLD.
 Existing creatures keep their current position; a creature now outside the
 new bounds is clamped back inside rather than left to drift until its next
 ENTITY-TICK notices, since a resize can move the bounds inward faster than any
-single tick's velocity would. The waterline's width-dependent art is
-regenerated to span the new width."
+single tick's velocity would. The background (+BACKGROUND-CREATURE-KINDS+)
+is laid out from the screen size, so it is rebuilt for the new size rather
+than clamped, and the status bar is refreshed onto the new bottom row."
   (assert-dimensions width height)
   (setf (world-width world) width
         (world-height world) height)
@@ -255,14 +340,15 @@ regenerated to span the new width."
                                                    0
                                                    (max
                                                     0
-                                                    (- height creature-height))))
-      (cond
-        ((eq (creature-kind creature) :waterline)
-         (%set-creature-frames creature (vector (waterline-art width))))
-        ((eq (creature-kind creature) :ambient-current)
-         (%set-creature-frames creature (ambient-current-frames width)))))
+                                                    (- height creature-height))))))
+  (%set-world-creatures
+   world
+   (remove-if (lambda (creature)
+                (member (creature-kind creature) +background-creature-kinds+))
+              (world-%creatures world)))
+  (populate-background world)
   (world-refresh-hud world)
-  world))
+  world)
 
 (defparameter +transient-creature-kinds+ '(:fish
                                            :shark
@@ -275,48 +361,56 @@ regenerated to span the new width."
                                            :monster-segment)
   "Every CREATURE-KIND that WORLD-REDRAW clears: predators, prey, their
 by-products, and every special guest. Deliberately excludes the background
-(:WATERLINE, :CASTLE, :SEAWEED, :AMBIENT-CURRENT) and the UI creatures
+(+BACKGROUND-CREATURE-KINDS+) and the UI creatures
 (:HUD, :HELP-OVERLAY), none of which a redraw should touch -- the background
 is not what a player watching the aquarium expects a redraw to change, and
 the UI state is independent of aquarium population.")
 
-(defun %visual-scene-creature-p (creature)
-  (member (creature-kind creature)
-          (append +transient-creature-kinds+
-                  '(:waterline :castle :seaweed :ambient-current :hud
-                    :help-overlay))))
-
 (defun world-refresh-hud (world)
+  "Rebuild the status bar's text for WORLD's current state and keep it on the
+bottom row. Called whenever something the bar shows changes, never per tick."
   (let ((hud (find :hud
                    (world-%creatures world)
                    :key #'creature-kind)))
     (when hud
-      (%set-creature-frames hud (list (hud-art world)))
-      (%set-creature-style hud (world-style world :bright-white :bold-p t))))
+      (multiple-value-bind (art mask role-styles) (hud-sprite world)
+        (%set-creature-frames hud (list art) :masks (list mask) :role-styles role-styles))
+      (setf (entity-y (creature-entity hud)) (world-status-row world))))
   world)
 
-(defun %rebuild-visual-scene (world)
-  (let ((help-visible-p
-          (find :help-overlay
-                (world-%creatures world)
-                :key #'creature-kind))
-        (fish-count (world-fish-count world)))
-    (%set-world-creatures
-     world
-     (remove-if #'%visual-scene-creature-p (world-%creatures world)))
-    (populate-background world)
-    (populate-fish world fish-count)
-    (when help-visible-p
-      (%add-world-creature world (make-help-overlay world)))
-    (when (world-hud-visible-p world)
-      (%add-world-creature world (make-hud world))))
+(defvar *creature-restylers* (make-hash-table :test #'eq)
+  "Maps a CREATURE-KIND to a (WORLD CREATURE) function that recolors that
+creature in place for WORLD's current theme. Each art file registers the kinds
+it creates; a kind with no entry keeps its colors until it leaves the screen.")
+
+(defun register-creature-restyler (kind function)
+  (setf (gethash kind *creature-restylers*) function))
+
+(defun register-named-color-restyler (kind color)
+  "Register a restyler for KIND, whose creatures are painted solid in the
+named 16-color COLOR mapped through the theme (WORLD-STYLE): the shark and
+every special guest."
+  (register-creature-restyler
+   kind
+   (lambda (world creature)
+     (%set-creature-colors creature :style (world-style world color)))))
+
+(defun world-set-theme (world theme)
+  "Switch WORLD to THEME by recoloring every creature in place. Unlike a scene
+rebuild, no creature is removed, added, or moved and no random number is drawn,
+so a theme change (the `t' key, or the time of day) never reshuffles the
+aquarium."
+  (setf (world-theme world) (parse-visual-theme theme))
+  (dolist (creature (world-%creatures world))
+    (let ((restyler (gethash (creature-kind creature) *creature-restylers*)))
+      (when restyler
+        (funcall restyler world creature))))
+  (incf (world-render-change-count world))
   world)
 
 (defun world-cycle-theme (world)
-  "Cycle WORLD through the available visual themes and rebuild its scene."
-  (setf (world-theme world) (next-visual-theme (world-theme world)))
-  (%rebuild-visual-scene world)
-  world)
+  "Cycle WORLD to the next visual theme, recoloring it in place."
+  (world-set-theme world (next-visual-theme (world-theme world))))
 
 (defun world-toggle-hud (world)
   "Toggle the persistent status bar without drawing outside the renderer."

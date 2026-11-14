@@ -88,6 +88,45 @@
         (let* ((world (make-benchmark-world)) (renderer (cl-tty-kit:make-renderer +benchmark-width+ +benchmark-height+)) (stream (make-broadcast-stream)) (moving-creatures (loop for creature in (cl-asciiquarium::world-%creatures world) repeat +benchmark-full-redraw-creature-count+ collect creature))) (cl-asciiquarium:render-frame renderer world :stream stream) (multiple-value-bind (milliseconds bytes) (%measure-per-iteration +benchmark-frames+ (loop repeat +benchmark-frames+ do (dolist (creature moving-creatures) (incf (cl-tty-kit:entity-x (cl-asciiquarium::creature-entity creature)))) (cl-asciiquarium:render-frame renderer world :stream stream))) (cl-asciiquarium:shutdown-renderer renderer) (push milliseconds elapsed) (push bytes allocations))))
       (%report-benchmark label "ms/frame" "frame" elapsed allocations)))
 
+(defparameter +benchmark-output-frames+ 100
+  "Frames each output-size measurement averages over. The waterline, ripple,
+and current animate on their own periods, so one frame's size depends on
+which phase it lands on; a fixed run of frames from the same seeded start
+gives a comparable mean.")
+
+(defun %frame-output-bytes (renderer world)
+  (length
+   (sb-ext:string-to-octets
+    (with-output-to-string (stream)
+      (cl-asciiquarium:render-frame renderer world :stream stream))
+    :external-format :utf-8)))
+
+(defun %benchmark-output-bytes (label step)
+  "Render the seeded benchmark world once, then +BENCHMARK-OUTPUT-FRAMES+ more
+times, calling STEP (a function of the world and its first
++BENCHMARK-FULL-REDRAW-CREATURE-COUNT+ creatures) before each. Report and
+return the total UTF-8 bytes those frames write to the terminal."
+  (let* ((world (make-benchmark-world))
+         (renderer (cl-tty-kit:make-renderer +benchmark-width+ +benchmark-height+))
+         (moving-creatures
+           (loop for creature in (cl-asciiquarium::world-%creatures world)
+                 repeat +benchmark-full-redraw-creature-count+
+                 collect creature))
+         (total 0))
+    (unwind-protect
+         (progn
+           (cl-asciiquarium:render-frame renderer world :stream (make-broadcast-stream))
+           ;; WORLD-ADVANCE draws from *RANDOM-STATE*; a fixed seed makes
+           ;; every run, before and after a change, render the same frames.
+           (let ((cl:*random-state* (sb-ext:seed-random-state 4242)))
+             (dotimes (frame +benchmark-output-frames+)
+               (funcall step world moving-creatures)
+               (incf total (%frame-output-bytes renderer world)))))
+      (cl-asciiquarium:shutdown-renderer renderer))
+    (format t "~&~A output: mean ~,1F bytes/frame (~:D bytes over ~D frames)~%"
+            label (/ total +benchmark-output-frames+) total +benchmark-output-frames+)
+    total))
+
 (defun benchmark-update-loop (label &key predatorp)
   (let ((elapsed nil)
         (allocations nil))
@@ -107,3 +146,16 @@
   (benchmark-renderer "Advanced renderer" t)
 (benchmark-update-loop "Update loop without predator")
 (benchmark-update-loop "Update loop with predator" :predatorp t)
+  (unless (zerop (%benchmark-output-bytes "Steady renderer"
+                                         (lambda (world moving) (declare (ignore world moving)))))
+    (error "Expected every steady renderer frame to write 0 bytes."))
+  (%benchmark-output-bytes "Changed-world renderer"
+                           (lambda (world moving)
+                             (declare (ignore world))
+                             (dolist (creature moving)
+                               (incf (cl-tty-kit:entity-x
+                                      (cl-asciiquarium::creature-entity creature))))))
+  (%benchmark-output-bytes "Advanced renderer"
+                           (lambda (world moving)
+                             (declare (ignore moving))
+                             (cl-asciiquarium:world-advance world)))

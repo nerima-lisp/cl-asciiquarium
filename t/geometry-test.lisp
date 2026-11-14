@@ -41,6 +41,11 @@
     (expect (mirror-sprite-text "<((>") :to-equal "<))>"))
   (it "mirrors every line of a multi-line sprite independently"
     (expect (mirror-sprite-text (format nil "ab~%<>")) :to-equal (format nil "ba~%<>")))
+  (it "pads short lines to the full width before mirroring, so they keep their columns"
+    ;; A dart's dorsal fin "  __" sits over columns 2-3 of the 6-wide body;
+    ;; mirrored, it must still sit over columns 2-3, not slide to columns 0-1.
+    (expect (mirror-sprite-text (format nil "  __~%>=(('>~%  ``"))
+            :to-equal (format nil "  __  ~%<'))=<~%  ``  ")))
   (it "is its own inverse for a symmetric glyph set"
     (let ((text "a(b)c"))
       (expect (mirror-sprite-text (mirror-sprite-text text)) :to-equal text)))
@@ -92,3 +97,13 @@
              (expect (plusp (length results)) :to-be-truthy)
              (assert-mutation-score results 1.0))
         (eval original-form)))))
+
+(describe "mirror-sprite-mask"
+  (it "reverses each line without swapping any character"
+    (expect (mirror-sprite-mask (format nil "(bt~%fe")) :to-equal (format nil "tb(~% ef")))
+  (it "pads short lines exactly as mirror-sprite-text does, so art and mask stay aligned"
+    (let ((art (format nil "  __~%>=(('>"))
+          (mask (format nil "  ff~%ttbbeb")))
+      (expect (mapcar #'length (cl-asciiquarium::split-sprite-lines (mirror-sprite-mask mask)))
+              :to-equal (mapcar #'length (cl-asciiquarium::split-sprite-lines (mirror-sprite-text art))))
+      (expect (mirror-sprite-mask mask) :to-equal (format nil "  ff  ~%bebbtt")))))

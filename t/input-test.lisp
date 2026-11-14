@@ -55,17 +55,18 @@
  "space toggles pause"
  (it
   "pauses on the first press and resumes on the second"
- (let ((world (tiny-world)))
+ ;; 40 columns: a 20-column status bar has no room for the swimming state.
+ (let ((world (tiny-world :width 40)))
     (world-apply-key-events world (decode-input " "))
     (expect (world-paused-p world) :to-be-truthy)
-    (expect (search "PAUSED"
+    (expect (search "paused"
                     (creature-art
                      (find :hud (cl-asciiquarium::world-%creatures world)
                            :key #'cl-asciiquarium::creature-kind)))
             :to-be-truthy)
     (world-apply-key-events world (decode-input " "))
     (expect (world-paused-p world) :to-be-falsy)
-    (expect (search "SWIM"
+    (expect (search "swimming"
                     (creature-art
                      (find :hud (cl-asciiquarium::world-%creatures world)
                            :key #'cl-asciiquarium::creature-kind)))

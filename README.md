@@ -6,12 +6,14 @@
 
 An original ASCII-art aquarium screensaver for the terminal: swimming fish (5
 species, color-varied), a shark, rising bubbles, an animated ambient current,
-swaying seaweed, and periodic special guests (a ship that drops an anchor, a
+swaying seaweed, a seabed with a castle and ornaments, a sky above the
+waterline, and periodic special guests (a ship that drops an anchor, a
 line of ducks, a leaping dolphin, a segmented sea monster), rendered live via
 [cl-tty-kit](https://github.com/nerima-lisp/cl-tty-kit). Choose between the
-`abyss`, `coral`, and `moonlight` visual themes, watch the live HUD, pause, dial
-the fish count up or down, spawn a shark or guest on demand, or run
-monochrome. Press `h` in-app for the full key list. Every sprite is original
+`abyss`, `coral`, and `moonlight` visual themes, watch the status bar, pause,
+dial the fish count up or down, or spawn a shark or guest on demand, and choose
+a color depth from 24-bit color down to monochrome at startup. Press `h` in-app
+for the full key list. Every sprite is original
 art authored for this repository. Targets SBCL only.
 
 Full documentation is published at <https://nerima-lisp.github.io/cl-asciiquarium/>.
@@ -36,10 +38,25 @@ asciiquarium --seed 42 --fps 24 --theme coral
 
 The `t` key cycles the visual theme without changing the renderer contract:
 `abyss` is the deep-water default, `coral` is warmer, and `moonlight` is a
-cooler high-contrast palette. The `u` key toggles the HUD, which reports the
-active theme, fish count, and paused/running state. The HUD and ambient current
-are regular creatures in the scene, so they are clipped, ordered, cached, and
-redrawn by the same incremental renderer as every fish and guest.
+cooler high-contrast palette. The theme also sets the sky: day for `coral`,
+dusk for `abyss`, and night for `moonlight`. A theme change recolors the
+scenery, status bar, shark, and bubbles in place instead of rebuilding the
+scene, so nothing moves or respawns.
+
+`--color auto|truecolor|256|16|mono` selects how the themes' 24-bit palettes
+reach the terminal; `auto`, the command-line default, reads `COLORTERM`,
+`TERM`, and `NO_COLOR`. From Lisp, `RUN` uses 16 colors unless given
+`:color-mode`. The `truecolor` and `256` modes also paint the water's background.
+`--monochrome` is the same as `--color mono`, and `--ascii` draws only ASCII
+symbols.
+
+The `u` key toggles the status bar on the bottom row, which reports the theme,
+time of day, fish count, discovered species, and paused/swimming state, with key
+hints on the right. The status bar, sky, and ambient current are regular
+creatures in the scene, so they are clipped, ordered, cached, and redrawn by
+the same incremental renderer as every fish and guest. See
+[Keybindings and CLI](https://nerima-lisp.github.io/cl-asciiquarium/guide/usage/)
+for the screen layout and color-mode detection rules.
 
 ## Install
 

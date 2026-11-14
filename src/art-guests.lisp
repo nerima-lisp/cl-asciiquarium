@@ -39,10 +39,14 @@ keyword appears or a required one is missing."
                                     :speed speed :let-bindings let* :y y :data data)))
 
   (defun %emit-off-screen-guest (name docstring spec)
-    "Build the DEFUN S-expression DEFINE-OFF-SCREEN-GUEST expands to, for NAME
-and DOCSTRING and an OFF-SCREEN-GUEST-SPEC already validated by
-%PARSE-OFF-SCREEN-GUEST-CLAUSES."
-    `(defun ,name (world &key facing)
+    "Build the form DEFINE-OFF-SCREEN-GUEST expands to, for NAME and DOCSTRING
+and an OFF-SCREEN-GUEST-SPEC already validated by
+%PARSE-OFF-SCREEN-GUEST-CLAUSES: the DEFUN, preceded by the registration of a
+restyler that repaints the guest in its :COLOR for a new theme."
+    `(progn
+      (register-named-color-restyler ,(off-screen-guest-spec-kind spec)
+                                     ,(off-screen-guest-spec-color spec))
+      (defun ,name (world &key facing)
        ,docstring
        (let* ((width (world-width world))
               (height (world-height world))
@@ -65,7 +69,7 @@ and DOCSTRING and an OFF-SCREEN-GUEST-SPEC already validated by
                              :x x
                              :y ,(off-screen-guest-spec-y spec)
                              :dx dx
-                             :data ,(off-screen-guest-spec-data spec))))))))
+                             :data ,(off-screen-guest-spec-data spec)))))))))
 
 (defmacro define-off-screen-guest (name docstring &rest clauses)
   "Define MAKE-<NAME>, factory for a CREATURE that enters WORLD fully
@@ -99,7 +103,7 @@ direction deterministically."
   :speed 0.5f0
   :let* ((distance-to-midpoint (abs (- (/ width 2) x)))
          (travel-to-midpoint (round (/ distance-to-midpoint speed))))
-  :y (max 0 (1- +waterline-row+))
+  :y (max 0 (1- (world-waterline-row world)))
   :data (list :drop-tick (+ (world-tick world) travel-to-midpoint)
               :anchor-dropped nil))
 
@@ -109,8 +113,8 @@ direction deterministically."
 random :TARGET-DEPTH row, then stops and becomes :DROPPED (active for
 COLLISION.LISP) for +ANCHOR-DROPPED-TICKS+ before despawning."
   (let* ((height (world-height world))
-         (target-depth (random-between (+ +waterline-row+ 3)
-                                        (max (+ +waterline-row+ 4) (- height 3)))))
+         (target-depth (random-between (+ (world-waterline-row world) 3)
+                                        (max (+ (world-waterline-row world) 4) (- height 3)))))
     (make-creature :world world
                     :kind :anchor
                     :frames (list +anchor-art+)
@@ -120,7 +124,7 @@ COLLISION.LISP) for +ANCHOR-DROPPED-TICKS+ before despawning."
                     :z 3
                     :policy :none
                     :x (+ (creature-x ship) (round (/ (sprite-width +ship-art+) 2)))
-                    :y +waterline-row+
+                    :y (world-waterline-row world)
                     :dx 0 :dy 1
                     :data (list :target-depth target-depth :dropped nil))))
 
@@ -134,7 +138,7 @@ exercise one crossing direction deterministically."
   :color :yellow
   :z 7
   :speed 0.5f0
-  :y (max 0 (1- +waterline-row+))
+  :y (max 0 (1- (world-waterline-row world)))
   :data nil)
 
 (define-off-screen-guest make-dolphin
@@ -148,8 +152,8 @@ tick DOLPHIN-TICK (update.lisp) recomputes Y from a sine wave around its
   :color :bright-blue
   :z 7
   :speed 1.0f0
-  :let* ((baseline (random-between (+ +waterline-row+ 1 +dolphin-arc-amplitude+)
-                                    (max (+ +waterline-row+ 2 +dolphin-arc-amplitude+)
+  :let* ((baseline (random-between (+ (world-waterline-row world) 1 +dolphin-arc-amplitude+)
+                                    (max (+ (world-waterline-row world) 2 +dolphin-arc-amplitude+)
                                          (- height 4)))))
   :y baseline
   :data (list :start-tick (world-tick world)
@@ -167,7 +171,7 @@ a random :LEFT or :RIGHT."
   :color :bright-green
   :z 7
   :speed 0.5f0
-  :let* ((lane (random-between (1+ +waterline-row+) (max (+ 2 +waterline-row+) (- height 4)))))
+  :let* ((lane (random-between (1+ (world-waterline-row world)) (max (+ 2 (world-waterline-row world)) (- height 4)))))
   :y lane
   :data nil)
 
@@ -198,3 +202,6 @@ trail rather than each segment separately simulating its own off-screen exit."
 CREATUREs trailing LEADER, indices 1 through +SEA-MONSTER-SEGMENT-COUNT+."
   (loop for index from 1 to +sea-monster-segment-count+
         collect (make-monster-segment world leader index)))
+
+(register-named-color-restyler :anchor :bright-black)
+(register-named-color-restyler :monster-segment :green)

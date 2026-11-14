@@ -55,7 +55,9 @@
             0
             :facing
             :left)))
-      (expect (creature-art creature) :to-equal (format nil "ba~%c"))
+      ;; The short second line is padded to the frame's full width before
+      ;; mirroring, so "c" keeps its column under "a" rather than moving left.
+      (expect (creature-art creature) :to-equal (format nil "ba~% c"))
       (expect
         (multiple-value-list (creature-dimensions creature))
         :to-equal
@@ -86,7 +88,7 @@
       (expect (cl-asciiquarium::creature-frame-index creature) :to-be 1)
       (setf (creature-frames creature) (vector (format nil "a<~%xyz")))
       (expect (cl-asciiquarium::creature-frame-index creature) :to-be 0)
-      (expect (creature-art creature) :to-equal (format nil ">a~%zyx"))
+      (expect (creature-art creature) :to-equal (format nil " >a~%zyx"))
       (expect
         (multiple-value-list (creature-dimensions creature))
         :to-equal
@@ -98,7 +100,7 @@
         (lambda ()
           (setf (creature-frames creature) #()))
         :to-throw
-        (quote simple-error)))))
+        (quote asciiquarium-invalid-argument)))))
 
 (describe
   "creature-tick-animation"
@@ -778,3 +780,135 @@ change which branch a later test reaches."
               (cl-asciiquarium::creature-%prepared-style prototype))
       (expect (creature-style bubble)
               :to-equal (make-style (style-fg (named-color :bright-yellow))))))))
+
+(defun %masked-test-styles ()
+  (list (cons #\b (make-style (style-fg 1)))
+        (cons #\e (make-style (style-fg 2)))
+        (cons #\t (make-style (style-fg 3)))))
+
+(defun %blit-to-row (creature width)
+  (let ((screen (make-screen width 1)))
+    (cl-asciiquarium::creature-blit screen creature)
+    screen))
+
+(defun %cell-style-at (screen x)
+  (cl-tty-kit:cell-style (screen-cell screen x 0)))
+
+(describe "masked creatures"
+  (it "colors each cell by its mask role and the rest by the creature style"
+    (let* ((default (make-style (style-fg 9)))
+           (creature (make-creature :kind :test-thing :frames "<ob>" :masks " ebt"
+                                    :role-styles (%masked-test-styles)
+                                    :style default :x 0 :y 0))
+           (screen (%blit-to-row creature 4)))
+      (expect (%cell-style-at screen 0) :to-equal default)
+      (expect (%cell-style-at screen 1) :to-equal (make-style (style-fg 2)))
+      (expect (%cell-style-at screen 2) :to-equal (make-style (style-fg 1)))
+      (expect (%cell-style-at screen 3) :to-equal (make-style (style-fg 3)))))
+  (it "paints a masked space opaquely but keeps an unmasked space transparent"
+    (let* ((creature (make-creature :kind :test-thing :frames "a b c" :masks "bb  b"
+                                    :role-styles (%masked-test-styles) :x 0 :y 0))
+           (screen (make-screen 5 1 :initial-cell #\X)))
+      (cl-asciiquarium::creature-blit screen creature)
+      (expect (cell-char (screen-cell screen 1 0)) :to-equal #\Space)
+      (expect (%cell-style-at screen 1) :to-equal (make-style (style-fg 1)))
+      (expect (cell-char (screen-cell screen 3 0)) :to-equal #\X)))
+  (it "keeps the run count of the unmasked sprite when the mask only colors visible glyphs"
+    (let ((masked (make-creature :kind :test-thing :frames "ab cd" :masks "bt eb"
+                                 :role-styles (%masked-test-styles) :x 0 :y 0))
+          (plain (make-creature :kind :test-thing :frames "ab cd" :x 0 :y 0)))
+      (expect (length (aref (cl-asciiquarium::creature-%frame-runs masked) 0))
+              :to-be (length (aref (cl-asciiquarium::creature-%frame-runs plain) 0)))))
+  (it "reverses the mask without swapping characters when facing left"
+    (let* ((creature (make-creature :kind :test-thing :frames "(>" :masks "bt"
+                                    :role-styles (%masked-test-styles)
+                                    :facing :left :x 0 :y 0))
+           (screen (%blit-to-row creature 2)))
+      (expect (creature-art creature) :to-equal "<)")
+      (expect (%cell-style-at screen 0) :to-equal (make-style (style-fg 3)))
+      (expect (%cell-style-at screen 1) :to-equal (make-style (style-fg 1)))))
+  (it "masks every animation frame with its own mask"
+    (let* ((creature (make-creature :kind :test-thing :frames (list "ab" "ab") :masks (list "bb" "ee")
+                                    :role-styles (%masked-test-styles)
+                                    :frame-period 1 :x 0 :y 0)))
+      (expect (%cell-style-at (%blit-to-row creature 2) 0) :to-equal (make-style (style-fg 1)))
+      (creature-tick-animation creature)
+      (expect (%cell-style-at (%blit-to-row creature 2) 0) :to-equal (make-style (style-fg 2)))))
+  (it "shares masked runs with creatures built from a sprite prototype"
+    (let* ((prototype (make-creature :kind :prototype :frames "ab" :masks "bt"
+                                     :role-styles (%masked-test-styles) :x 0 :y 0))
+           (copy (make-creature :kind :test-thing :%sprite-prototype prototype :x 0 :y 0)))
+      (expect (aref (cl-asciiquarium::creature-%frame-runs copy) 0)
+              :to-be (aref (cl-asciiquarium::creature-%frame-runs prototype) 0))
+      (expect (%cell-style-at (%blit-to-row copy 2) 1) :to-equal (make-style (style-fg 3)))))
+  (it "drops the masks when frames are replaced, so a new frame draws in the creature style"
+    (let* ((default (make-style (style-fg 9)))
+           (creature (make-creature :kind :test-thing :frames "ab" :masks "bt"
+                                    :role-styles (%masked-test-styles)
+                                    :style default :x 0 :y 0)))
+      (cl-asciiquarium::%set-creature-frames creature (vector "xyz"))
+      (expect (%cell-style-at (%blit-to-row creature 3) 2) :to-equal default)))
+  (it "signals asciiquarium-invalid-mask for a mask line of a different width"
+    (signals asciiquarium-invalid-mask
+      (make-creature :kind :test-thing :frames (format nil "ab~%cd") :masks (format nil "bb~%b")
+                     :role-styles (%masked-test-styles) :x 0 :y 0)))
+  (it "signals asciiquarium-invalid-mask for a different number of masks or mask lines"
+    (signals asciiquarium-invalid-mask
+      (make-creature :kind :test-thing :frames (list "a" "b") :masks (list "b")
+                     :role-styles (%masked-test-styles) :x 0 :y 0))
+    (signals asciiquarium-invalid-mask
+      (make-creature :kind :test-thing :frames (format nil "a~%b") :masks "b"
+                     :role-styles (%masked-test-styles) :x 0 :y 0)))
+  (it "signals asciiquarium-invalid-mask for a mask character with no role style"
+    (let ((condition (handler-case
+                         (make-creature :kind :test-thing :frames "ab" :masks "bz"
+                                        :role-styles (%masked-test-styles) :x 0 :y 0)
+                       (asciiquarium-invalid-mask (condition) condition))))
+      (expect (invalid-mask-frame-index condition) :to-be 0)
+      (expect (invalid-mask-line condition) :to-be 0)
+      (expect (search "#\\z" (princ-to-string condition)) :to-be-truthy))))
+
+(describe "masked sprite prototypes and mirrored masks"
+  (it "leaves a sibling's runs and colors alone when one fish of a masked prototype dies"
+    (let* ((prototype (make-creature :kind :prototype :frames (format nil " _~%>(o>")
+                                     :masks (format nil " t~%tbeb")
+                                     :role-styles (%masked-test-styles) :x 0 :y 0))
+           (dying (make-creature :kind :fish :%sprite-prototype prototype :x 0 :y 0))
+           (sibling (make-creature :kind :fish :%sprite-prototype prototype :x 0 :y 0))
+           (runs (aref (cl-asciiquarium::creature-%frame-runs sibling) 0))
+           (before (let ((screen (make-screen 5 2)))
+                     (cl-asciiquarium::creature-blit screen sibling)
+                     (loop for x below 5 collect (cl-tty-kit:cell-style (screen-cell screen x 1))))))
+      (cl-asciiquarium::kill-fish dying)
+      (expect (creature-art dying) :to-equal cl-asciiquarium::+fish-death-art+)
+      (expect (aref (cl-asciiquarium::creature-%frame-runs sibling) 0) :to-be runs)
+      (expect (aref (cl-asciiquarium::creature-%frame-runs prototype) 0) :to-be runs)
+      (let ((screen (make-screen 5 2)))
+        (cl-asciiquarium::creature-blit screen sibling)
+        (expect (loop for x below 5 collect (cl-tty-kit:cell-style (screen-cell screen x 1)))
+                :to-equal before))))
+  (it "keeps every line of every frame's mask aligned with its art when facing left"
+    (let* ((frames (list (format nil "  _~%>(o)>~% `") (format nil " _~%>(o)=>~%  `")))
+           (masks (list (format nil "  t~%tbebt~% t") (format nil " t~%tbebbt~%  t")))
+           (creature (make-creature :kind :test-thing :frames frames :masks masks
+                                    :role-styles (%masked-test-styles)
+                                    :frame-period 1 :facing :left :x 0 :y 0)))
+      (dotimes (index 2)
+        (let ((art-lines (cl-asciiquarium::split-sprite-lines (creature-art creature)))
+              (mask-lines (cl-asciiquarium::split-sprite-lines
+                           (aref (cl-asciiquarium::creature-%mirrored-masks creature) index))))
+          (expect (mapcar #'length mask-lines) :to-equal (mapcar #'length art-lines))
+          (loop for art-line in art-lines
+                for mask-line in mask-lines
+                do (expect (map 'list (lambda (character) (char= character #\Space)) art-line)
+                           :to-equal (map 'list (lambda (character) (char= character #\Space)) mask-line))))
+        (creature-tick-animation creature))))
+  (it "detects an invalid mask in a later frame, naming that frame"
+    (let ((condition (handler-case
+                         (make-creature :kind :test-thing
+                                        :frames (list (format nil "ab~%cd") (format nil "ab~%cd"))
+                                        :masks (list (format nil "bb~%bb") (format nil "bb~%bbb"))
+                                        :role-styles (%masked-test-styles) :x 0 :y 0 :facing :left)
+                       (asciiquarium-invalid-mask (condition) condition))))
+      (expect (invalid-mask-frame-index condition) :to-be 1)
+      (expect (invalid-mask-line condition) :to-be 1))))

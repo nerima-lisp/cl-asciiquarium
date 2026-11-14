@@ -38,8 +38,8 @@ Run `asciiquarium --help` for the full option list.
 | `q` / `Q` / Ctrl-C | Quit |
 | `r` / `R` | Redraw: remove and respawn every fish, shark, and guest; background stays |
 | Space | Pause / resume the simulation |
-| `t` / `T` | Cycle the visual theme |
-| `u` / `U` | Toggle the HUD |
+| `t` / `T` | Cycle the visual theme, recoloring everything in place |
+| `u` / `U` | Toggle the status bar on the bottom row |
 | `+` / `=` | Grow the live fish count by one (up to 40) |
 | `-` / `_` | Shrink the live fish count by one |
 | `s` / `S` | Spawn a shark immediately (no-op under `--no-shark`) |
@@ -52,6 +52,10 @@ terminal size once per frame (see [Architecture](reference/architecture.md)).
 ## Flags worth knowing about
 
 - `--no-shark` -- disable the shark, so fish are never eaten.
-- `--monochrome` -- render every creature in the terminal's default
-  foreground color instead of its species color.
+- `--color auto|truecolor|256|16|mono` -- choose the color depth; `auto`
+  (the default) reads `COLORTERM`, `TERM`, and `NO_COLOR`.
+- `--ascii` -- draw only ASCII symbols, for terminals that lack the Unicode
+  ones or draw them two columns wide.
+- `--monochrome` -- the same as `--color mono`: render everything in the
+  terminal's default colors.
 - `--theme abyss|coral|moonlight` -- select the initial visual theme.

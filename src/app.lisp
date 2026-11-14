@@ -21,7 +21,8 @@ compose them once per RUN rather than reimplementing either."
       (multiple-value-bind (columns rows) (funcall size-poller state 0)
         (when (and columns rows)
           (world-resize state columns rows)
-          (renderer-resize renderer columns rows)))
+          (renderer-resize renderer columns rows
+                           :initial-cell (world-background-cell state))))
       (world-apply-key-events state (funcall input-poller state 0)))))
 
 (defun quit-on-signal (world)
@@ -46,7 +47,7 @@ the `q' key. The signal boundary is not unit-tested; see t/app-test.lisp."
 
 (defun run (&key (width +default-width+) (height +default-height+) fish-count seed
             (interval 1/20) (stream *standard-output*) (shark-enabled-p t)
-            monochrome-p (theme :abyss))
+            monochrome-p (theme :abyss) (color-mode :ansi16) ascii-p)
   "Run the aquarium in the real terminal until `q' is pressed, or SIGTERM/
 SIGHUP arrives from outside (see INSTALL-QUIT-SIGNAL-HANDLER) -- both quit
 exactly as cleanly, restoring the terminal via WITH-TERMINAL-SESSION's
@@ -57,7 +58,9 @@ reproducible run; INTERVAL is the target seconds between frames, forwarded to
 cl-tty-kit:TICK-LOOP-RUN-REALTIME; SHARK-ENABLED-P and MONOCHROME-P forward the
 --no-shark and --monochrome CLI flags (cli.lisp) to MAKE-WORLD and *MONOCHROME*
 (creature.lisp) respectively. THEME selects the initial visual palette; it
-accepts one of +VISUAL-THEMES+ and can be changed while running."
+accepts one of +VISUAL-THEMES+ and can be changed while running. COLOR-MODE
+(one of +COLOR-MODES+, from --color) and ASCII-P (--ascii) bind *COLOR-MODE*
+and *ASCII*, both read only as creatures are prepared."
   (when seed
     (setf *random-state* (sb-ext:seed-random-state seed)))
   ;; LET*, not LET: MAKE-WORLD's init-form must run after *MONOCHROME* is
@@ -66,11 +69,15 @@ accepts one of +VISUAL-THEMES+ and can be changed while running."
   ;; semantics would evaluate MAKE-WORLD against the outer, unbound
   ;; *MONOCHROME* instead.
   (let* ((*monochrome* monochrome-p)
+         (*color-mode* color-mode)
+         (*ascii* ascii-p)
          (world (make-world :width width :height height
                              :fish-count (or fish-count +default-fish-count+)
                              :shark-enabled-p shark-enabled-p
-                             :theme theme))
-         (renderer (make-renderer width height))
+                             :theme theme
+                             :ticks-per-second (max 1 (round 1 interval))))
+         (renderer (make-renderer width height
+                                  :initial-cell (world-background-cell world)))
          (decoder (make-input-decoder)))
     (with-raw-mode ()
       (with-terminal-session (session-stream :stream stream :hide-cursor t :alternate-screen t)

@@ -12,10 +12,16 @@ also read by flake.nix and enforced by release.yml against the git tag."
   (let ((system (asdf:find-system "cl-asciiquarium" nil)))
     (if system (asdf:component-version system) "0.0.0")))
 
+(defun color-environment ()
+  "Return (VALUES COLORTERM TERM NO-COLOR), the environment variables
+--color auto reads (see DETECT-COLOR-MODE), each a string or NIL."
+  (values (uiop:getenv "COLORTERM") (uiop:getenv "TERM") (uiop:getenv "NO_COLOR")))
+
 (defun run-handler (invocation)
   "The handler cl-cli:RUN-APP dispatches to: resolve --width/--height against
-the detected terminal size, then run the aquarium. Returns 0 once RUN returns
-(i.e. once the user presses `q')."
+the detected terminal size and --color against the terminal's environment,
+then run the aquarium. Returns 0 once RUN returns (i.e. once the user presses
+`q')."
   (multiple-value-bind (detected-columns detected-rows) (terminal-size)
     (run :width (or (option-value invocation :width) detected-columns +default-width+)
          :height (or (option-value invocation :height) detected-rows +default-height+)
@@ -24,7 +30,14 @@ the detected terminal size, then run the aquarium. Returns 0 once RUN returns
          :shark-enabled-p (not (option-value invocation :no-shark))
          :monochrome-p (option-value invocation :monochrome)
          :theme (parse-visual-theme
-                 (or (option-value invocation :theme) "abyss"))))
+                 (or (option-value invocation :theme) "abyss"))
+         :color-mode (multiple-value-bind (colorterm term no-color) (color-environment)
+                       (resolve-color-mode (option-value invocation :color)
+                                           :colorterm colorterm
+                                           :term term
+                                           :no-color no-color
+                                           :monochrome-p (option-value invocation :monochrome)))
+         :ascii-p (option-value invocation :ascii)))
   0)
 
 (defparameter *app*
@@ -37,7 +50,7 @@ periodic special guests (a ship that drops an anchor, a line of ducks, a
 leaping dolphin, a segmented sea monster), rendered live in the terminal.
 Press q to quit, r to redraw, space to pause, +/- to grow or shrink the fish
 count, s/g to spawn a shark/guest on demand, t to cycle themes, u to toggle
-the HUD, and h for the full key list."
+the status bar, and h for the full key list."
    :global-options
    (list (make-option :name "width" :kind :value :type :integer
                        :description
@@ -54,9 +67,16 @@ the HUD, and h for the full key list."
                        :description "Initial visual theme (default abyss).")
          (make-option :name "no-shark" :kind :flag
                        :description "Disable the shark, so fish are never eaten.")
+         (make-option :name "color" :kind :value
+                       :choices '("auto" "truecolor" "256" "16" "mono")
+                       :description
+                       "Color depth: auto (default; from COLORTERM, TERM, and NO_COLOR), truecolor, 256, 16, or mono.")
+         (make-option :name "ascii" :kind :flag
+                       :description
+                       "Draw only ASCII symbols, for terminals without the Unicode ones or that draw them two columns wide.")
          (make-option :name "monochrome" :kind :flag
                        :description
-                       "Render every creature in the terminal's default foreground color."))
+                       "Same as --color mono: render everything in the terminal's default colors."))
    :handler #'run-handler))
 
 (defun main ()

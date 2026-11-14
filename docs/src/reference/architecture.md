@@ -23,8 +23,9 @@ wrapping a `cl-tty-kit:ENTITY`
 a paint order (`Z`), an optional lifetime (`TTL`), and a kind-specific `DATA`
 plist.
 
-Every sprite type in this repository -- the waterline, the castle, seaweed,
-the ambient current, the HUD, each fish species, the shark, bubbles, the ship,
+Every sprite type in this repository -- the sky, the waterline and ripple row,
+the castle and seabed ornaments, seaweed, the sand, the ambient current, the
+status bar (HUD), the help panel, each fish species, the shark, bubbles, the ship,
 its anchor, the duck line, the dolphin, and the sea monster's head and body
 segments -- is a `CREATURE`. None of them has its own struct or its own
 per-kind update function.
@@ -86,7 +87,7 @@ from, not "every guest factory."
 - `:DESPAWN` -- mark it `REMOVEP`, removed at the end of the current tick
   (the shark, the ship, the duck line -- creatures whose next appearance is
   instead scheduled by a cooldown in `spawn.lisp`).
-- `:NONE` -- no callback (background, the ambient current and HUD, and things
+- `:NONE` -- no callback (the background scenery, the HUD, and things
   like bubbles and the anchor whose removal condition is not a hard screen
   edge).
 
@@ -113,18 +114,44 @@ toward -- the far edge it is *leaving through*, never the near edge it
 ## Theme, ambient motion, and HUD
 
 `WORLD` owns the selected visual theme (`:ABYSS`, `:CORAL`, or `:MOONLIGHT`)
-and whether the HUD is visible. `WORLD-CYCLE-THEME` rebuilds the visual scene
-through the normal factories rather than writing directly to the terminal;
-this keeps fish, bubbles, guests, and decorative sprites inside the same
-dirty-region and cache invalidation contract. `WORLD-TOGGLE-HUD` adds or
-removes the HUD creature without changing simulation state.
+and whether the HUD is visible. Each theme has a 24-bit palette of named color
+roles (`+THEME-RGB-PALETTES+` in `src/palette.lisp`), and `*COLOR-MODE*` decides
+how a role reaches the terminal: as a 24-bit color, the nearest 256-color
+index, the nearest of the 16 system colors, or no color. `COLOR-STYLE` resolves
+a role into a `cl-tty-kit` style for the active mode once, when a creature or
+sprite prototype is built; nothing on the per-frame path converts a color.
 
-The ambient current is a two-row animated `:AMBIENT-CURRENT` creature with
-four deterministic frames. It has no edge callback, but it still participates
+`WORLD-SET-THEME` switches theme by recoloring creatures in place rather than
+rebuilding the scene: each art file registers a restyler per creature kind
+with `REGISTER-CREATURE-RESTYLER`, and `WORLD-SET-THEME` calls the one
+registered for each creature's kind. No creature is removed, added, or moved
+and no random number is drawn, so a theme change never reshuffles a seeded
+run. Every kind but the fish has a restyler: the scenery, the status bar, the
+help panel, bubbles, and the shark and special guests (which share
+`REGISTER-NAMED-COLOR-RESTYLER`). A kind without one, today only the fish,
+keeps the colors it was built with. `WORLD-CYCLE-THEME` is `WORLD-SET-THEME` with the next
+member of `+VISUAL-THEMES+`. `WORLD-TOGGLE-HUD` adds or removes the HUD
+creature without changing simulation state.
+
+The scenery is laid out from the screen size by `MAKE-BACKGROUND-CREATURES`
+(`src/art-decor.lisp`): sky, waterline, ripple row, ambient current, castle,
+seaweed, seabed ornaments, and sand. `LAYOUT-WATERLINE-ROW` puts the waterline
+on `+WATERLINE-ROW+` on screens at least 24 rows tall and proportionally
+higher on shorter ones;
+`WORLD-SWIM-BAND`, `WORLD-SAND-TOP`, and `WORLD-STATUS-ROW` derive the other
+bands from it and from the height. `WORLD-RESIZE` therefore removes and rebuilds
+the scenery for the new size instead of clamping it.
+
+The ambient current is a four-row animated `:AMBIENT-CURRENT` creature with
+four deterministic frames, its rows spread through the water between the
+ripple row and the sand. It has no edge callback, but it still participates
 in z-ordering, clipping, prepared-sprite caching, and incremental redraw. The
-HUD is a `:HUD` creature at the top render layer and is refreshed whenever
-theme, pause, fish count, resize, or HUD visibility changes. This makes status
-information a composited part of the scene instead of a second output path.
+HUD is the one-row status bar, a `:HUD` creature at the top render layer on
+the bottom row. Its text is rebuilt whenever something it shows changes
+(theme, pause, fish count, redraw, resize, a notification), never per tick; `WORLD-NOTIFY` sets a notification that `WORLD-ADVANCE` counts down,
+paused or not, for four seconds of ticks at the `TICKS-PER-SECOND` given to
+`MAKE-WORLD`. This makes status information a composited part of the scene
+instead of a second output path.
 
 ## Render order, blit runs, and incremental frames
 
@@ -138,34 +165,63 @@ the same cached data to update only the screen regions affected since its
 previous call:
 
 - Each `CREATURE` keeps its private `%FRAMES`/`%STYLE` alongside prepared,
-  already-mirrored copies and precomputed non-space "blit runs" (flat
+  already-mirrored copies and precomputed opaque "blit runs" (flat
   X/Y/screen triples `CREATURE-BLIT` composites directly, without reparsing
-  sprite text). `%ENSURE-CREATURE-CACHES-CURRENT` only rebuilds these when the
+  sprite text). Every cell in a run carries its final style, resolved once
+  when the runs are prepared, so per-character coloring costs nothing per
+  frame. Under `*ASCII*`, frames pass through `ASCII-TEXT` as they are stored.
+  `%ENSURE-CREATURE-CACHES-CURRENT` only rebuilds these when the
   public `CREATURE-FRAMES`/`CREATURE-STYLE` accessors have been used to
   plausibly mutate the source data (tracked via `%FRAMES-ESCAPED-P` and
   `%STYLE-ESCAPED-P`) and the current value no longer matches the last
   prepared snapshot -- a getter alone does not force a rebuild, only a getter
   *followed by* a change does.
+- A creature built with `:MASKS` and `:ROLE-STYLES` has one mask per frame,
+  with exactly the frame's line shape (otherwise `MAKE-CREATURE` signals
+  `ASCIIQUARIUM-INVALID-MASK`). A space in the mask leaves the cell to the
+  art and `STYLE`, so a space under a space stays transparent. Any other mask
+  character names a role: the cell takes that role's style from
+  `:ROLE-STYLES` and is opaque even where the art has a space. Such a masked
+  space is painted with the role's foreground color as its background, a solid
+  fill, in the modes that paint backgrounds; in the 16-color and monochrome
+  modes, whose role styles carry no background color, it keeps the role's
+  style unchanged. Facing `:LEFT` uses masks mirrored by
+  `MIRROR-SPRITE-MASK`, which pads lines to the longest one and reverses them
+  by the same rule as `MIRROR-SPRITE-TEXT`, so art and mask stay aligned.
+- An in-place restyle (`WORLD-SET-THEME` calling a kind's restyler) replaces a
+  creature's `STYLE` and role styles and rebuilds its blit runs once, leaving
+  frames, masks, position, and animation state alone. The renderer compares a
+  creature's runs with its snapshot by identity, so the rebuilt runs mark that
+  creature's bounds dirty like any other change.
 - `WORLD` keeps a private `%CREATURES` list alongside a cached
   `Z`-sorted render order. Internal mutation paths (`%ADD-WORLD-CREATURE`,
   `%SET-WORLD-CREATURES`) invalidate that cache directly.
 - `RENDER-FRAME` delegates renderer-owned snapshots and dirty-region
   reconciliation to `RENDER-STATE`, which stores snapshots in a weak table. It
   compares the current creature state with the previous frame, coalesces each
-  changed creature's old and new clipped bounds, clears those rectangles, and
-  blits only creatures intersecting them. Added, removed, and reordered
-  creatures all invalidate the necessary regions. It falls back to a full
-  repaint when the dirty area covers at least half the screen or there are too
-  many dirty rectangles, avoiding pathological incremental work after large
-  changes. `RENDER-FRAME` and `SHUTDOWN-RENDERER` share one ownership boundary,
-  so shutdown cannot remove a renderer state while a frame is using its
-  reusable executor.
+  changed creature's old and new clipped bounds, clears those rectangles to
+  the background cell, and blits only creatures intersecting them. Added,
+  removed, and reordered creatures all invalidate the necessary regions. It
+  falls back to a full repaint when the dirty area covers at least half the
+  screen or there are too many dirty rectangles, avoiding pathological
+  incremental work after large changes, and when the background cell differs
+  from the previous frame's: a theme change moves no creature, so no dirty
+  rectangle would cover the open water. `RENDER-FRAME` and `SHUTDOWN-RENDERER`
+  share one ownership boundary, so shutdown cannot remove a renderer state
+  while a frame is using its reusable executor.
+- The background cell (`WORLD-BACKGROUND-CELL`, built by `BACKGROUND-CELL`) is
+  a space over the theme's water color in the `:TRUECOLOR` and `:ANSI256`
+  modes, and `NIL`, the plain blank, in `:ANSI16` and `:MONO`. `DRAW-WORLD`
+  clears to it, and `RUN` passes it to the renderer as its initial cell, so
+  the water shows between sprites without a full-screen background creature.
+  `WORLD` caches it per theme and color mode, so asking for it every frame
+  allocates nothing.
 - `MAKE-BUBBLE` (`src/bubble.lisp`) selects a cached immutable prototype keyed
-  by visual theme and monochrome mode, and shares its prepared frames, style,
+  by visual theme and effective color mode, and shares its prepared frames, style,
   and blit runs across every bubble it spawns (bubbles are the highest-churn
   creature, one per fish roughly every 20-60 ticks) via `MAKE-CREATURE`'s
   `%SPRITE-PROTOTYPE` argument. Selection happens at spawn time, so a dynamic
-  `*MONOCHROME*` binding remains correct without reconstructing the equivalent
+  `*COLOR-MODE*` or `*MONOCHROME*` binding remains correct without reconstructing the equivalent
   style and prepared runs for every bubble. Public frame/style access still
   materializes private mutable copies before exposing them.
 

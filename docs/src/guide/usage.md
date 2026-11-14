@@ -12,18 +12,19 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
 - `r` or `R` -- redraw. Calls `WORLD-REDRAW`, which removes every fish, the
   shark (if present), any bubbles in flight, and every special guest
   (including a dolphin or sea monster mid-crossing), then repopulates a fresh
-  set of fish at random lanes and speeds. The waterline, castle, and seaweed
-  are left in place, as are the ambient current, HUD, and help panel if they
-  are visible.
+  set of fish at random lanes and speeds. The background scenery (see
+  [Screen layout](#screen-layout)) is left in place, as are the status bar
+  and help panel if they are visible.
 - Space -- pause or resume. `WORLD-ADVANCE` becomes a no-op while
   `WORLD-PAUSED-P` is true: the whole simulation freezes, not just the
   redraw, so nothing moves, ages, or spawns until unpaused.
 - `t` or `T` -- cycle the visual theme through `abyss`, `coral`, and
-  `moonlight` (`WORLD-CYCLE-THEME`). The scene is rebuilt through the existing
-  creature factories so all theme-dependent sprites invalidate their caches
-  together.
-- `u` or `U` -- toggle the HUD (`WORLD-TOGGLE-HUD`). The HUD shows the active
-  theme, fish count, and paused/running state.
+  `moonlight` (`WORLD-CYCLE-THEME`). The scene is recolored in place
+  (`WORLD-SET-THEME`): no creature is removed, added, or moved, and no random
+  number is drawn, so a seeded run is not reshuffled. Everything but the fish
+  takes the new theme's colors; fish keep the colors they were created with.
+- `u` or `U` -- toggle the status bar on the bottom row (`WORLD-TOGGLE-HUD`);
+  see [Status bar](#status-bar).
 - `+` or `=` -- grow the live fish count by one (`WORLD-INCREASE-FISH-COUNT`),
   up to `+MAX-FISH-COUNT+`.
 - `-` or `_` -- shrink the live fish count by one (`WORLD-DECREASE-FISH-COUNT`),
@@ -33,8 +34,8 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
 - `g` or `G` -- spawn a random special guest immediately (`SPAWN-GUEST-NOW`),
   drawing among ship, duck line, dolphin, and sea monster with equal
   probability, and resetting the guest cooldown.
-- `h` or `H` -- toggle a fixed help panel (`WORLD-TOGGLE-HELP-OVERLAY`)
-  listing every binding above.
+- `h` or `H` -- toggle the help panel (`WORLD-TOGGLE-HELP-OVERLAY`), a
+  rounded box just below the waterline listing every binding above.
 
 Any other decoded key (arrows, function keys, ...) is accepted and ignored;
 this application does not bind them.
@@ -50,10 +51,69 @@ The `asciiquarium` binary (see `src/cli.lisp`, built via cl-cli):
 | `--seed` | integer | none (unseeded) | Seeds `cl:*random-state*` for a reproducible run |
 | `--fps` | integer, 1-60 | 20 | Target frames per second |
 | `--no-shark` | flag | off | Disable the shark for the whole run |
-| `--monochrome` | flag | off | Render every creature in the terminal's default foreground color |
+| `--color` | `auto`, `truecolor`, `256`, `16`, or `mono` | `auto` | Select the color depth; see [Color modes](#color-modes) |
+| `--ascii` | flag | off | Draw only ASCII symbols, for terminals that lack the Unicode ones or draw them two columns wide |
+| `--monochrome` | flag | off | Same as `--color mono`: render everything in the terminal's default colors |
 | `--theme` | `abyss`, `coral`, or `moonlight` | `abyss` | Select the initial visual theme |
 
 `--help` and `--version` are handled automatically by cl-cli.
+
+## Color modes
+
+`--color` decides how each theme's 24-bit palette (`src/palette.lisp`) reaches
+the terminal:
+
+- `truecolor` -- 24-bit colors, with the water's background color painted
+  behind the scene.
+- `256` -- the nearest xterm 256-color index for each color, background
+  included.
+- `16` -- the nearest of the 16 system colors. No background is painted, so
+  the terminal's own background shows through.
+- `mono` -- no color.
+
+`auto` (`DETECT-COLOR-MODE`) picks `mono` when `NO_COLOR` is set and
+non-empty, `truecolor` when `COLORTERM` is `truecolor` or `24bit`, `256` when
+`TERM` contains `256color`, and `16` otherwise. An explicit `--color` value
+wins over `NO_COLOR`, and `--monochrome` forces `mono` whatever `--color` says
+(`RESOLVE-COLOR-MODE`).
+
+`--ascii` replaces every non-ASCII symbol a sprite draws (the waterline crest,
+the help panel's box lines, the status bar's dots) with a one-column ASCII
+stand-in (`ASCII-TEXT`).
+
+## Screen layout
+
+On a screen at least 24 rows tall, the layout runs top to bottom as follows:
+
+- Rows 0-4: the sky, which follows the theme: the sun and a cloud for
+  `coral`, the sun setting on the horizon and a cloud for `abyss`, and the
+  moon and stars for `moonlight`.
+- Row 5: the waterline (`+WATERLINE-ROW+`), with a moving bright crest.
+- Row 6: a ripple row.
+- The water, with four rows of ambient current spread through it.
+- The seabed: a castle with lit windows on the left, then coral, a rock, a
+  starfish, a vent, and a chest, each placed only where it fits clear of the
+  two-tone seaweed strands.
+- Three rows of sand.
+- The bottom row: the status bar.
+
+Below 24 rows the waterline moves up in proportion (`WORLD-WATERLINE-ROW`),
+and the sky is left out once fewer than three rows remain above it. A resize
+lays the scenery out again for the new size.
+
+## Status bar
+
+The status bar fills the bottom row. On the left it shows the theme badge,
+the time of day (`day` for `coral`, `dusk` for `abyss`, `night` for
+`moonlight`), the weather (currently always `clear`), the fish count, how many
+of the known fish species have appeared so far (`dex`), and whether the
+simulation is swimming or paused. Key hints fill the right-hand side. A
+message passed to `WORLD-NOTIFY` replaces the key hints for four seconds.
+
+When the screen is too narrow, the key hints are dropped first, then the
+summary groups in this order: time of day and weather, the species count,
+and the fish count. The theme badge and the swimming/paused state are never
+dropped.
 
 ## Resizing
 

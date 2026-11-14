@@ -63,7 +63,8 @@
   (it "rebuilds prepared runs when style changes"
     (let* ((world (tiny-world :width 4 :height 2 :fish-count 0))
            (screen (make-screen 4 2))
-           (creature (make-creature :world world :kind :marker :x 0 :y 0
+           ;; Z 2 paints over the waterline, which a 2-row world puts on row 0.
+           (creature (make-creature :world world :kind :marker :x 0 :y 0 :z 2
                                     :frames (list "Z") :style '(:bold))))
       (cl-asciiquarium::%add-world-creature world creature)
       (draw-world screen world)

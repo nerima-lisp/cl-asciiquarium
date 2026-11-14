@@ -41,17 +41,19 @@
         (expect (world-theme world) :to-be :coral)
         (expect (cl-asciiquarium::world-hud-visible-p world) :to-be-truthy)
         (expect hud :to-be-truthy)
-        (expect (search "[CORAL]" (creature-art hud)) :to-be-truthy)
+        (expect (search "CORAL" (creature-art hud)) :to-be-truthy)
         (expect current :to-be-truthy)
+        ;; Four current rows spread through the 10-row water band of a
+        ;; 20-row screen: two rows apart, so seven rows tall in all.
         (multiple-value-bind (width height) (creature-dimensions current)
           (expect width :to-be 40)
-          (expect height :to-be 2)))))
+          (expect height :to-be 7)))))
 
   (it "cycles the theme and refreshes scene-owned UI"
     (let ((world (make-world :width 40 :height 20 :fish-count 0 :theme :abyss)))
       (world-cycle-theme world)
       (expect (world-theme world) :to-be :coral)
-      (expect (search "[CORAL]"
+      (expect (search "CORAL"
                       (creature-art
                        (find :hud (cl-asciiquarium::world-%creatures world)
                              :key #'cl-asciiquarium::creature-kind)))
@@ -72,15 +74,16 @@
                     :key #'cl-asciiquarium::creature-kind)
               :to-be-truthy)))
 
-  (it "regenerates ambient current art to fit a resized world"
-    (let* ((world (make-world :width 20 :height 10 :fish-count 0))
-           (current (find :ambient-current
-                          (cl-asciiquarium::world-%creatures world)
-                          :key #'cl-asciiquarium::creature-kind)))
+  (it "rebuilds the ambient current to fit a resized world"
+    (let ((world (make-world :width 20 :height 10 :fish-count 0)))
       (world-resize world 31 12)
-      (multiple-value-bind (width height) (creature-dimensions current)
-        (expect width :to-be 31)
-        (expect height :to-be 2)))))
+      (let ((current (find :ambient-current
+                           (cl-asciiquarium::world-%creatures world)
+                           :key #'cl-asciiquarium::creature-kind)))
+        ;; A 12-row screen leaves a 4-row water band: one current row each.
+        (multiple-value-bind (width height) (creature-dimensions current)
+          (expect width :to-be 31)
+          (expect height :to-be 4))))))
 
 (describe "world-advance"
   (it "increments the tick counter exactly once per call"
@@ -131,14 +134,14 @@
   (it "removes a bubble once it rises to the waterline row"
     (let* ((world (tiny-world :width 40 :height 20))
            (bubble (make-creature :world world :kind :bubble :frames (list ".")
-                                  :x 5 :y (1+ +waterline-row+) :dx 0 :dy -1 :policy :none)))
+                                  :x 5 :y (1+ (cl-asciiquarium::world-waterline-row world)) :dx 0 :dy -1 :policy :none)))
       (cl-asciiquarium::%add-world-creature world bubble)
       (world-advance world)
       (expect (member bubble (cl-asciiquarium::world-%creatures world)) :to-be-falsy))))
   (it "removes internally managed bubbles without exposing the creature list"
     (let* ((world (make-world :width 40 :height 20 :fish-count 0))
            (bubble (make-creature :world world :kind :bubble :frames (list ".")
-                                  :x 5 :y (1+ +waterline-row+) :dx 0 :dy -1 :policy :none)))
+                                  :x 5 :y (1+ (cl-asciiquarium::world-waterline-row world)) :dx 0 :dy -1 :policy :none)))
       (cl-asciiquarium::%add-world-creature world bubble)
       (world-advance world)
       (expect (member bubble (cl-asciiquarium::world-%creatures world)) :to-be-falsy)
