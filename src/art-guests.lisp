@@ -133,7 +133,7 @@ sand, its :TARGET-DEPTH; only then does it carry +ANCHOR-THREAT+."
                                 :data (list :phase :fall :target-depth target-depth
                                             :rise-at 0 :threat nil :ship ship :chain nil
                                             :offset-x offset-x
-                                            :tick 'anchor-tick))))
+                                            :tick 'anchor-tick :place 'place-anchor))))
     (setf (getf (creature-data anchor) :chain)
           (make-chain world anchor (- chain-top (creature-y ship))
                       (max 0 (- target-depth chain-top))))
@@ -151,7 +151,7 @@ index and never builds a string."
 (defun make-chain (world anchor ship-height max-length)
   "Create the :CHAIN CREATURE hanging from the row under ANCHOR's ship
 (SHIP-HEIGHT rows below the ship's top) in the anchor's shaft column, with
-VERTICAL-LINE-FRAMES up to MAX-LENGTH links for CHAIN-TICK (update-anchor.lisp)
+VERTICAL-LINE-FRAMES up to MAX-LENGTH links for PLACE-CHAIN (update-anchor.lisp)
 to pick from."
   (let ((shaft-x (position #\| +anchor-art+))
         (top (+ (creature-y (getf (creature-data anchor) :ship)) ship-height)))
@@ -167,7 +167,7 @@ to pick from."
                    :y top
                    :dx 0 :dy 0
                    :data (list :anchor anchor :shaft-x shaft-x :ship-height ship-height
-                               :tick 'chain-tick))))
+                               :tick 'chain-tick :place 'place-chain))))
 
 (define-off-screen-guest make-duck-line
     "Create a decorative line-of-ducks CREATURE crossing WORLD near the

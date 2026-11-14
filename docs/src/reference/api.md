@@ -36,8 +36,10 @@
   handlers own.
 
 - `WORLD-RESIZE (world width height)` -- resize in place, clamping any
-  creature the new bounds left outside, rebuilding the scenery for the new
-  size, and moving the status bar to the new bottom row.
+  creature the new bounds left outside, calling the `:PLACE` data function of
+  each creature that has one (an anchor and its chain go back under their
+  ship), rebuilding the scenery for the new size, and moving the status bar to
+  the new bottom row.
 - `WORLD-REDRAW (world)` -- remove and repopulate fish/shark/bubbles/guests.
 - `WORLD-SET-THEME (world theme)` -- switch to THEME by recoloring every
   creature in place through its kind's registered restyler. No creature is

@@ -39,7 +39,13 @@ timer, the chest's opening schedule, the dinghy's dive phases, the crab's turn
 at an edge, the octopus's reach and ink, a bubble's waterline removal, a dolphin's
 leap arc, a sea-monster segment following its leader, the shark steering
 toward the nearest fish ahead) carries a `:TICK` function in its `:DATA` plist, set by the
-factory that builds it, and `TICK-CREATURE` calls it last.
+factory that builds it, and `TICK-CREATURE` calls it last. The anchor and
+its chain, which hang from the ship, also carry a `:PLACE` function that puts
+them back where they belong. Their `:TICK` calls it, and `WORLD-RESIZE` calls
+it for every creature that has one, so a paused world shows them in place at
+the new size. The calls follow creature-list order, so a `:PLACE` that reads
+another creature's position (the chain reads the anchor's) needs that creature
+earlier in the list.
 
 Collision (`src/collision.lisp`) is one pass, not a per-pair matrix. A
 creature is a threat when its `:DATA` plist carries a `:THREAT` row. The row

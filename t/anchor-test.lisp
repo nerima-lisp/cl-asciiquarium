@@ -197,12 +197,16 @@ its precomputed frames."
        (= (+ (creature-y chain) (cl-asciiquarium::creature-frame-index chain) -1)
           (1- (creature-y anchor)))))
 
+(defun %anchor-rig-world ()
+  "A 100x40 %ANCHOR-SHIP-WORLD with the ship at column 60, advanced until the
+anchor drops. Returns (VALUES WORLD SHIP ANCHOR CHAIN)."
+  (multiple-value-bind (world ship) (%anchor-ship-world :width 100 :height 40)
+    (setf (entity-x (cl-asciiquarium::creature-entity ship)) 60.0f0)
+    (world-advance world)
+    (values world ship (%anchor-kind world :anchor) (%anchor-kind world :chain))))
+
 (describe "anchor: shrinking resize"
-  (flet ((rig-world ()
-           (multiple-value-bind (world ship) (%anchor-ship-world :width 100 :height 40)
-             (setf (entity-x (cl-asciiquarium::creature-entity ship)) 60.0f0)
-             (world-advance world)
-             (values world ship (%anchor-kind world :anchor) (%anchor-kind world :chain)))))
+  (flet ((rig-world () (%anchor-rig-world)))
     (it "lands on the new sand with the chain in its shaft when the screen shrinks while it falls"
       (with-seeded-random-state (1)
         (multiple-value-bind (world ship anchor chain) (rig-world)
@@ -231,6 +235,51 @@ its precomputed frames."
             (expect (%anchor-rig-in-line-p ship anchor chain) :to-be-truthy))
           (%advance-until world (lambda () (cl-asciiquarium::creature-removep anchor)))
           (expect (cl-asciiquarium::creature-removep chain) :to-be-truthy))))))
+
+(describe "anchor: resize while paused"
+  (it "keeps the chain within its frames after a shrink and regrow while paused mid-fall"
+    (with-seeded-random-state (1)
+      (multiple-value-bind (world ship anchor chain) (%anchor-rig-world)
+        (%advance-until world (lambda () (>= (creature-y anchor) 25)))
+        (expect (%anchor-data anchor :phase) :to-be :fall)
+        (world-apply-key-event world (first (decode-input " ")))
+        (world-resize world 40 8)
+        (world-advance world)
+        (world-resize world 100 40)
+        (world-advance world)
+        (world-apply-key-event world (first (decode-input " ")))
+        (expect (world-paused-p world) :to-be nil)
+        (let ((screen (make-screen 100 40))
+              (mismatches nil)
+              (phases nil))
+          (%advance-until world
+                          (lambda ()
+                            (pushnew (%anchor-data anchor :phase) phases)
+                            ;; The ship sails on during the tick its anchor
+                            ;; leaves, so the alignment holds only before it.
+                            (unless (or (cl-asciiquarium::creature-removep anchor)
+                                        (and (= (creature-x chain) (+ (creature-x anchor) 2))
+                                             (= (creature-x anchor) (+ (creature-x ship) 4))
+                                             (= (cl-asciiquarium::creature-frame-index chain)
+                                                (max 0 (- (creature-y anchor) (creature-y chain))))))
+                              (push (list (world-tick world) (creature-y anchor)) mismatches))
+                            (draw-world screen world)
+                            (cl-asciiquarium::creature-removep anchor)))
+          (with-soft-assertions
+            (expect mismatches :to-be-null)
+            (expect (and (member :rest phases) (member :rise phases) t) :to-be t)
+            (expect (cl-asciiquarium::creature-removep chain) :to-be-truthy))))))
+  (it "puts a landed anchor on the new sand and its chain in its shaft without a tick"
+    (with-seeded-random-state (1)
+      (multiple-value-bind (world ship anchor chain) (%anchor-rig-world)
+        (%advance-until world (lambda () (eq (%anchor-data anchor :phase) :rest)))
+        (world-apply-key-event world (first (decode-input " ")))
+        (let ((tick (world-tick world)))
+          (world-resize world 40 24)
+          (with-soft-assertions
+            (expect (world-tick world) :to-be tick)
+            (expect (creature-y anchor) :to-be (- (cl-asciiquarium::world-sand-top world) 3))
+            (expect (%anchor-rig-in-line-p ship anchor chain) :to-be-truthy)))))))
 
 (describe "anchor: allocation"
   (flet ((bytes-consed-by-ticks (world anchor chain)

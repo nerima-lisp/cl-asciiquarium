@@ -381,7 +381,10 @@ already marked, so a released child never ticks or threatens again."
 Existing creatures keep their current position; a creature now outside the
 new bounds is clamped back inside rather than left to drift until its next
 ENTITY-TICK notices, since a resize can move the bounds inward faster than any
-single tick's velocity would. The background (+BACKGROUND-CREATURE-KINDS+)
+single tick's velocity would. A creature whose data has a :PLACE (a function
+of the world and the creature) is then put back where it belongs relative to
+the creature it hangs from, in creature-list order, so a paused world shows it
+there without waiting for a tick. The background (+BACKGROUND-CREATURE-KINDS+)
 is laid out from the screen size, so it is rebuilt for the new size rather
 than clamped (the old octopus's tentacle and ink leave with it, see
 %DROP-CREATURE-KINDS), and the status bar is refreshed onto the new bottom
@@ -404,6 +407,10 @@ row."
                                                    (max
                                                     0
                                                     (- height creature-height))))))
+  (dolist (creature (world-%creatures world))
+    (let ((place (getf (creature-data creature) :place)))
+      (when place
+        (funcall place world creature))))
   (%drop-creature-kinds world +background-creature-kinds+)
   (populate-background world)
   (world-refresh-hud world)
