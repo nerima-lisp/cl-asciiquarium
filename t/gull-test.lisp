@@ -248,6 +248,15 @@ its own tick leaves the fish behind."
         (expect (< (creature-y gull) (world-waterline-row world)) :to-be t)))))
 
 (describe "gulls at night"
+  (it "fly again when night and then day come in one input batch"
+    (let ((world (gull-world :theme :abyss)))
+      (cl-asciiquarium::populate-gulls world)
+      (press-keys world "nn")
+      (expect (world-theme world) :to-be :coral)
+      (world-advance world)
+      (expect (length (world-kind-creatures world :gull)) :to-be 2)
+      (expect (notany #'cl-asciiquarium::creature-removep (world-kind-creatures world :gull))
+              :to-be t)))
   (it "leave when night falls while the aquarium is paused"
     (let ((world (gull-world)))
       (cl-asciiquarium::populate-gulls world)

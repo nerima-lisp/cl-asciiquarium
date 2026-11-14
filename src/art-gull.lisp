@@ -46,13 +46,18 @@ WORLD. Draws no random number."
   "Add gulls to WORLD until +GULL-COUNT+ fly. At night (the :MOONLIGHT theme)
 or with fewer than +GULL-MIN-SKY-ROWS+ sky rows, mark every gull REMOVEP
 instead, so they leave even while WORLD is paused and GULL-TICK does not run.
-Returns WORLD."
+A gull already marked REMOVEP does not count as flying: night and day again
+in one input batch (`nn') must not leave the day without gulls. Returns
+WORLD."
   (if (or (eq (world-theme world) :moonlight)
           (< (world-waterline-row world) +gull-min-sky-rows+))
       (dolist (creature (world-%creatures world))
         (when (eq (creature-kind creature) :gull)
           (gull-leave creature)))
-      (loop for slot from (count :gull (world-%creatures world) :key #'creature-kind)
+      (loop for slot from (count-if (lambda (creature)
+                                      (and (eq (creature-kind creature) :gull)
+                                           (not (creature-removep creature))))
+                                    (world-%creatures world))
               below +gull-count+
             do (%add-world-creature world (make-gull world slot))))
   world)
