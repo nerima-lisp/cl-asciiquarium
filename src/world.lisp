@@ -260,14 +260,18 @@ notification never outlives its four seconds."
     creature)
   (defun attach-creature (world owner child)
     "Add CHILD to WORLD as a creature that leaves with OWNER: every path that
-takes OWNER out of play calls RELEASE-ATTACHED. Children that already left on
-their own are dropped from OWNER's :ATTACHED here, so a long-lived owner's
-list holds only its current children."
+takes OWNER out of play calls RELEASE-ATTACHED."
+    (attach-existing-creature owner child)
+    (%add-world-creature world child))
+  (defun attach-existing-creature (owner child)
+    "Make CHILD, already in the world, leave with OWNER as ATTACH-CREATURE's
+children do (a fish a gull catches). Children that already left on their own
+are dropped from OWNER's :ATTACHED here, so a long-lived owner's list holds
+only its current children."
     (let ((data (creature-data owner)))
       (setf (getf data :attached)
             (cons child (delete-if #'creature-removep (getf data :attached))))
-      (setf (creature-data owner) data))
-    (%add-world-creature world child))
+      (setf (creature-data owner) data)))
   (defun release-attached (owner)
     "Mark every child ATTACH-CREATURE registered on OWNER REMOVEP and forget
 them. A child released during a tick stays in the list until the end of the

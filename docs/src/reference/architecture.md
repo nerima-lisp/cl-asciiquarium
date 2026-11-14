@@ -94,12 +94,15 @@ functions delete by kind: `WORLD-REDRAW` drops every kind in
 `+TRANSIENT-CREATURE-KINDS+`, and `WORLD-RESIZE` drops every kind in
 `+BACKGROUND-CREATURE-KINDS+` and rebuilds the background. Some creatures exist
 only for another one: a lantern fish's night glow, the `!` over a stunned
-fish, and the octopus's tentacle and ink cloud. Their factories add them with
-`ATTACH-CREATURE` (`src/world.lisp`), which records the child in its owner's
-`:ATTACHED` data entry. Every path that takes an owner out of play calls
+fish, the octopus's tentacle and ink cloud, and a fish a gull has caught.
+Their factories add them with `ATTACH-CREATURE` (`src/world.lisp`), which
+records the child in its owner's `:ATTACHED` data entry; a gull's catch is
+already in the world, so `GULL-CATCH-EFFECT` records it with
+`ATTACH-EXISTING-CREATURE`. Every path that takes an owner out of play calls
 `RELEASE-ATTACHED`, which marks those children `REMOVEP`. For a fish, these
 paths are `FISH-STOP-BEHAVIOUR` (the `-` key, being eaten, being caught, and a
-school leaving the screen). For any creature, they are the two kind-wide
+school leaving the screen). For a gull, it is `GULL-LEAVE` (night, or a sky
+too short after a resize). For any creature, they are the two kind-wide
 deletions. The tentacle and the ink are transient kinds, so a redraw clears
 them while the octopus stays; the octopus sees them gone and peeks again.
 

@@ -162,6 +162,73 @@ guest, so each test adds exactly the gulls and fish it watches."
       (expect (count-if #'cl-asciiquarium::alive-fish-p (list first-fish second-fish))
               :to-be 1))))
 
+(defun gull-with-catch (world)
+  "Let a diving gull catch a dart in WORLD and return (VALUES GULL FISH). The
+fish is added after the gull, so it sits ahead of the gull in the creature
+list and ticks before its captor: the order in which a captor marked during
+its own tick leaves the fish behind."
+  (let* ((y (+ (world-waterline-row world) 3))
+         (fish (make-fish world :species :dart :x 29 :y y :dx 0))
+         (gull (diving-gull world 30 y fish)))
+    (cl-asciiquarium::%add-world-creature world fish)
+    (world-advance world)
+    (expect (cl-asciiquarium::creature-kind fish) :to-be :caught-fish)
+    (values gull fish)))
+
+(defun press-keys (world keys)
+  (dolist (event (decode-input keys))
+    (world-apply-key-event world event)))
+
+(defun expect-gone (world &rest creatures)
+  ;; A boolean, not the MEMBER tail: printing a creature in a failure report
+  ;; walks the whole world through its references.
+  (dolist (creature creatures)
+    (expect (null (member creature (cl-asciiquarium::world-%creatures world))) :to-be t)))
+
+(describe "a gull leaving with its catch"
+  (it "takes the caught fish off the screen on the tick it leaves at night"
+    (let ((world (gull-world)))
+      (multiple-value-bind (gull fish) (gull-with-catch world)
+        (world-set-theme world :moonlight)
+        (world-advance world)
+        (expect-gone world gull fish))))
+  (it "takes the caught fish off the screen when night falls while paused"
+    (let ((world (gull-world :theme :abyss)))
+      (multiple-value-bind (gull fish) (gull-with-catch world)
+        (press-keys world " n")
+        (world-advance world)
+        (expect (world-paused-p world) :to-be t)
+        (expect (world-theme world) :to-be :moonlight)
+        (expect-gone world gull fish))))
+  (it "takes the caught fish off the screen when the r key follows nightfall while paused"
+    (let ((world (gull-world :theme :abyss)))
+      (multiple-value-bind (gull fish) (gull-with-catch world)
+        (press-keys world " nr")
+        (world-advance world)
+        (expect (world-paused-p world) :to-be t)
+        (expect-gone world gull fish))))
+  (it "takes the caught fish off the screen when the - key follows nightfall while paused"
+    (let ((world (gull-world :theme :abyss)))
+      (multiple-value-bind (gull fish) (gull-with-catch world)
+        (let ((other (parked-dart world 60 (+ (world-waterline-row world) 8))))
+          (setf (cl-asciiquarium::world-fish-count world) 1)
+          (press-keys world " n-")
+          (world-advance world)
+          (expect (world-paused-p world) :to-be t)
+          (expect (cl-asciiquarium::world-fish-count world) :to-be 0)
+          (expect-gone world gull fish other)))))
+  (it "lets the r key take the caught fish by day, leaving the gull to cruise on"
+    (let ((world (gull-world)))
+      (multiple-value-bind (gull fish) (gull-with-catch world)
+        (press-keys world "r")
+        (world-advance world)
+        (expect-gone world fish)
+        (expect (null (member gull (cl-asciiquarium::world-%creatures world))) :to-be nil)
+        (loop repeat 20
+              until (eq (gull-data gull :phase) :cruise)
+              do (world-advance world))
+        (expect (gull-data gull :phase) :to-be :cruise)))))
+
 (describe "gulls and the screen size"
   (it "leave a sky shrunk below three rows, and come back when it grows again"
     (let ((world (gull-world)))
