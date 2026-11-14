@@ -87,6 +87,7 @@ does not instead force leader-before-follower tick ordering)."
     (case (creature-kind creature)
       (:fish
        (when (alive-fish-p creature)
+         (fish-drift-tick world creature)
          (maybe-emit-bubble world creature)))
       (:ship (maybe-drop-anchor world creature))
       (:anchor (anchor-tick world creature))
