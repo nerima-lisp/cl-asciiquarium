@@ -94,6 +94,7 @@ repository. SBCL only."
                (:file "collision-test")
                (:file "spawn-test")
                (:file "render-test")
+               (:file "layout-test")
                (:file "cli-test")
                (:file "app-test"))
   :perform (test-op (op system)

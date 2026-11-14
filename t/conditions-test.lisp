@@ -46,3 +46,19 @@
   (it "exposes the policy through its reader accessor"
     (let ((condition (make-condition 'asciiquarium-invalid-policy :policy :bogus)))
       (expect (invalid-policy-policy condition) :to-be :bogus))))
+
+(describe "asciiquarium-invalid-argument"
+  (it "is a asciiquarium-error and reports the value and what was expected"
+    (let* ((condition (make-condition 'asciiquarium-invalid-argument
+                                      :value "bogus" :expected "one of auto, mono"))
+           (report (princ-to-string condition)))
+      (expect (typep condition 'asciiquarium-error) :to-be-truthy)
+      (expect (invalid-argument-value condition) :to-equal "bogus")
+      (expect (search "\"bogus\"" report) :to-be-truthy)
+      (expect (search "one of auto, mono" report) :to-be-truthy)))
+  (it-each ((:keyword :reef) (:string "reef") (:number 7))
+      "is what parse-visual-theme signals for an unknown ~A theme"
+      (label value)
+    (declare (ignore label))
+    (expect (lambda () (cl-asciiquarium::parse-visual-theme value))
+            :to-throw 'asciiquarium-invalid-argument)))

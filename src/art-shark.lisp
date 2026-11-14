@@ -16,9 +16,8 @@ swims fully off screen, and SPAWN.LISP schedules its next appearance after a
 cooldown rather than having it wrap forever like a fish. FACING defaults to a
 random :LEFT or :RIGHT, as with MAKE-FISH's :X/:Y/:DX; an explicit override is
 what lets a test exercise one crossing direction deterministically."
-  (let* ((height (world-height world))
-         (lane-top 3)
-         (lane-bottom (max lane-top (- height 5)))
+  (let* ((lane-top (world-swim-band world))
+         (lane-bottom (max lane-top (- (nth-value 1 (world-swim-band world)) 2)))
          (facing (or facing (random-facing)))
          (speed (+ 1.0f0 (/ (random 3) 3.0f0))))
     (multiple-value-bind (x dx)
@@ -36,3 +35,5 @@ what lets a test exercise one crossing direction deterministically."
                      :y (random-between lane-top lane-bottom)
                      :dx dx
                      :data nil))))
+
+(register-named-color-restyler :shark :white)

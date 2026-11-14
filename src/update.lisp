@@ -91,7 +91,7 @@ does not instead force leader-before-follower tick ordering)."
       (:ship (maybe-drop-anchor world creature))
       (:anchor (anchor-tick world creature))
       (:bubble
-       (when (<= (creature-y creature) +waterline-row+)
+       (when (<= (creature-y creature) (world-waterline-row world))
          (setf (creature-removep creature) t)))
       (:dolphin (dolphin-tick world creature))
       (:monster-segment (monster-segment-tick world creature)))
@@ -125,6 +125,7 @@ new-list removedp)."
 
 (defun world-advance (world)
   "Advance WORLD by exactly one tick, returning WORLD."
+  (world-tick-ui world)
   (unless (world-paused-p world)
     (incf (world-tick world))
     (setf (world-render-change-count world) 0)

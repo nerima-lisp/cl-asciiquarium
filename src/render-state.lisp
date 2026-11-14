@@ -36,7 +36,8 @@
   parallel-input-snapshots
   parallel-results
   parallel-promises
-  parallel-cache-hot-p)
+  parallel-cache-hot-p
+  background-cell)
 
 (defstruct (%render-preparation-result
             (:constructor %make-render-preparation-result ()))

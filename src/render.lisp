@@ -7,8 +7,9 @@ CREATURE-Z, returning SCREEN. Painting order, not a z-buffer, is what
 establishes layering here -- see cl-tty-kit's entity.lisp file header, which
 calls this out as the intended use of SPRITE-BLIT paint order. Prepared
 non-transparent runs are composited with SCREEN-BLIT without reparsing sprite
-text during drawing."
-  (screen-clear screen)
+text during drawing. Uncovered cells take WORLD-BACKGROUND-CELL, the
+water's background color in the RGB color modes."
+  (screen-clear screen :cell (world-background-cell world))
   (dolist (creature (%world-render-order world))
     (creature-blit screen creature))
   screen)
@@ -134,6 +135,13 @@ text during drawing."
                (gethash creature snapshots)
                screen-width
                screen-height)))
+          ;; A theme change swaps the background cell without moving any
+          ;; creature, so no dirty rectangle covers the open water.
+          (unless (eq (world-background-cell world)
+                      (%renderer-frame-state-background-cell state))
+            (setf full-redraw-p t
+                  (%renderer-frame-state-background-cell state)
+                  (world-background-cell world)))
           (when (or (%dirty-rectangles-cover-half-screen-p
                      rectangles screen-width screen-height)
                     (%dirty-rectangles-exceed-render-budget-p
@@ -143,7 +151,8 @@ text during drawing."
               (draw-world screen world)
               (cl-tty-kit:with-screen-batch
                   (screen)
-                (let ((data (%dirty-rectangles-data rectangles)))
+                (let ((data (%dirty-rectangles-data rectangles))
+                      (background (or (world-background-cell world) #\Space)))
                   (loop for index below (%dirty-rectangles-count rectangles)
                         for offset = (* index 4)
                         for x = (aref data offset)
@@ -151,7 +160,7 @@ text during drawing."
                         for width = (aref data (+ offset 2))
                         for height = (aref data (+ offset 3))
                         do (cl-tty-kit:screen-fill-rect
-                            screen x y width height #\Space)
+                            screen x y width height background)
                            (dolist (creature render-order)
                              (%creature-blit-clipped
                               screen
