@@ -145,7 +145,11 @@ application does not bind) is ignored."
   world)
 
 (defun world-apply-key-events (world events)
-  "Apply each of EVENTS to WORLD in order via WORLD-APPLY-KEY-EVENT, returning
-WORLD."
-  (dolist (event events) (world-apply-key-event world event))
+  "Apply each of EVENTS to WORLD in order, returning WORLD: a MOUSE-EVENT via
+WORLD-APPLY-MOUSE-EVENT (update-food.lisp), every other event via
+WORLD-APPLY-KEY-EVENT."
+  (dolist (event events)
+    (if (typep event 'mouse-event)
+        (world-apply-mouse-event world event)
+        (world-apply-key-event world event)))
   world)
