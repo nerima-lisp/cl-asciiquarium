@@ -50,7 +50,10 @@ Today the threats are the shark's mouth, a landed anchor, a lantern fish's
 light (its leading column, small species only), one courting fish at a
 time, the submarine (it only alarms), its sonar rings (they stun), the vent's
 plume (it lifts fish), and an octopus tentacle's tip. The pass loops over threats (a handful at most) and, for each, over every
-creature once, so its cost is threats × creatures. There is no all-pairs
+creature once, so its cost is threats × creatures. The pass returns at once
+while the world has held no threat since its creature list was last recounted;
+a screen with a vent always holds the plume's threat row, so that shortcut
+applies only on screens without a vent. There is no all-pairs
 matrix: no creature is tested against every other one. Fish do interact with
 fish, but only through threats. A lantern fish picks the nearest small fish in
 range as its lure target on its own tick and eats it with its leading column.

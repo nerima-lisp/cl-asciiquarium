@@ -47,7 +47,7 @@ Run `asciiquarium --help` for the full option list.
 | `c` / `C` | Spawn a school of six fish, when it fits under `--max-fish` |
 | `a` / `A` | Spawn a ship that stops and lowers its anchor |
 | `m` / `M` | Spawn a submarine |
-| `d` / `D` | Send a diver for the treasure chest (needs a chest on screen) |
+| `d` / `D` | Send a diver for the treasure chest (needs a chest on screen and no diver already out) |
 | `h` / `H` | Toggle the on-screen key-list panel |
 
 A terminal resize is picked up automatically -- cl-asciiquarium polls the

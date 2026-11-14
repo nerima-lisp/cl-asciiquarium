@@ -13,9 +13,12 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
   shark (if present), any bubbles in flight, every egg, fry, and heart, and
   every special guest (including a dolphin or sea monster mid-crossing), then
   repopulates a fresh
-  set of fish at random lanes and speeds. The background scenery (see
-  [Screen layout](#screen-layout)) is left in place, as are the status bar
-  and help panel if they are visible.
+  set of fish at random lanes and speeds. Ships with their anchor and chain,
+  submarines with their sonar rings, divers with their dinghy and rope, and
+  coins from the chest go too. The background scenery (see
+  [Screen layout](#screen-layout)) is left in place, along with the seabed's
+  residents (vent plume, crab, octopus), as are the status bar and help panel
+  if they are visible.
 - Space -- pause or resume. `WORLD-ADVANCE` becomes a no-op while
   `WORLD-PAUSED-P` is true: the whole simulation freezes, not just the
   redraw, so nothing moves, ages, or spawns until unpaused.
@@ -45,7 +48,8 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
 - `m` or `M` -- spawn a submarine immediately (`WORLD-SPAWN-SUBMARINE`).
 - `d` or `D` -- send a diver in a dinghy for the treasure chest immediately
   (`WORLD-SPAWN-DIVER`). When the screen is too small to hold a chest, nothing
-  spawns and the status bar says "No treasure chest for a diver".
+  spawns and the status bar says "No treasure chest for a diver"; while a
+  diver is already out, nothing spawns and it says "A diver is already out".
 - `h` or `H` -- toggle the help panel (`WORLD-TOGGLE-HELP-OVERLAY`), a
   rounded box just below the waterline listing every binding above.
 
