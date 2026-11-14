@@ -94,7 +94,7 @@
       (expect (char (first lines) 0) :to-equal #\╭)
       (expect (search "controls" (first lines)) :to-be-truthy)
       (expect (char (car (last lines)) 0) :to-equal #\╰)
-      (dolist (label '("quit" "redraw" "pause" "fish count" "spawn shark" "spawn guest"
+      (dolist (label '("quit" "redraw" "pause" "fish count" "spawn shark" "spawn guest" "spawn school"
                        "cycle theme" "status bar" "this help"))
         (expect (some (lambda (line) (search label line)) lines) :to-be-truthy))
       (expect (length (remove-duplicates (mapcar #'length lines))) :to-be 1)))

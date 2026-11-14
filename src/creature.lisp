@@ -4,7 +4,10 @@
 ;;;; callback) with sprite art, an animation frame, a paint order, and an
 ;;;; optional lifetime. Fish, the shark, bubbles, seaweed, the waterline, the
 ;;;; castle, the ship, its anchor, and the duck line are all CREATURE
-;;;; instances distinguished by their :KIND keyword and :DATA plist.
+;;;; instances distinguished by their :KIND keyword and :DATA plist. Per-kind
+;;;; behaviour is data too: a :TICK function designator that TICK-CREATURE
+;;;; (update.lisp) calls, and a :THREAT or :SENSE row that collision.lisp
+;;;; reads, each set by the factory that builds the creature.
 (in-package #:cl-asciiquarium)
 
 (defstruct (creature (:constructor %make-creature)) "A moving, drawable thing. Cached sprite data is revalidated after its mutable source frames or style escape through the public API."
@@ -85,8 +88,8 @@ EXIT-EDGE-IN-TRAVEL-DIRECTION-P), at the end of the current tick
 ticked). :NONE installs no callback, for creatures whose velocity never
 carries them out of bounds (the waterline, the castle). Signals
 ASCIIQUARIUM-INVALID-POLICY for anything else, since POLICY is a MAKE-CREATURE
-keyword argument a caller controls directly, unlike the closed, internally
-derived CREATURE-KIND dispatch in update.lisp."
+keyword argument a caller controls directly, unlike the :TICK entry that
+only this repository's own factories put in a creature's :DATA."
   (case policy
     (:wrap (lambda (entity edge) (declare (ignore entity)) (wrap-creature creature world edge)))
     (:despawn (lambda (entity edge)

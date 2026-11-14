@@ -134,14 +134,16 @@
   (it "removes a bubble once it rises to the waterline row"
     (let* ((world (tiny-world :width 40 :height 20))
            (bubble (make-creature :world world :kind :bubble :frames (list ".")
-                                  :x 5 :y (1+ (cl-asciiquarium::world-waterline-row world)) :dx 0 :dy -1 :policy :none)))
+                                  :x 5 :y (1+ (cl-asciiquarium::world-waterline-row world)) :dx 0 :dy -1 :policy :none
+                                  :data cl-asciiquarium::+bubble-data+)))
       (cl-asciiquarium::%add-world-creature world bubble)
       (world-advance world)
       (expect (member bubble (cl-asciiquarium::world-%creatures world)) :to-be-falsy))))
   (it "removes internally managed bubbles without exposing the creature list"
     (let* ((world (make-world :width 40 :height 20 :fish-count 0))
            (bubble (make-creature :world world :kind :bubble :frames (list ".")
-                                  :x 5 :y (1+ (cl-asciiquarium::world-waterline-row world)) :dx 0 :dy -1 :policy :none)))
+                                  :x 5 :y (1+ (cl-asciiquarium::world-waterline-row world)) :dx 0 :dy -1 :policy :none
+                                  :data cl-asciiquarium::+bubble-data+)))
       (cl-asciiquarium::%add-world-creature world bubble)
       (world-advance world)
       (expect (member bubble (cl-asciiquarium::world-%creatures world)) :to-be-falsy)
@@ -179,17 +181,58 @@
         (world-increase-fish-count world)
         (expect (world-fish-count world) :to-be 3)
         (expect (count :fish (cl-asciiquarium::world-%creatures world) :key #'cl-asciiquarium::creature-kind) :to-be 3))))
-  (it "increase refuses to grow past +max-fish-count+"
+  (it "increase stops at the world's max-fish"
     (with-seeded-random-state (8)
-      (let ((world (tiny-world :width 40 :height 20 :fish-count 0)))
-        (setf (world-fish-count world) +max-fish-count+)
-        (world-increase-fish-count world)
-        (expect (world-fish-count world) :to-be +max-fish-count+))))
-  (it "decrease removes one live fish and lowers world-fish-count"
+      (let ((world (make-world :width 40 :height 20 :fish-count 0 :max-fish 2)))
+        (dolist (event (decode-input "+++"))
+          (world-apply-key-event world event))
+        (expect (world-fish-count world) :to-be 2)
+        (expect (count :fish (cl-asciiquarium::world-%creatures world)
+                       :key #'cl-asciiquarium::creature-kind)
+                :to-be 2))))
+  (it "caps max-fish at +max-fish-count+ without truncating the initial count"
+    (with-seeded-random-state (8)
+      (let ((world (make-world :width 40 :height 20 :fish-count 45 :max-fish 50)))
+        (expect (cl-asciiquarium::world-max-fish world) :to-be +max-fish-count+)
+        (expect (count :fish (cl-asciiquarium::world-%creatures world)
+                       :key #'cl-asciiquarium::creature-kind)
+                :to-be 45))))
+  (it "defaults max-fish to 30 and leaves an initial count above it untruncated"
+    (with-seeded-random-state (8)
+      (let ((world (make-world :width 40 :height 20 :fish-count 31)))
+        (expect (cl-asciiquarium::world-max-fish world) :to-be 30)
+        (expect (count :fish (cl-asciiquarium::world-%creatures world)
+                       :key #'cl-asciiquarium::creature-kind)
+                :to-be 31))))
+  (it "decrease marks one live fish removep, lowers world-fish-count, and the next tick deletes it"
     (with-seeded-random-state (8)
       (let ((world (tiny-world :width 40 :height 20 :fish-count 2)))
         (world-decrease-fish-count world)
         (expect (world-fish-count world) :to-be 1)
+        (expect (count-if #'cl-asciiquarium::alive-fish-p (cl-asciiquarium::world-%creatures world))
+                :to-be 1)
+        (world-advance world)
+        (expect (count :fish (cl-asciiquarium::world-%creatures world) :key #'cl-asciiquarium::creature-kind) :to-be 1))))
+  (it "decrease while paused still takes the fish off the list on the next world-advance"
+    (with-seeded-random-state (8)
+      (let ((world (tiny-world :width 40 :height 20 :fish-count 2)))
+        (setf (world-paused-p world) t)
+        (world-decrease-fish-count world)
+        (world-advance world)
+        (expect (world-tick world) :to-be 0)
+        (expect (count :fish (cl-asciiquarium::world-%creatures world) :key #'cl-asciiquarium::creature-kind) :to-be 1))))
+  (it "two presses within one tick remove two different fish"
+    (with-seeded-random-state (8)
+      (let ((world (tiny-world :width 40 :height 20 :fish-count 3)))
+        (world-decrease-fish-count world)
+        (world-decrease-fish-count world)
+        (let ((marked (remove-if-not #'cl-asciiquarium::creature-removep
+                                     (cl-asciiquarium::world-%creatures world))))
+          (expect (length marked) :to-be 2)
+          (expect (every (lambda (fish) (null (getf (cl-asciiquarium::creature-data fish) :tick)))
+                         marked)
+                  :to-be-truthy))
+        (world-advance world)
         (expect (count :fish (cl-asciiquarium::world-%creatures world) :key #'cl-asciiquarium::creature-kind) :to-be 1))))
   (it "decrease at zero fish is a no-op"
     (let ((world (tiny-world :width 40 :height 20 :fish-count 0)))
@@ -245,3 +288,62 @@
       (world-toggle-help-overlay world)
       (world-redraw world)
       (expect (find :help-overlay (cl-asciiquarium::world-%creatures world) :key #'cl-asciiquarium::creature-kind) :to-be-truthy))))
+
+(describe "--calm"
+  (it "blink-frame-period passes the period through, or NIL under calm"
+    (expect (cl-asciiquarium::blink-frame-period (tiny-world) 6) :to-be 6)
+    (expect (cl-asciiquarium::blink-frame-period (make-world :width 20 :height 10 :fish-count 0
+                                                             :calm-p t)
+                                                 6)
+            :to-be nil))
+  (it "holds a blinking creature built through blink-frame-period on its first frame"
+    (dolist (calm-p '(nil t))
+      (let* ((world (make-world :width 20 :height 10 :fish-count 0 :calm-p calm-p))
+             (blinker (make-creature :world world :kind :blinker :frames (list "*" ".")
+                                     :frame-period (cl-asciiquarium::blink-frame-period world 2)
+                                     :x 1 :y 1 :policy :none)))
+        (cl-asciiquarium::%add-world-creature world blinker)
+        (dotimes (i 2) (world-advance world))
+        (expect (cl-asciiquarium::creature-frame-index blinker) :to-be (if calm-p 0 1)))))
+  (it "moves every fish identically with and without calm for the same seed"
+    (flet ((fish-positions (calm-p)
+             (with-seeded-random-state (42)
+               (let ((world (make-world :width 80 :height 24 :calm-p calm-p)))
+                 (dotimes (i 400) (world-advance world))
+                 (loop for creature in (cl-asciiquarium::world-%creatures world)
+                       when (eq (cl-asciiquarium::creature-kind creature) :fish)
+                         collect (list (creature-x creature) (creature-y creature)))))))
+      (let ((calm (fish-positions t)))
+        (expect (plusp (length calm)) :to-be-truthy)
+        (expect (fish-positions nil) :to-equal calm)))))
+
+(describe "a `-' press survives another list change in the same input batch"
+  (it-each (("-u" t) ("-u" nil) ("-h" t) ("-h" nil))
+      "keys ~S with paused ~S: the removed fish is gone after the next world-advance"
+      (keys paused)
+    (with-seeded-random-state (8)
+      (let ((world (tiny-world :width 80 :height 24 :fish-count 3)))
+        (when (find #\h keys)
+          (world-toggle-help-overlay world))
+        (setf (world-paused-p world) paused)
+        (world-apply-key-events world (decode-input keys))
+        (expect (cl-asciiquarium::world-removal-pending-p world) :to-be t)
+        (world-advance world)
+        (expect (count :fish (cl-asciiquarium::world-%creatures world)
+                       :key #'cl-asciiquarium::creature-kind)
+                :to-be 2)
+        (expect (cl-asciiquarium::world-removal-pending-p world) :to-be nil)))))
+
+(describe "the + key never pushes live fish above max-fish"
+  (it "raises the target but adds no fish while a visiting school fills the tank"
+    (with-seeded-random-state (8)
+      (let ((world (make-world :width 120 :height 30 :fish-count 24 :max-fish 30
+                               :shark-enabled-p nil)))
+        (cl-asciiquarium::spawn-school-now world)
+        (expect (count-if #'cl-asciiquarium::alive-fish-p (cl-asciiquarium::world-%creatures world))
+                :to-be 30)
+        (dolist (event (decode-input "+++"))
+          (world-apply-key-event world event))
+        (expect (world-fish-count world) :to-be 27)
+        (expect (count-if #'cl-asciiquarium::alive-fish-p (cl-asciiquarium::world-%creatures world))
+                :to-be 30)))))

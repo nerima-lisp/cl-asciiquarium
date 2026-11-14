@@ -20,24 +20,29 @@ also read by flake.nix and enforced by release.yml against the git tag."
 (defun run-handler (invocation)
   "The handler cl-cli:RUN-APP dispatches to: resolve --width/--height against
 the detected terminal size and --color against the terminal's environment,
-then run the aquarium. Returns 0 once RUN returns (i.e. once the user presses
-`q')."
+then run the aquarium. The initial fish count is +DEFAULT-FISH-COUNT+, lowered
+to --max-fish when that is smaller. Returns 0 once RUN returns (i.e. once the
+user presses `q')."
   (multiple-value-bind (detected-columns detected-rows) (terminal-size)
-    (run :width (or (option-value invocation :width) detected-columns +default-width+)
-         :height (or (option-value invocation :height) detected-rows +default-height+)
-         :seed (option-value invocation :seed)
-         :interval (/ 1 (or (option-value invocation :fps) 20))
-         :shark-enabled-p (not (option-value invocation :no-shark))
-         :monochrome-p (option-value invocation :monochrome)
-         :theme (parse-visual-theme
-                 (or (option-value invocation :theme) "abyss"))
-         :color-mode (multiple-value-bind (colorterm term no-color) (color-environment)
-                       (resolve-color-mode (option-value invocation :color)
-                                           :colorterm colorterm
-                                           :term term
-                                           :no-color no-color
-                                           :monochrome-p (option-value invocation :monochrome)))
-         :ascii-p (option-value invocation :ascii)))
+    (let ((max-fish (or (option-value invocation :max-fish) +default-max-fish+)))
+      (run :width (or (option-value invocation :width) detected-columns +default-width+)
+           :height (or (option-value invocation :height) detected-rows +default-height+)
+           :seed (option-value invocation :seed)
+           :interval (/ 1 (or (option-value invocation :fps) 20))
+           :shark-enabled-p (not (option-value invocation :no-shark))
+           :monochrome-p (option-value invocation :monochrome)
+           :theme (parse-visual-theme
+                   (or (option-value invocation :theme) "abyss"))
+           :color-mode (multiple-value-bind (colorterm term no-color) (color-environment)
+                         (resolve-color-mode (option-value invocation :color)
+                                             :colorterm colorterm
+                                             :term term
+                                             :no-color no-color
+                                             :monochrome-p (option-value invocation :monochrome)))
+           :ascii-p (option-value invocation :ascii)
+           :fish-count (min +default-fish-count+ max-fish)
+           :max-fish max-fish
+           :calm-p (option-value invocation :calm))))
   0)
 
 (defparameter *app*
@@ -62,6 +67,12 @@ the status bar, and h for the full key list."
                        :description "Seed the random number generator for a reproducible run.")
          (make-option :name "fps" :kind :value :type :integer :min 1 :max 60
                        :description "Target frames per second (default 20).")
+         (make-option :name "max-fish" :kind :value :type :integer
+                       :min 1 :max +max-fish-count+
+                       :description
+                       "Most fish the + key grows the tank to (1-40, default 30).")
+         (make-option :name "calm" :kind :flag
+                       :description "Turn off blinking animations.")
          (make-option :name "theme" :kind :value
                        :choices '("abyss" "coral" "moonlight")
                        :description "Initial visual theme (default abyss).")

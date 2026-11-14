@@ -17,6 +17,10 @@
   "How many ticks a dropped anchor stays in place (and interactive) before it
 is winched back up and despawns.")
 
+(defparameter +anchor-threat+ '(:grip :body :effect eat-effect :prey nil :alarm t)
+  "The :THREAT row (see collision.lisp) a landed anchor carries: any fish under
+any part of it is eaten, and creatures that sense threats notice it.")
+
 (defparameter +duck-line-art+
   (format nil "  _o)  _o)  _o)~% (___ (___ (___")
   "Original duck-line art: three ducks abreast, drawn as one sprite.")

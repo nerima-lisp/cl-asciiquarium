@@ -45,9 +45,10 @@ the `q' key. The signal boundary is not unit-tested; see t/app-test.lisp."
     (sb-sys:enable-interrupt sb-unix:sighup #'handle))
   (values))
 
-(defun run (&key (width +default-width+) (height +default-height+) fish-count seed
+(defun run (&key (width +default-width+) (height +default-height+) fish-count
+            (max-fish +default-max-fish+) seed
             (interval 1/20) (stream *standard-output*) (shark-enabled-p t)
-            monochrome-p (theme :abyss) (color-mode :ansi16) ascii-p)
+            monochrome-p (theme :abyss) (color-mode :ansi16) ascii-p calm-p)
   "Run the aquarium in the real terminal until `q' is pressed, or SIGTERM/
 SIGHUP arrives from outside (see INSTALL-QUIT-SIGNAL-HANDLER) -- both quit
 exactly as cleanly, restoring the terminal via WITH-TERMINAL-SESSION's
@@ -60,7 +61,8 @@ cl-tty-kit:TICK-LOOP-RUN-REALTIME; SHARK-ENABLED-P and MONOCHROME-P forward the
 (creature.lisp) respectively. THEME selects the initial visual palette; it
 accepts one of +VISUAL-THEMES+ and can be changed while running. COLOR-MODE
 (one of +COLOR-MODES+, from --color) and ASCII-P (--ascii) bind *COLOR-MODE*
-and *ASCII*, both read only as creatures are prepared."
+and *ASCII*, both read only as creatures are prepared. MAX-FISH (--max-fish)
+and CALM-P (--calm) go to MAKE-WORLD."
   (when seed
     (setf *random-state* (sb-ext:seed-random-state seed)))
   ;; LET*, not LET: MAKE-WORLD's init-form must run after *MONOCHROME* is
@@ -73,6 +75,8 @@ and *ASCII*, both read only as creatures are prepared."
          (*ascii* ascii-p)
          (world (make-world :width width :height height
                              :fish-count (or fish-count +default-fish-count+)
+                             :max-fish max-fish
+                             :calm-p calm-p
                              :shark-enabled-p shark-enabled-p
                              :theme theme
                              :ticks-per-second (max 1 (round 1 interval))))

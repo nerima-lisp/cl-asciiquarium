@@ -5,7 +5,16 @@
 
 (defparameter +default-height+ 24)
 
-(defparameter +default-fish-count+ 8)
+(defparameter +default-fish-count+ 18)
+
+(defparameter +max-fish-count+ 40
+  "The hard ceiling on --max-fish (cli.lisp) and WORLD-MAX-FISH, so repeatedly
+pressing `+' cannot degrade the frame rate by populating an unbounded number of
+fish.")
+
+(defparameter +default-max-fish+ 30
+  "The default for --max-fish: the highest target fish count the `+' key
+raises WORLD-FISH-COUNT to.")
 
 (defparameter +default-seaweed-count+ 4)
 
@@ -126,6 +135,10 @@ the 10-row height the tests use)."
     (removal-pending-p nil :type boolean)
     (active-predator-count 0 :type fixnum)
     (fish-count 0 :type fixnum)
+    (max-fish +default-max-fish+ :type fixnum)
+    (refill-at 0 :type fixnum)
+    (event-due #() :type simple-vector)
+    (calm-p nil :type boolean)
     (quitp nil :type boolean)
     (paused-p nil :type boolean)
     (theme :abyss)
@@ -201,9 +214,7 @@ notification never outlives its four seconds."
 (progn
   (declaim (inline %active-predator-p))
   (defun %active-predator-p (creature)
-    (case (creature-kind creature)
-      (:shark t)
-      (:anchor (getf (creature-data creature) :dropped))))
+    (getf (creature-data creature) :threat))
   (defun %recount-world-active-predators (creatures)
     (loop for creature in creatures
           count (%active-predator-p creature)))
@@ -216,10 +227,13 @@ notification never outlives its four seconds."
     (setf (world-render-order-valid-p world) nil)
     world)
   (defun %set-world-creatures (world creatures)
+    ;; A creature marked REMOVEP outside a tick (the `-' key) may survive a
+    ;; list replaced by another key in the same input batch, so recompute the
+    ;; pending flag from the new list rather than clearing it.
     (setf (world-%creatures world) creatures
           (world-active-predator-count world) (%recount-world-active-predators
                                                creatures)
-          (world-removal-pending-p world) nil)
+          (world-removal-pending-p world) (and (some #'creature-removep creatures) t))
     (incf (world-render-change-count world))
     (%invalidate-world-render-order world)
     creatures)
@@ -266,7 +280,9 @@ notification never outlives its four seconds."
                    (width +default-width+)
                    (height +default-height+)
                    (fish-count +default-fish-count+)
+                   (max-fish +default-max-fish+)
                    (shark-enabled-p t)
+                   calm-p
                    (theme :abyss)
                    (hud-visible-p t)
                    (ticks-per-second 20))
@@ -275,7 +291,10 @@ and FISH-COUNT fish at random lanes and speeds. The shark and guest cooldowns
 start at a random point in their range so a fresh run does not always wait the
 full cooldown before the first shark or guest appears. SHARK-ENABLED-P, when
 NIL, disables MAYBE-SPAWN-SHARK for the life of this WORLD (see the
---no-shark CLI flag, cli.lisp)."
+--no-shark CLI flag, cli.lisp). MAX-FISH, itself capped at +MAX-FISH-COUNT+,
+caps what the `+' key raises FISH-COUNT to; FISH-COUNT itself is not truncated
+to it. CALM-P (--calm) stops
+blinking animations; see BLINK-FRAME-PERIOD. Neither draws a random number."
   (assert-dimensions width height)
   (let* ((theme (parse-visual-theme theme))
          (world
@@ -290,6 +309,12 @@ NIL, disables MAYBE-SPAWN-SHARK for the life of this WORLD (see the
            nil
            :fish-count
            fish-count
+           :max-fish
+           (min max-fish +max-fish-count+)
+           :calm-p
+           calm-p
+           :event-due
+           (make-event-due-vector)
            :quitp
            nil
            :paused-p
@@ -354,6 +379,11 @@ than clamped, and the status bar is refreshed onto the new bottom row."
   world)
 
 (defparameter +transient-creature-kinds+ '(:fish
+                                           :caught-fish
+                                           :egg
+                                           :fry
+                                           :heart
+                                           :lantern-glow
                                            :shark
                                            :bubble
                                            :ship
@@ -446,29 +476,43 @@ what a player watching the aquarium expects a redraw to change. Bound to the
   (world-refresh-hud world)
   world)
 
-(defparameter +max-fish-count+ 40
-  "The upper bound WORLD-INCREASE-FISH-COUNT clamps to, so repeatedly pressing
-`+' cannot degrade the frame rate by populating an unbounded number of fish.")
-
 (defun world-increase-fish-count (world)
-  "Raise WORLD-FISH-COUNT by one (up to +MAX-FISH-COUNT+) and push one freshly
-spawned fish into WORLD to match, returning WORLD. Bound to the `+' key; see
+  "Raise WORLD-FISH-COUNT by one (up to WORLD-MAX-FISH) and push one freshly
+spawned fish into WORLD to match, returning WORLD. The fish is added only
+while live fish are below WORLD-MAX-FISH, so a visiting school that already
+fills the tank keeps `+' from overfilling it. Bound to the `+' key; see
 input.lisp."
-  (when (< (world-fish-count world) +max-fish-count+)
+  (when (< (world-fish-count world) (world-max-fish world))
     (incf (world-fish-count world))
-    (%add-world-creature world (make-fish world)))
+    (when (< (count-if #'alive-fish-p (world-%creatures world)) (world-max-fish world))
+      (%add-world-creature world (make-fish world))))
   (world-refresh-hud world)
   world)
 
 (defun world-decrease-fish-count (world)
-  "Lower WORLD-FISH-COUNT by one (down to zero) and remove one live fish from
-WORLD to match, returning WORLD. A fish already dying (see ALIVE-FISH-P) is
-left alone, so this never interrupts a death animation already in progress.
-Bound to the `-' key; see input.lisp."
+  "Lower WORLD-FISH-COUNT by one (down to zero), returning WORLD. One live fish
+is removed only when more live fish than the new target remain, so a press
+while a refill is pending lowers the target instead of taking a second fish.
+A fish already dying (see ALIVE-FISH-P) is left alone, so this never
+interrupts a death animation already in progress. The removed fish stops its
+behaviour (FISH-STOP-BEHAVIOUR) and is marked REMOVEP, so it stops counting as
+live at once and WORLD-ADVANCE deletes it at the end of its next call, paused
+or not; creatures that hold it (school followers, a lantern's glow) let go on
+their next tick. Bound to the `-' key; see input.lisp."
   (when (plusp (world-fish-count world))
     (decf (world-fish-count world))
-    (let ((fish (find-if #'alive-fish-p (world-%creatures world))))
-      (when fish
-        (%set-world-creatures world (delete fish (world-%creatures world))))))
+    (when (> (count-if #'alive-fish-p (world-%creatures world)) (world-fish-count world))
+      (let ((fish (find-if #'alive-fish-p (world-%creatures world))))
+        (fish-stop-behaviour fish)
+        (setf (creature-removep fish) t
+              (world-removal-pending-p world) t))))
   (world-refresh-hud world)
   world)
+
+(defun blink-frame-period (world period)
+  "The :FRAME-PERIOD a factory gives a blinking animation: PERIOD, or NIL under
+--calm (WORLD-CALM-P), which holds the creature on its first frame. Every
+blinking frame goes through this function. It draws no random number, so a
+calm run moves every creature exactly as the same seed without --calm."
+  (unless (world-calm-p world)
+    period))

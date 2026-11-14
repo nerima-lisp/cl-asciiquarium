@@ -45,6 +45,18 @@
   (it "rejects a --fps above the 60 maximum"
     (signals cli-invalid-option-value (parse-argv *app* '("asciiquarium" "--fps" "61"))))
 
+  (it "accepts the --max-fish boundary values 1 and 40"
+    (with-soft-assertions
+      (expect (option-value (parse-argv *app* '("asciiquarium" "--max-fish" "1")) :max-fish)
+              :to-be 1)
+      (expect (option-value (parse-argv *app* '("asciiquarium" "--max-fish" "40")) :max-fish)
+              :to-be 40)))
+
+  (it-each (("0") ("41"))
+      "rejects --max-fish ~A, outside 1-40"
+      (value)
+    (signals cli-invalid-option-value (parse-argv *app* (list "asciiquarium" "--max-fish" value))))
+
   (it "defaults --no-shark and --monochrome to unset"
     (let ((invocation (parse-argv *app* '("asciiquarium"))))
       (with-soft-assertions
@@ -94,7 +106,8 @@
              (expect (equal arguments
                             '(:width 100 :height 40 :seed nil :interval 1/20
                               :shark-enabled-p t :monochrome-p nil :theme :abyss
-                              :color-mode :ansi256 :ascii-p nil))
+                              :color-mode :ansi256 :ascii-p nil
+                              :fish-count 18 :max-fish 30 :calm-p nil))
                      :to-be-truthy))
         (setf (symbol-function terminal-size-symbol) original-terminal-size
               (symbol-function run-symbol) original-run
@@ -119,12 +132,14 @@
                              (parse-argv *app*
                                          '("asciiquarium" "--width" "90" "--height" "30"
                                            "--seed" "42" "--fps" "25" "--no-shark"
-                                           "--monochrome" "--theme" "moonlight" "--ascii"))))
+                                           "--monochrome" "--theme" "moonlight" "--ascii"
+                                           "--max-fish" "10" "--calm"))))
                      :to-be-truthy)
              (expect (equal arguments
                             '(:width 90 :height 30 :seed 42 :interval 1/25
                               :shark-enabled-p nil :monochrome-p t :theme :moonlight
-                              :color-mode :mono :ascii-p t))
+                              :color-mode :mono :ascii-p t
+                              :fish-count 10 :max-fish 10 :calm-p t))
                      :to-be-truthy))
         (setf (symbol-function terminal-size-symbol) original-terminal-size
               (symbol-function run-symbol) original-run
