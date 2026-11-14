@@ -38,23 +38,12 @@ BODY, deleting it and its contents afterwards."
 (defun %directory-file-names (directory)
   (sort (mapcar #'file-namestring (uiop:directory-files directory)) #'string<))
 
-(defparameter +broken-zukan-files+
-  (list (cons "empty" #())
-        (cons "a truncated form" (sb-ext:string-to-octets "(:zukan 1 :species (:dart"))
-        (cons "a #. form"
-              (sb-ext:string-to-octets
-               "(:zukan 1 :species #.(progn (setf cl-asciiquarium/test::*zukan-read-eval-probe* t) nil))"))
-        (cons "invalid UTF-8" (concatenate 'vector (sb-ext:string-to-octets "(:zukan 1 :species (:")
-                                           #(255 254) (sb-ext:string-to-octets "))")))
-        (cons "version 2" (sb-ext:string-to-octets "(:zukan 2 :species (:dart))"))
-        (cons "a non-keyword species" (sb-ext:string-to-octets "(:zukan 1 :species (\"dart\"))"))
-        (cons "a second form" (sb-ext:string-to-octets "(:zukan 1 :species (:dart)) (:extra)"))
-        (cons "a duplicate species" (sb-ext:string-to-octets "(:zukan 1 :species (:dart :dart))"))
-        (cons "a dotted species list" (sb-ext:string-to-octets "(:zukan 1 :species (:dart . :eel))"))
-        (cons "a circular species list" (sb-ext:string-to-octets "(:zukan 1 :species #1=(:dart . #1#))"))
-        (cons "a missing :species key" (sb-ext:string-to-octets "(:zukan 1)"))
-        (cons "a bare atom" (sb-ext:string-to-octets "42")))
-  "Each (DESCRIPTION . BYTES) is a dex file LOAD-ZUKAN must reject.")
+(defun %zukan-octets (parts)
+  "Concatenate PARTS, each a string (encoded as UTF-8) or a byte vector."
+  (apply #'concatenate '(vector (unsigned-byte 8))
+         (mapcar (lambda (part)
+                   (if (stringp part) (sb-ext:string-to-octets part :external-format :utf-8) part))
+                 parts)))
 
 (describe "zukan-path"
   (it "puts the file under an absolute XDG_STATE_HOME"
@@ -63,6 +52,9 @@ BODY, deleting it and its contents afterwards."
   (it "accepts an XDG_STATE_HOME with a trailing slash"
     (expect (namestring (cl-asciiquarium::zukan-path "/x/state/" #p"/home/u/"))
             :to-equal "/x/state/cl-asciiquarium/zukan.sexp"))
+  (it "reads wildcard characters in XDG_STATE_HOME literally"
+    (expect (uiop:native-namestring (cl-asciiquarium::zukan-path "/x/a*b" #p"/home/u/"))
+            :to-equal "/x/a*b/cl-asciiquarium/zukan.sexp"))
   (it-each ((nil) ("") ("rel/dir"))
       "falls back to ~~/.local/state for XDG_STATE_HOME ~S"
       (state-home)
@@ -86,22 +78,30 @@ BODY, deleting it and its contents afterwards."
     (with-zukan-directory (dir)
       (expect (multiple-value-list (cl-asciiquarium::load-zukan (%zukan-file dir)))
               :to-equal '(nil t))))
-  (it-each ((0) (1) (2) (3) (4) (5) (6) (7) (8) (9) (10) (11))
-      "rejects broken file ~D without changing it, even on a save attempt"
-      (index)
-    (destructuring-bind (description . bytes) (nth index +broken-zukan-files+)
-      (declare (ignore description))
-      (with-zukan-directory (dir)
-        (let ((path (%write-zukan-bytes (%zukan-file dir) (coerce bytes '(vector (unsigned-byte 8))))))
-          (expect (multiple-value-list (cl-asciiquarium::load-zukan path)) :to-equal '(nil nil))
-          (expect (cl-asciiquarium::save-zukan path '(:dart)) :to-be nil)
-          (expect (equalp (%zukan-bytes path) bytes) :to-be-truthy)
-          (expect (%directory-file-names dir) :to-equal '("zukan.sexp"))))))
-  (it "does not evaluate a #. form"
+  (it-each (("empty" ())
+            ("a truncated form" ("(:zukan 1 :species (:dart"))
+            ("a #. form" ("(:zukan 1 :species #.(progn (setf cl-asciiquarium/test::*zukan-read-eval-probe* t) nil))"))
+            ("invalid UTF-8" ("(:zukan 1 :species (:" #(255 254) "))"))
+            ("version 2" ("(:zukan 2 :species (:dart))"))
+            ("a non-keyword species" ("(:zukan 1 :species (\"dart\"))"))
+            ("a second form" ("(:zukan 1 :species (:dart)) (:extra)"))
+            ("a duplicate species" ("(:zukan 1 :species (:dart :dart))"))
+            ("a dotted species list" ("(:zukan 1 :species (:dart . :eel))"))
+            ("a circular species list" ("(:zukan 1 :species #1=(:dart . #1#))"))
+            ("a missing :species key" ("(:zukan 1)"))
+            ("a bare atom" ("42")))
+      "rejects a file with ~A without changing it, even on a save attempt"
+      (description parts)
+    (declare (ignore description))
+    (setf *zukan-read-eval-probe* nil)
     (with-zukan-directory (dir)
-      (setf *zukan-read-eval-probe* nil)
-      (cl-asciiquarium::load-zukan (%write-zukan-bytes (%zukan-file dir) (cdr (nth 2 +broken-zukan-files+))))
-      (expect *zukan-read-eval-probe* :to-be nil)))
+      (let* ((bytes (%zukan-octets parts))
+             (path (%write-zukan-bytes (%zukan-file dir) bytes)))
+        (expect (multiple-value-list (cl-asciiquarium::load-zukan path)) :to-equal '(nil nil))
+        (expect (cl-asciiquarium::save-zukan path '(:dart)) :to-be nil)
+        (expect (equalp (%zukan-bytes path) bytes) :to-be-truthy)
+        (expect (%directory-file-names dir) :to-equal '("zukan.sexp"))
+        (expect *zukan-read-eval-probe* :to-be nil))))
   (it "keeps species this build does not know and writes them back"
     (with-zukan-directory (dir)
       (let ((path (%write-zukan-text (%zukan-file dir) "(:zukan 1 :species (:kraken :dart))")))
@@ -147,8 +147,12 @@ BODY, deleting it and its contents afterwards."
       (let ((world (tiny-world))
             (path (merge-pathnames "blocker/zukan.sexp" dir)))
         (setf (cl-asciiquarium::world-discovered-species world) '(:dart))
-        (expect (cl-asciiquarium::zukan-save-if-grown world path 0) :to-be 1)
-        (expect (cl-asciiquarium::world-notification world) :to-equal "dex save failed")))))
+        (let ((count (cl-asciiquarium::zukan-save-if-grown world path 0)))
+          (expect count :to-be 1)
+          (expect (cl-asciiquarium::world-notification world) :to-equal "dex save failed")
+          (setf (cl-asciiquarium::world-notification world) nil)
+          (expect (cl-asciiquarium::zukan-save-if-grown world path count) :to-be count)
+          (expect (cl-asciiquarium::world-notification world) :to-be nil))))))
 
 (defun %count-substring (needle haystack)
   (loop for start = (search needle haystack) then (search needle haystack :start2 (1+ start))

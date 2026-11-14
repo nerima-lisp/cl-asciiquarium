@@ -7,12 +7,11 @@
   "o the box outline, k the rare-species marker, n discovered names and the
 title, u the ??? of an undiscovered species, p padding.")
 
-(defun %zukan-cell (entry discovered width)
-  "Return (VALUES ART MASK) for ENTRY's cell, padded to WIDTH plus one column:
-its lowercase name, followed by a marker when it is a rare species, or ???
+(defun %zukan-cell (entry discovered cell-width)
+  "Return (VALUES ART MASK) for ENTRY's cell, padded to CELL-WIDTH: its
+lowercase name, followed by a marker when it is a rare species, or ???
 while undiscovered."
-  (let ((name (fish-species-entry-name entry))
-        (cell-width (1+ width)))
+  (let ((name (fish-species-entry-name entry)))
     (if (member name discovered)
         (let* ((rare-p (fish-species-entry-spawn-probability entry))
                (label (format nil "~(~A~)~:[~;✦~]" name rare-p))
@@ -31,10 +30,11 @@ how many of +FISH-SPECIES+ WORLD has discovered. Species run down the left
 column, then the right, in +FISH-SPECIES+ order; the two columns assume an
 even species count."
   (let* ((discovered (world-discovered-species world))
-         (width (reduce #'max +fish-species+
-                        :key (lambda (entry) (length (symbol-name (fish-species-entry-name entry))))))
+         ;; One column past the longest name holds the rare marker.
+         (cell-width (1+ (reduce #'max +fish-species+
+                                 :key (lambda (entry)
+                                        (length (symbol-name (fish-species-entry-name entry)))))))
          (rows (ceiling (length +fish-species+) 2))
-         (cell-width (1+ width))
          (inner (+ 1 cell-width 3 cell-width 1))
          (title (format nil " dex ~D/~D "
                         (count-if (lambda (entry) (member (fish-species-entry-name entry) discovered))
@@ -49,9 +49,9 @@ even species count."
                    (make-string (- inner 1 (length title)) :initial-element #\o)))
       (loop for row below rows
             do (multiple-value-bind (left-art left-mask)
-                   (%zukan-cell (nth row +fish-species+) discovered width)
+                   (%zukan-cell (nth row +fish-species+) discovered cell-width)
                  (multiple-value-bind (right-art right-mask)
-                     (%zukan-cell (nth (+ row rows) +fish-species+) discovered width)
+                     (%zukan-cell (nth (+ row rows) +fish-species+) discovered cell-width)
                    (add (format nil "│ ~A   ~A │" left-art right-art)
                         (format nil "op~Appp~Apo" left-mask right-mask)))))
       (add (format nil "╰~A╯" (make-string inner :initial-element #\─))

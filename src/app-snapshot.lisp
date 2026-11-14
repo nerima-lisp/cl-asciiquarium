@@ -17,12 +17,7 @@ is followed by its spacer cell, as CL-TTY-KIT:SCREEN-ROW-STRING returns it."
 (defun snapshot-directory (pictures-dir cwd)
   "Return the directory a snapshot is saved in: PICTURES-DIR (the value of
 XDG_PICTURES_DIR, or NIL) when it is an absolute path, otherwise CWD."
-  (if (and pictures-dir (plusp (length pictures-dir)) (char= (char pictures-dir 0) #\/))
-      ;; Native parsing, so a `*' or `[' in the name is not read as a wildcard.
-      ;; The appended slash makes it a directory: :ENSURE-DIRECTORY would
-      ;; re-escape such characters into the directory component.
-      (uiop:parse-native-namestring (concatenate 'string pictures-dir "/"))
-      cwd))
+  (or (%absolute-directory pictures-dir) cwd))
 
 (defun snapshot-file-name (second minute hour date month year n)
   "Return \"aquarium-YYYYMMDD-HHMMSS.txt\", with \"-N\" before the type when N is 1 or more."
@@ -49,12 +44,9 @@ named by SNAPSHOT-FILE-NAME for UNIVERSAL-TIME. Return the file's pathname, or
 NIL when the file could not be created or written (a missing DIRECTORY is not
 created). A file that fails mid-write is left behind, partial."
   (handler-case
-      (let ((stream (%open-new-snapshot-file directory universal-time)))
-        (unwind-protect
-             (progn
-               (write-string (screen-text screen) stream)
-               (terpri stream))
-          (close stream))
+      (with-open-stream (stream (%open-new-snapshot-file directory universal-time))
+        (write-string (screen-text screen) stream)
+        (terpri stream)
         (pathname stream))
     ((or file-error stream-error) () nil)))
 

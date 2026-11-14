@@ -3,15 +3,23 @@
 ;;;; World code never calls into this file; the app loop does.
 (in-package #:cl-asciiquarium)
 
+(defun %absolute-directory (value)
+  "Return VALUE, an environment variable's value or NIL, as a directory
+pathname when it is an absolute path, otherwise NIL."
+  (and value
+       (uiop:string-prefix-p "/" value)
+       ;; Native parsing, so a `*' or `[' in the name is not read as a wildcard.
+       ;; The appended slash makes it a directory: :ENSURE-DIRECTORY would
+       ;; re-escape such characters into the directory component.
+       (uiop:parse-native-namestring (concatenate 'string value "/"))))
+
 (defun zukan-path (state-home home)
   "Return the dex file's pathname. STATE-HOME is the value of XDG_STATE_HOME
 (or NIL); the XDG Base Directory spec says to ignore an empty or relative
 value, which then falls back to HOME's .local/state/."
-  (let ((base (if (and state-home (plusp (length state-home))
-                       (char= (char state-home 0) #\/))
-                  (uiop:parse-native-namestring state-home :ensure-directory t)
-                  (merge-pathnames ".local/state/" home))))
-    (merge-pathnames "cl-asciiquarium/zukan.sexp" base)))
+  (merge-pathnames "cl-asciiquarium/zukan.sexp"
+                   (or (%absolute-directory state-home)
+                       (merge-pathnames ".local/state/" home))))
 
 (defun %zukan-species-p (species)
   "True when SPECIES is a proper list of distinct keywords."
