@@ -1,9 +1,9 @@
 ;;;; src/input.lisp -- turning decoded cl-tty-kit KEY-EVENTs into WORLD state
 ;;;; changes: `q' to quit, `r' to redraw/reshuffle, space to pause/resume,
-;;;; `+'/`-' to adjust the live fish count, `s'/`g'/`c'/`a'/`m'/`d' to force an
-;;;; immediate shark/guest/school/ship/submarine/diver spawn, `t' to cycle the
-;;;; visual theme, `u' to toggle the HUD, and `h' to toggle the on-screen help
-;;;; panel.
+;;;; `+'/`-' to adjust the live fish count, `s'/`g'/`c'/`a'/`m'/`d'/`f' to force
+;;;; an immediate shark/guest/school/ship/submarine/diver/fisher spawn, `t' to
+;;;; cycle the visual theme, `w'/`n' to move on to the next weather/time of day,
+;;;; `u' to toggle the HUD, and `h' to toggle the on-screen help panel.
 (in-package #:cl-asciiquarium)
 
 (defparameter +quit-characters+ (list #\q #\Q)
@@ -91,6 +91,11 @@ to the `d' key."
                             +diver-no-chest-message+)))
   world)
 
+(defun world-spawn-fisher (world)
+  "Spawn a fisher in WORLD immediately, returning WORLD. Bound to the `f' key."
+  (spawn-fisher-now world)
+  world)
+
 (defparameter +key-bindings+
   (list (cons (list #\r #\R) #'world-redraw)
         (cons (list #\Space) #'world-toggle-pause)
@@ -101,7 +106,10 @@ to the `d' key."
         (cons (list #\a #\A) #'world-spawn-ship)
         (cons (list #\m #\M) #'world-spawn-submarine)
         (cons (list #\d #\D) #'world-spawn-diver)
+        (cons (list #\f #\F) #'world-spawn-fisher)
         (cons (list #\t #\T) #'world-cycle-theme)
+        (cons (list #\w #\W) #'world-advance-weather)
+        (cons (list #\n #\N) #'world-advance-daypart)
         (cons (list #\u #\U) #'world-toggle-hud)
         (cons (list #\h #\H) #'world-toggle-help-overlay))
   "Every ordinary key binding as data: each entry maps the CHARACTERs that

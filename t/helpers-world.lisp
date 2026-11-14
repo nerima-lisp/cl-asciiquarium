@@ -27,6 +27,14 @@ fixture creatures without a random population interfering."
                  :key #'cl-asciiquarium::creature-kind))
   world)
 
+(defun remove-gulls (world)
+  "Take the gulls MAKE-WORLD adds out of WORLD and return it, for tests whose
+fish must not be caught from the sky."
+  (cl-asciiquarium::%set-world-creatures
+   world (remove :gull (cl-asciiquarium::world-%creatures world)
+                 :key #'cl-asciiquarium::creature-kind))
+  world)
+
 (defparameter *body-eat-threat*
   '(:grip :body :effect cl-asciiquarium::eat-effect :prey nil :alarm nil)
   "A :THREAT row that eats any fish overlapping the threat's whole bounding

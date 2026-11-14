@@ -245,8 +245,8 @@
   (remove-if-not #'cl-asciiquarium::alive-fish-p (cl-asciiquarium::world-%creatures world)))
 
 (defun refill-world ()
-  "An 80x24 world of three fish with no automatic shark."
-  (remove-octopus (make-world :width 80 :height 24 :fish-count 3 :shark-enabled-p nil)))
+  "An 80x24 world of three fish with no automatic shark, no octopus, and no gulls."
+  (remove-gulls (remove-octopus (make-world :width 80 :height 24 :fish-count 3 :shark-enabled-p nil))))
 
 (describe "refilling fish taken out of play"
   (it "adds one fish at a screen edge exactly 90 ticks after one is eaten"

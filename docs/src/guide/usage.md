@@ -28,6 +28,12 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
   (`WORLD-SET-THEME`): no creature is removed, added, or moved, and no random
   number is drawn, so a seeded run is not reshuffled. Everything but the fish
   takes the new theme's colors; fish keep the colors they were created with.
+  The chosen theme also becomes the time of day, and the automatic
+  time-of-day cycle restarts from it (`WORLD-CHANGE-DAYPART`; see
+  [Weather and time of day](#weather-and-time-of-day)). The gulls are the one
+  exception to the in-place recolor: whenever the time of day changes, by a
+  key or on its own, they come back under `coral` or `abyss`
+  (`POPULATE-GULLS`) and fly off under `moonlight`.
 - `u` or `U` -- toggle the status bar on the bottom row (`WORLD-TOGGLE-HUD`);
   see [Status bar](#status-bar).
 - `+` or `=` -- grow the target fish count by one and add a fish
@@ -51,6 +57,14 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
   (`WORLD-SPAWN-DIVER`). When the screen is too small to hold a chest, nothing
   spawns and the status bar says "No treasure chest for a diver"; while a
   diver is already out, nothing spawns and it says "A diver is already out".
+- `f` or `F` -- spawn a fisher immediately (`SPAWN-FISHER-NOW`), even when
+  big events already fill their limit of two.
+- `w` or `W` -- move on to the next weather now (`WORLD-ADVANCE-WEATHER`):
+  `clear`, then `rain`, then `storm`, then `clear` again. The next automatic
+  change is scheduled from this moment.
+- `n` or `N` -- move on to the next time of day now
+  (`WORLD-ADVANCE-DAYPART`): day (`coral`), then dusk (`abyss`), then night
+  (`moonlight`), then day again. It works under `--no-daycycle` too.
 - `h` or `H` -- toggle the help panel (`WORLD-TOGGLE-HELP-OVERLAY`), a
   rounded box just below the waterline listing every binding above.
 
@@ -69,7 +83,8 @@ The `asciiquarium` binary (see `src/cli.lisp`, built via cl-cli):
 | `--fps` | integer, 1-60 | 20 | Target frames per second |
 | `--no-shark` | flag | off | Disable the shark for the whole run |
 | `--max-fish` | integer, 1-40 | 30 | The highest target fish count `+` reaches; the tank starts with 18 fish, or this many if lower |
-| `--calm` | flag | off | Stop blinking animations (the lantern fish's light) |
+| `--calm` | flag | off | Stop blinking animations (the lantern fish's light) and the storm's lightning flash |
+| `--no-daycycle` | flag | off | Keep the starting theme instead of moving through day, dusk, and night on its own |
 | `--color` | `auto`, `truecolor`, `256`, `16`, or `mono` | `auto` | Select the color depth; see [Color modes](#color-modes) |
 | `--ascii` | flag | off | Draw only ASCII symbols, for terminals that lack the Unicode ones or draw them two columns wide |
 | `--monochrome` | flag | off | Same as `--color mono`: render everything in the terminal's default colors |
@@ -106,10 +121,22 @@ frame, 20 per second unless `--fps` says otherwise.
   ticks, and the fry grows into a fish 220 ticks later. A full tank (as many
   live fish as `--max-fish`) keeps it a fry until there is room. At most three
   eggs and fry exist at once.
+- **Gulls fish from the sky.** Two gulls cruise the sky by day and wrap
+  around the screen. A gull above a fish within six rows of the waterline
+  dives at it now and then, carries off a fish it grabs, and does not dive
+  again for 700 ticks after a catch. Caught fish are replaced like eaten
+  ones. The gulls leave at night and come back with the next day or dusk.
+  There are no gulls when fewer than three sky rows fit above the waterline.
+- **A fisher visits.** A small boat sails in from one edge, stops, and lowers
+  a line until the hook rests just above the sand. A fish that touches the
+  hook is caught and reeled up, and the fisher shows a `!` for 30 ticks
+  before sailing on. A hook that catches nothing rests for 80 ticks and is
+  reeled up empty. The first fisher comes at tick 800 and the next every
+  1000 to 1800 ticks.
 
-Ships, submarines, and divers' dinghies are big events: they appear on their
-own only while fewer than two of them in total are on screen. The `g`, `a`,
-`m`, and `d` keys spawn past that limit.
+Ships, submarines, divers' dinghies, and fishers are big events: they appear
+on their own only while fewer than two of them in total are on screen. The
+`g`, `a`, `m`, `d`, and `f` keys spawn past that limit.
 
 ## Seabed life
 
@@ -142,6 +169,27 @@ the rock, and the plume the vent.
   When the shark, a landed anchor, or the submarine comes within 14 columns
   and 6 rows, the octopus spits a `▒` ink cloud that thins away over 50 ticks
   and hides behind the rock until the ink is gone.
+
+## Weather and time of day
+
+The weather starts `clear` and changes in a fixed order: `clear`, then `rain`,
+then `storm`, then `clear` again. The first change comes at tick 700, and each
+later weather lasts 500 to 900 ticks.
+
+- **Rain** falls as `'` drops through the sky, with ripples on the row just
+  under the waterline.
+- **A storm** covers the top two sky rows with a dark cloud band, slants its
+  rain down to the left, and puts choppy `^` crests on the waterline. Ships
+  and the fisher's boat bob up and down by a row. Now and then lightning
+  lights every sky row white for two ticks with a zigzag bolt; `--calm`
+  turns the flash off.
+
+Each time of day has its own theme: day is `coral`, dusk is `abyss`, and
+night is `moonlight`. Every 1100 ticks the scene moves on to the next one in
+that order. This order differs from the `t` key's: from `abyss`, `t` goes to
+`coral` (back to day) while `n` goes to `moonlight`. `t` and `n` restart the
+1100-tick wait, and `--no-daycycle` turns the automatic change off. Glowing plankton
+dots the water, sparse by day, more at dusk, and densest at night.
 
 ## Color modes
 
@@ -190,7 +238,7 @@ lays the scenery out again for the new size.
 
 The status bar fills the bottom row. On the left it shows the theme badge,
 the time of day (`day` for `coral`, `dusk` for `abyss`, `night` for
-`moonlight`), the weather (currently always `clear`), the fish count, how many
+`moonlight`), the weather (`clear`, `rain`, or `storm`), the fish count, how many
 of the known fish species have appeared so far (`dex`), and whether the
 simulation is swimming or paused. Key hints fill the right-hand side. A
 message passed to `WORLD-NOTIFY` replaces the key hints for four seconds.

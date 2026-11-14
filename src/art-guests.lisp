@@ -107,6 +107,7 @@ exercise one crossing direction deterministically."
   :data (list :drop-tick (+ (world-tick world) travel-to-midpoint)
               :anchor-dropped nil
               :saved-dx dx
+              :boat-rise 1
               :tick 'maybe-drop-anchor))
 
 (defun make-anchor (world ship)

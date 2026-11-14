@@ -118,6 +118,16 @@ from +FULL-LAYOUT-HEIGHT+ rows up, proportionally less below that (row 2 at
 the 10-row height the tests use)."
   (min +waterline-row+ (floor (* +waterline-row+ height) +full-layout-height+)))
 
+(defparameter +daypart-themes+ '(:coral :abyss :moonlight)
+  "The time-of-day order, day, dusk, night, which is not +VISUAL-THEMES+'s.")
+
+(defparameter +daypart-ticks+ 1100
+  "Ticks between automatic time-of-day changes.")
+
+(defparameter +first-weather-tick+ 700
+  "The fixed tick of the first weather change, inside the 500-900 range of
+the later ones, so building a world draws no random number for it.")
+
 (defun next-visual-theme (theme)
   (let* ((current (parse-visual-theme theme))
          (tail (member current +visual-themes+ :test #'eq)))
@@ -138,6 +148,9 @@ the 10-row height the tests use)."
     (refill-at 0 :type fixnum)
     (event-due #() :type simple-vector)
     (calm-p nil :type boolean)
+    (weather :clear :type keyword)
+    (weather-at 0 :type fixnum)
+    (daypart-at 0 :type fixnum)
     (quitp nil :type boolean)
     (paused-p nil :type boolean)
     (theme :abyss)
@@ -300,6 +313,7 @@ that has left (a stun mark restoring a dying fish's speed)."
                    (max-fish +default-max-fish+)
                    (shark-enabled-p t)
                    calm-p
+                   (daycycle-p t)
                    (theme :abyss)
                    (hud-visible-p t)
                    (ticks-per-second 20))
@@ -311,7 +325,10 @@ NIL, disables MAYBE-SPAWN-SHARK for the life of this WORLD (see the
 --no-shark CLI flag, cli.lisp). MAX-FISH, itself capped at +MAX-FISH-COUNT+,
 caps what the `+' key raises FISH-COUNT to; FISH-COUNT itself is not truncated
 to it. CALM-P (--calm) stops
-blinking animations; see BLINK-FRAME-PERIOD. Neither draws a random number."
+blinking animations; see BLINK-FRAME-PERIOD. DAYCYCLE-P NIL (--no-daycycle)
+keeps the theme from changing on its own; see WORLD-CHANGE-DAYPART. None of
+them draws a random number, and the first weather change is the fixed
++FIRST-WEATHER-TICK+."
   (assert-dimensions width height)
   (let* ((theme (parse-visual-theme theme))
          (world
@@ -330,6 +347,10 @@ blinking animations; see BLINK-FRAME-PERIOD. Neither draws a random number."
            (min max-fish +max-fish-count+)
            :calm-p
            calm-p
+           :weather-at
+           +first-weather-tick+
+           :daypart-at
+           (if daycycle-p +daypart-ticks+ 0)
            :event-due
            (make-event-due-vector)
            :quitp
@@ -350,6 +371,7 @@ blinking animations; see BLINK-FRAME-PERIOD. Neither draws a random number."
            (apply #'random-between +guest-cooldown-range+))))
     (populate-background world)
     (populate-fish world fish-count)
+    (populate-gulls world)
     (when hud-visible-p
       (%add-world-creature world (make-hud world)))
     world))
@@ -359,7 +381,8 @@ blinking animations; see BLINK-FRAME-PERIOD. Neither draws a random number."
     :coral :rock :starfish :vent :chest
     :plume
     :octopus
-    :crab)
+    :crab
+    :plankton :rain-sheet :storm-sheet)
   "Every CREATURE-KIND MAKE-BACKGROUND-CREATURES (art-decor.lisp) lays out
 from the screen size, and so WORLD-RESIZE rebuilds.")
 
@@ -412,7 +435,9 @@ row."
       (when place
         (funcall place world creature))))
   (%drop-creature-kinds world +background-creature-kinds+)
+  (clear-decor-prototypes)
   (populate-background world)
+  (populate-gulls world)
   (world-refresh-hud world)
   world)
 
@@ -439,7 +464,11 @@ row."
                                            :ink
                                            :dinghy
                                            :rope
-                                           :diver)
+                                           :diver
+                                           :fisher
+                                           :line
+                                           :hook
+                                           :cheer)
   "Every CREATURE-KIND that WORLD-REDRAW clears: predators, prey, their
 by-products, and every special guest. Deliberately excludes the background
 (+BACKGROUND-CREATURE-KINDS+) and the UI creatures
@@ -490,8 +519,29 @@ aquarium."
   world)
 
 (defun world-cycle-theme (world)
-  "Cycle WORLD to the next visual theme, recoloring it in place."
-  (world-set-theme world (next-visual-theme (world-theme world))))
+  "Cycle WORLD to the next visual theme, recoloring it in place, and restart
+the time-of-day cycle from it."
+  (world-change-daypart world (next-visual-theme (world-theme world))))
+
+(defun next-in-cycle (item cycle)
+  "The entry after ITEM in the list CYCLE, wrapping from the last to the first."
+  (or (second (member item cycle :test #'eq))
+      (first cycle)))
+
+(defun world-change-daypart (world theme)
+  "Repaint WORLD in THEME (WORLD-SET-THEME) and restart the time-of-day
+cycle: the next automatic change is +DAYPART-TICKS+ from now, or never when
+WORLD-DAYPART-AT is 0 (--no-daycycle). The one entry point for the automatic
+change, the `n' key, and the `t' key."
+  (world-set-theme world theme)
+  (populate-gulls world)
+  (unless (zerop (world-daypart-at world))
+    (setf (world-daypart-at world) (+ (world-tick world) +daypart-ticks+)))
+  world)
+
+(defun world-advance-daypart (world)
+  "Move WORLD to the next time of day now. Bound to the `n' key."
+  (world-change-daypart world (next-in-cycle (world-theme world) +daypart-themes+)))
 
 (defun world-toggle-hud (world)
   "Toggle the persistent status bar without drawing outside the renderer."

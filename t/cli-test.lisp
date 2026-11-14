@@ -32,6 +32,11 @@
     (let ((invocation (parse-argv *app* '("asciiquarium" "--theme" "coral"))))
       (expect (string= (option-value invocation :theme) "coral") :to-be-truthy)))
 
+  (it "parses --no-daycycle as a flag, unset by default"
+    (expect (option-value (parse-argv *app* '("asciiquarium")) :no-daycycle) :to-be-falsy)
+    (expect (option-value (parse-argv *app* '("asciiquarium" "--no-daycycle")) :no-daycycle)
+            :to-be-truthy))
+
   (it "accepts the --fps boundary values 1 and 60"
     (with-soft-assertions
       (expect (= (option-value (parse-argv *app* '("asciiquarium" "--fps" "1")) :fps) 1)
@@ -107,7 +112,8 @@
                             '(:width 100 :height 40 :seed nil :interval 1/20
                               :shark-enabled-p t :monochrome-p nil :theme :abyss
                               :color-mode :ansi256 :ascii-p nil
-                              :fish-count 18 :max-fish 30 :calm-p nil))
+                              :fish-count 18 :max-fish 30 :calm-p nil
+                              :daycycle-p t))
                      :to-be-truthy))
         (setf (symbol-function terminal-size-symbol) original-terminal-size
               (symbol-function run-symbol) original-run
@@ -133,13 +139,14 @@
                                          '("asciiquarium" "--width" "90" "--height" "30"
                                            "--seed" "42" "--fps" "25" "--no-shark"
                                            "--monochrome" "--theme" "moonlight" "--ascii"
-                                           "--max-fish" "10" "--calm"))))
+                                           "--max-fish" "10" "--calm" "--no-daycycle"))))
                      :to-be-truthy)
              (expect (equal arguments
                             '(:width 90 :height 30 :seed 42 :interval 1/25
                               :shark-enabled-p nil :monochrome-p t :theme :moonlight
                               :color-mode :mono :ascii-p t
-                              :fish-count 10 :max-fish 10 :calm-p t))
+                              :fish-count 10 :max-fish 10 :calm-p t
+                              :daycycle-p nil))
                      :to-be-truthy))
         (setf (symbol-function terminal-size-symbol) original-terminal-size
               (symbol-function run-symbol) original-run
