@@ -29,7 +29,9 @@ pending. Called by every effect that takes a fish out of play."
 (defparameter +max-big-events+ 2)
 
 (defvar *auto-events*
-  '((:id :school :big nil :every (900 1600) :first 600 :spawn spawn-school-if-room))
+  '((:id :school :big nil :every (900 1600) :first 600 :spawn spawn-school-if-room)
+    (:id :sub :big t :every (1200 2000) :first 900 :spawn spawn-submarine-now)
+    (:id :diver :big t :every (1400 2400) :first 1200 :spawn spawn-diver-now))
   "The automatic events ADVANCE-WORLD-EVENTS runs, one plist row each:
 (:ID keyword :BIG boolean :EVERY (low high) :FIRST ticks :SPAWN symbol).
 :SPAWN names a (WORLD) function. :FIRST is the fixed tick of the first

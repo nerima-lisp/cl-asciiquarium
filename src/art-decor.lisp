@@ -414,6 +414,7 @@ too narrow, then the summary's least important groups (see %STATUS-GROUPS)."
 (defparameter +help-entries+
   '(("q" . "quit") ("r" . "redraw") ("space" . "pause") ("+ / -" . "fish count")
     ("s" . "spawn shark") ("g" . "spawn guest") ("c" . "spawn school")
+    ("a" . "ship and anchor") ("m" . "submarine") ("d" . "diver")
     ("t" . "cycle theme")
     ("u" . "status bar") ("h" . "this help"))
   "Every key binding the application implements (input.lisp), in help order.")

@@ -127,6 +127,7 @@ repository. SBCL only."
                (:file "submarine-test")
                (:file "treasure-test")
                (:file "octopus-test")
+               (:file "p4-integration-test")
                (:file "p3-integration-test"))
   :perform (test-op (op system)
              (declare (ignore op system))
