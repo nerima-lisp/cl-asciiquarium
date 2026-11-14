@@ -10,8 +10,9 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
   been rendered, so the frame that caused the quit is always shown before
   exit.
 - `r` or `R` -- redraw. Calls `WORLD-REDRAW`, which removes every fish, the
-  shark (if present), any bubbles in flight, and every special guest
-  (including a dolphin or sea monster mid-crossing), then repopulates a fresh
+  shark (if present), any bubbles in flight, every egg, fry, and heart, and
+  every special guest (including a dolphin or sea monster mid-crossing), then
+  repopulates a fresh
   set of fish at random lanes and speeds. The background scenery (see
   [Screen layout](#screen-layout)) is left in place, as are the status bar
   and help panel if they are visible.
@@ -25,15 +26,20 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
   takes the new theme's colors; fish keep the colors they were created with.
 - `u` or `U` -- toggle the status bar on the bottom row (`WORLD-TOGGLE-HUD`);
   see [Status bar](#status-bar).
-- `+` or `=` -- grow the live fish count by one (`WORLD-INCREASE-FISH-COUNT`),
-  up to `+MAX-FISH-COUNT+`.
-- `-` or `_` -- shrink the live fish count by one (`WORLD-DECREASE-FISH-COUNT`),
-  down to zero.
+- `+` or `=` -- grow the target fish count by one and add a fish
+  (`WORLD-INCREASE-FISH-COUNT`), up to `--max-fish`.
+- `-` or `_` -- shrink the target fish count by one
+  (`WORLD-DECREASE-FISH-COUNT`), down to zero. A live fish is removed only
+  when more live fish than the new target remain, so pressing `-` while a
+  refill is pending cancels the refill instead of taking another fish.
 - `s` or `S` -- spawn a shark immediately (`SPAWN-SHARK-NOW`), resetting its
   cooldown. A no-op when `--no-shark` is in effect.
 - `g` or `G` -- spawn a random special guest immediately (`SPAWN-GUEST-NOW`),
   drawing among ship, duck line, dolphin, and sea monster with equal
   probability, and resetting the guest cooldown.
+- `c` or `C` -- spawn a school of six fish immediately
+  (`SPAWN-SCHOOL-IF-ROOM`). When the six would take the tank past
+  `--max-fish`, nothing spawns and the status bar says the tank is too full.
 - `h` or `H` -- toggle the help panel (`WORLD-TOGGLE-HELP-OVERLAY`), a
   rounded box just below the waterline listing every binding above.
 
@@ -51,12 +57,47 @@ The `asciiquarium` binary (see `src/cli.lisp`, built via cl-cli):
 | `--seed` | integer | none (unseeded) | Seeds `cl:*random-state*` for a reproducible run |
 | `--fps` | integer, 1-60 | 20 | Target frames per second |
 | `--no-shark` | flag | off | Disable the shark for the whole run |
+| `--max-fish` | integer, 1-40 | 30 | The highest target fish count `+` reaches; the tank starts with 18 fish, or this many if lower |
+| `--calm` | flag | off | Stop blinking animations (the lantern fish's light) |
 | `--color` | `auto`, `truecolor`, `256`, `16`, or `mono` | `auto` | Select the color depth; see [Color modes](#color-modes) |
 | `--ascii` | flag | off | Draw only ASCII symbols, for terminals that lack the Unicode ones or draw them two columns wide |
 | `--monochrome` | flag | off | Same as `--color mono`: render everything in the terminal's default colors |
 | `--theme` | `abyss`, `coral`, or `moonlight` | `abyss` | Select the initial visual theme |
 
 `--help` and `--version` are handled automatically by cl-cli.
+
+## Life in the tank
+
+Each of the following happens on its own; the `s` and `c` keys can also
+bring the shark and a school in early. Times are in ticks: one tick is one
+frame, 20 per second unless `--fps` says otherwise.
+
+- **The shark hunts.** It steers up or down toward the nearest fish within 45 columns ahead of its nose, and eats a fish its
+  mouth touches. After two meals it grows larger; after three it is full,
+  stops hunting, and leaves at twice its speed, with a notice in the status
+  bar.
+- **Eaten fish are replaced.** 90 ticks after a fish is eaten, a new one swims
+  in from the left or right edge, one at a time, until the tank is back at the
+  target fish count.
+- **Schools.** Six fish of one small species swim in formation. When a threat
+  (the shark or a landed anchor) comes within 26 columns, they scatter for 30
+  ticks and then regroup. A school also appears on its own, first at tick 600
+  and then every 900 to 1600 ticks, but only when it fits under
+  `--max-fish`.
+- **Puffers** inflate for 45 ticks when a threat comes within 18 columns and 7
+  rows.
+- **Lantern fish** blink their light. Every 240 ticks one draws in the
+  nearest small fish (dart, guppy, or clownfish) within 30 columns and eats it
+  when it reaches the light. Under the `moonlight` theme the light has a halo.
+- **Spawning.** Every 50 ticks, one fish ready to breed starts courting. If it
+  meets a ready fish of its own species, a heart appears and they lay an egg,
+  and neither breeds again for 700 ticks. The egg hatches into a fry after 100
+  ticks, and the fry grows into a fish 220 ticks later. A full tank (as many
+  live fish as `--max-fish`) keeps it a fry until there is room. At most three
+  eggs and fry exist at once.
+
+Ships appear on their own at most two at a time, so the anchors they drop do
+not crowd the tank. The `g` key can add a third.
 
 ## Color modes
 

@@ -1,7 +1,7 @@
 ;;;; src/input.lisp -- turning decoded cl-tty-kit KEY-EVENTs into WORLD state
 ;;;; changes: `q' to quit, `r' to redraw/reshuffle, space to pause/resume,
-;;;; `+'/`-' to adjust the live fish count, `s'/`g' to force an immediate
-;;;; shark/guest spawn, `t' to cycle the visual theme, `u' to toggle the HUD,
+;;;; `+'/`-' to adjust the live fish count, `s'/`g'/`c' to force an immediate
+;;;; shark/guest/school spawn, `t' to cycle the visual theme, `u' to toggle the HUD,
 ;;;; and `h' to toggle the on-screen help panel.
 (in-package #:cl-asciiquarium)
 
@@ -52,12 +52,23 @@ Bound to the `g' key; see RANDOM-GUEST-KIND and SPAWN-GUEST-NOW, spawn.lisp."
   (spawn-guest-now world (random-guest-kind))
   world)
 
+(defparameter +school-no-room-message+ "The tank is too full for a school")
+
+(defun world-spawn-school (world)
+  "Spawn a school of fish in WORLD immediately when it fits under
+WORLD-MAX-FISH (SPAWN-SCHOOL-IF-ROOM, spawn.lisp), or say why not in the status
+bar, returning WORLD. Bound to the `c' key."
+  (unless (spawn-school-if-room world)
+    (world-notify world +school-no-room-message+))
+  world)
+
 (defparameter +key-bindings+
   (list (cons (list #\r #\R) #'world-redraw)
         (cons (list #\Space) #'world-toggle-pause)
         (cons (list #\+ #\=) #'world-increase-fish-count)
         (cons (list #\- #\_) #'world-decrease-fish-count)
         (cons (list #\g #\G) #'world-spawn-random-guest)
+        (cons (list #\c #\C) #'world-spawn-school)
         (cons (list #\t #\T) #'world-cycle-theme)
         (cons (list #\u #\U) #'world-toggle-hud)
         (cons (list #\h #\H) #'world-toggle-help-overlay))
