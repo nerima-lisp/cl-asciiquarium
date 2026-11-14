@@ -1,0 +1,305 @@
+;;;; t/treasure-test.lisp -- the treasure chest (#6) and the diver (#7).
+(in-package #:cl-asciiquarium/test)
+
+(defmacro with-treasure-world ((world seed &rest options) &body body)
+  "Evaluate BODY with WORLD bound to a fishless, sharkless 80x24 world built
+under SEED, with no automatic events, so only the chest and the dive make
+bubbles."
+  `(with-seeded-random-state (,seed)
+     (let* ((cl-asciiquarium::*auto-events* nil)
+            (,world (make-world :width 80 :height 24 :fish-count 0 :shark-enabled-p nil
+                                ,@options)))
+       ,@body)))
+
+(defun %treasure-creatures (world kind)
+  (remove-if-not (lambda (creature)
+                   (and (eq (cl-asciiquarium::creature-kind creature) kind)
+                        (not (cl-asciiquarium::creature-removep creature))))
+                 (cl-asciiquarium::world-%creatures world)))
+
+(defun %treasure-chest (world)
+  (cl-asciiquarium::find-creature-of-kind world :chest))
+
+(defun %chest-data (world key)
+  (getf (cl-asciiquarium::creature-data (%treasure-chest world)) key))
+
+(defun %set-chest-data (world key value)
+  (setf (getf (cl-asciiquarium::creature-data (%treasure-chest world)) key) value))
+
+(defun %line-lengths (text)
+  (mapcar #'length (cl-asciiquarium::split-sprite-lines text)))
+
+(defun %advance-until (world predicate &optional (limit 2000))
+  "Advance WORLD until PREDICATE holds, at most LIMIT ticks; return whether it did."
+  (loop repeat limit
+        until (funcall predicate)
+        do (world-advance world))
+  (funcall predicate))
+
+(defun %dinghy-phase (dinghy)
+  (getf (cl-asciiquarium::creature-data dinghy) :phase))
+
+(describe "treasure chest"
+  (it "is armed at the background build to open first at a fixed tick"
+    (with-treasure-world (world 61)
+      (with-soft-assertions
+        (expect (%chest-data world :state) :to-be :closed)
+        (expect (%chest-data world :next-at) :to-be cl-asciiquarium::+chest-first-open-delay+)
+        (expect (%chest-data world :empty-until) :to-be 0)
+        (expect (%chest-data world :roles) :to-be-truthy))))
+  (it "opens for 45 ticks with 8 bubbles and 6 arcing coins, then schedules the next opening"
+    (with-treasure-world (world 62)
+      (let* ((chest (%treasure-chest world))
+             (closed-y (creature-y chest))
+             (bubbles (length (%treasure-creatures world :bubble))))
+        (%set-chest-data world :next-at (1+ (world-tick world)))
+        (world-advance world)
+        (let* ((opened-at (world-tick world))
+               (coins (%treasure-creatures world :coin))
+               (coin (first coins))
+               (ys (list (creature-y coin)))
+               (open-throughout t))
+          (with-soft-assertions
+            (expect (creature-art chest) :to-equal cl-asciiquarium::+chest-open-art+)
+            (expect (creature-y chest) :to-be (1- closed-y))
+            (expect (- (length (%treasure-creatures world :bubble)) bubbles) :to-be 8)
+            (expect (length coins) :to-be 6)
+            (expect (remove-duplicates (mapcar #'creature-y coins)) :to-equal (list (1- closed-y))))
+          (loop while (< (world-tick world) (+ opened-at 44))
+                do (world-advance world)
+                   (unless (cl-asciiquarium::creature-removep coin)
+                     (push (creature-y coin) ys))
+                   (unless (string= (creature-art chest) cl-asciiquarium::+chest-open-art+)
+                     (setf open-throughout nil)))
+          (setf ys (nreverse ys))
+          (let* ((apex (reduce #'min ys))
+                 (apex-at (position apex ys)))
+            (with-soft-assertions
+              (expect open-throughout :to-be t)
+              (expect (< apex (first ys)) :to-be t)
+              (expect (< 0 apex-at (1- (length ys))) :to-be t)
+              (expect (> (car (last ys)) apex) :to-be t)
+              (expect (%treasure-creatures world :coin) :to-be nil)))
+          (world-advance world)
+          (with-soft-assertions
+            (expect (world-tick world) :to-be (+ opened-at 45))
+            (expect (creature-art chest) :to-equal cl-asciiquarium::+chest-art+)
+            (expect (creature-y chest) :to-be closed-y)
+            (expect (%chest-data world :state) :to-be :closed)
+            (expect (<= 380 (- (%chest-data world :next-at) (world-tick world)) 520) :to-be t))))))
+  (it "keeps the open art through a theme change, recoloring the lid"
+    (let ((*color-mode* :truecolor))
+      (with-treasure-world (world 63)
+        (let ((chest (%treasure-chest world)))
+          (%set-chest-data world :next-at (1+ (world-tick world)))
+          (world-advance world)
+          (world-set-theme world :coral)
+          (with-soft-assertions
+            (expect (creature-art chest) :to-equal cl-asciiquarium::+chest-open-art+)
+            (expect (%chest-data world :state) :to-be :open)
+            (expect (cdr (assoc #\k (cl-asciiquarium::creature-%role-styles chest)))
+                    :to-equal (color-style :chest-wood :theme :coral)))))))
+  (it "waits until :empty-until when an opening falls due while it is empty"
+    (with-treasure-world (world 64)
+      (let ((empty-until (+ (world-tick world) 30)))
+        (%set-chest-data world :empty-until empty-until)
+        (%set-chest-data world :next-at (1+ (world-tick world)))
+        (world-advance world)
+        (expect (%chest-data world :next-at) :to-be empty-until)
+        (loop while (< (world-tick world) (1- empty-until))
+              do (world-advance world))
+        (expect (%chest-data world :state) :to-be :closed)
+        (world-advance world)
+        (expect (%chest-data world :state) :to-be :open)))))
+
+(defun %watch-dive (world facing)
+  "Spawn a dive facing FACING in WORLD with the chest kept shut, advance until
+the dinghy is gone, and return a plist of what happened."
+  (%set-chest-data world :next-at most-positive-fixnum)
+  (let* ((chest (%treasure-chest world))
+         (dinghy (cl-asciiquarium::spawn-diver-now world :facing facing))
+         (data (cl-asciiquarium::creature-data dinghy))
+         (diver (getf data :diver))
+         (rope (first (%treasure-creatures world :rope)))
+         (phases '()) (descent-bubbles 0) (carried-up-p nil)
+         (grab-tick nil) (grab-position nil) (rope-at-grab nil))
+    (loop repeat 2000
+          until (cl-asciiquarium::creature-removep dinghy)
+          do (let ((bubbles (length (%treasure-creatures world :bubble))))
+               (world-advance world)
+               (let ((phase (%dinghy-phase dinghy)))
+                 (unless (eq phase (first phases)) (push phase phases))
+                 (when (eq phase :descend)
+                   (incf descent-bubbles
+                         (max 0 (- (length (%treasure-creatures world :bubble)) bubbles))))
+                 (when (and (eq phase :grab) (null grab-tick))
+                   (setf grab-tick (world-tick world)))
+                 (when (and (eq phase :grab) (null grab-position))
+                   (setf grab-position (list (creature-x diver) (creature-y diver))
+                         rope-at-grab (list (creature-x rope) (creature-y rope)
+                                            (nth-value 1 (cl-asciiquarium::creature-dimensions rope)))))
+                 (when (and (eq phase :ascend) (find #\$ (creature-art diver)))
+                   (setf carried-up-p t)))))
+    (list :chest chest :dinghy dinghy :diver diver :rope rope
+          :phases (reverse phases) :descent-bubbles descent-bubbles
+          :carried-up-p carried-up-p :grab-tick grab-tick
+          :grab-position grab-position :rope-at-grab rope-at-grab)))
+
+(describe "diver"
+  (it-each ((:right) (:left))
+      "dives for the gold and sails away (facing ~A)"
+      (facing)
+    (with-treasure-world (world 71)
+      (let* ((result (%watch-dive world facing))
+             (chest (getf result :chest))
+             (chest-bottom (+ (creature-y chest)
+                              (nth-value 1 (cl-asciiquarium::creature-dimensions chest)) -1))
+             (creatures (cl-asciiquarium::world-%creatures world)))
+        (destructuring-bind (diver-x diver-y) (getf result :grab-position)
+          (destructuring-bind (rope-x rope-y rope-height) (getf result :rope-at-grab)
+            (with-soft-assertions
+              (expect (getf result :phases) :to-equal '(:arrive :descend :grab :ascend :leave))
+              ;; Beside the chest: the coin hand column touches the chest's left side.
+              (expect (+ diver-x 3) :to-be (1- (creature-x chest)))
+              (expect (+ diver-y 3) :to-be chest-bottom)
+              (expect rope-x :to-be (1+ diver-x))
+              (expect (+ rope-y rope-height) :to-be diver-y)
+              (expect (plusp (getf result :descent-bubbles)) :to-be t)
+              (expect (getf result :carried-up-p) :to-be t)
+              (expect (cl-asciiquarium::creature-removep (getf result :dinghy)) :to-be t)
+              (expect (member (getf result :diver) creatures) :to-be nil)
+              (expect (member (getf result :rope) creatures) :to-be nil)
+              (expect (member (getf result :dinghy) creatures) :to-be nil)
+              (expect (%chest-data world :empty-until) :to-be (+ (getf result :grab-tick) 700))))))))
+  (it "leaves the chest shut for 700 ticks after the grab, even with an opening due"
+    (with-treasure-world (world 72)
+      (let* ((result (%watch-dive world :right))
+             (empty-until (+ (getf result :grab-tick) 700))
+             (stayed-shut t))
+        (%set-chest-data world :next-at (1+ (world-tick world)))
+        (loop while (< (world-tick world) (1- empty-until))
+              do (world-advance world)
+                 (unless (eq (%chest-data world :state) :closed)
+                   (setf stayed-shut nil)))
+        (expect stayed-shut :to-be t)
+        (world-advance world)
+        (expect (%chest-data world :state) :to-be :open))))
+  (it "closes an open chest when it takes the gold"
+    (with-treasure-world (world 73)
+      (%set-chest-data world :next-at most-positive-fixnum)
+      (let* ((chest (%treasure-chest world))
+             (closed-y (creature-y chest))
+             (dinghy (cl-asciiquarium::spawn-diver-now world :facing :right))
+             (data (cl-asciiquarium::creature-data dinghy)))
+        (expect (%advance-until world (lambda ()
+                                        (and (eq (getf data :phase) :descend)
+                                             (>= (getf data :depth) (1- (getf data :max-depth))))))
+                :to-be t)
+        (cl-asciiquarium::open-chest world chest)
+        (expect (%chest-data world :state) :to-be :open)
+        (expect (%advance-until world (lambda () (eq (getf data :phase) :grab))) :to-be t)
+        (with-soft-assertions
+          (expect (%chest-data world :state) :to-be :closed)
+          (expect (creature-art chest) :to-equal cl-asciiquarium::+chest-art+)
+          (expect (creature-y chest) :to-be closed-y)
+          (expect (%chest-data world :empty-until) :to-be (+ (world-tick world) 700))))))
+  (it "climbs back empty-handed when the chest leaves mid-dive"
+    (with-treasure-world (world 74)
+      (%set-chest-data world :next-at most-positive-fixnum)
+      (let* ((dinghy (cl-asciiquarium::spawn-diver-now world :facing :right))
+             (data (cl-asciiquarium::creature-data dinghy))
+             (diver (getf data :diver))
+             (carried nil))
+        (expect (%advance-until world (lambda ()
+                                        (and (eq (getf data :phase) :descend)
+                                             (>= (getf data :depth) 2))))
+                :to-be t)
+        (world-resize world 80 24)
+        (world-advance world)
+        (expect (getf data :phase) :to-be :ascend)
+        (loop repeat 2000
+              until (cl-asciiquarium::creature-removep dinghy)
+              do (world-advance world)
+                 (when (find #\$ (creature-art diver)) (setf carried t)))
+        (with-soft-assertions
+          (expect (getf data :carrying) :to-be nil)
+          (expect carried :to-be nil)
+          (expect (cl-asciiquarium::creature-removep dinghy) :to-be t)
+          (expect (%chest-data world :empty-until) :to-be 0)))))
+  (it "spawns nothing in a world without a chest"
+    (with-seeded-random-state (75)
+      (let* ((world (tiny-world :width 20 :height 10))
+             (before (copy-list (cl-asciiquarium::world-%creatures world))))
+        (expect (cl-asciiquarium::find-creature-of-kind world :chest) :to-be nil)
+        (expect (cl-asciiquarium::spawn-diver-now world) :to-be nil)
+        (expect (cl-asciiquarium::world-%creatures world) :to-equal before)))))
+
+(describe "treasure art"
+  (it "gives every art a mask of its exact line shape"
+    (loop for (art mask) in (list (list cl-asciiquarium::+chest-open-art+ cl-asciiquarium::+chest-open-mask+)
+                                  (list cl-asciiquarium::+diver-art+ cl-asciiquarium::+diver-mask+)
+                                  (list cl-asciiquarium::+diver-carrying-art+
+                                        cl-asciiquarium::+diver-carrying-mask+)
+                                  (list cl-asciiquarium::+dinghy-art+ cl-asciiquarium::+dinghy-mask+))
+          do (expect (%line-lengths art) :to-equal (%line-lengths mask)))
+    (expect (sprite-width cl-asciiquarium::+chest-open-art+)
+            :to-be (sprite-width cl-asciiquarium::+chest-art+)))
+  (it-each ((:right) (:left))
+      "draws the dinghy and the diver with aligned masks (facing ~A)"
+      (facing)
+    (with-treasure-world (world 76)
+      (let* ((dinghy (cl-asciiquarium::spawn-diver-now world :facing facing))
+             (diver (getf (cl-asciiquarium::creature-data dinghy) :diver))
+             (dinghy-mask (if (eq facing :left)
+                              (cl-asciiquarium::mirror-sprite-mask cl-asciiquarium::+dinghy-mask+)
+                              cl-asciiquarium::+dinghy-mask+)))
+        (with-soft-assertions
+          (expect (cl-asciiquarium::creature-facing dinghy) :to-be facing)
+          (expect (%line-lengths (creature-art dinghy)) :to-equal (%line-lengths dinghy-mask))
+          (expect (cl-asciiquarium::creature-dimensions dinghy)
+                  :to-be (sprite-width cl-asciiquarium::+dinghy-art+))
+          (expect (cl-asciiquarium::creature-facing diver) :to-be :right))))))
+
+(describe "treasure allocation"
+  ;; Many ticks, so a single cons per tick would fill an allocation region.
+  (it "conses nothing while the chest waits closed"
+    (with-treasure-world (world 81)
+      (let ((chest (%treasure-chest world)))
+        (%set-chest-data world :next-at most-positive-fixnum)
+        (dotimes (i 100) (cl-asciiquarium::chest-tick world chest))
+        (let ((before (sb-ext:get-bytes-consed)))
+          (dotimes (i 10000) (cl-asciiquarium::chest-tick world chest))
+          (expect (- (sb-ext:get-bytes-consed) before) :to-be 0)))))
+  (it "conses nothing while coins fly"
+    (with-treasure-world (world 82)
+      (let* ((chest (%treasure-chest world))
+             (coins (loop for i below 500 collect (cl-asciiquarium::make-coin world chest (mod i 6)))))
+        (let ((before (sb-ext:get-bytes-consed)))
+          (dotimes (i 25)
+            (dolist (coin coins)
+              (cl-asciiquarium::tick-creature world coin 80 24)))
+          (expect (- (sb-ext:get-bytes-consed) before) :to-be 0))
+        (expect (every #'cl-asciiquarium::creature-removep coins) :to-be t))))
+  (it "conses nothing through whole dives once spawned"
+    (let ((cl-asciiquarium::+diver-bubble-period+ most-positive-fixnum)
+          (dives '()))
+      (dotimes (i 12)
+        (with-treasure-world (world (+ 90 i))
+          (%set-chest-data world :next-at most-positive-fixnum)
+          (let ((dinghy (cl-asciiquarium::spawn-diver-now world :facing (if (evenp i) :right :left))))
+            (push (list world dinghy
+                        (getf (cl-asciiquarium::creature-data dinghy) :diver)
+                        (first (%treasure-creatures world :rope))
+                        (%treasure-chest world))
+                  dives))))
+      (flet ((run-dives ()
+               (dotimes (tick 600)
+                 (loop for (world . creatures) in dives
+                       do (incf (world-tick world))
+                          (dolist (creature creatures)
+                            (cl-asciiquarium::tick-creature world creature 80 24))))))
+        (let ((before (sb-ext:get-bytes-consed)))
+          (run-dives)
+          (expect (- (sb-ext:get-bytes-consed) before) :to-be 0)))
+      (expect (every (lambda (dive) (cl-asciiquarium::creature-removep (second dive))) dives)
+              :to-be t))))
