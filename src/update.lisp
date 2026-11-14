@@ -7,29 +7,6 @@
 ;;;; property every test in t/ relies on.
 (in-package #:cl-asciiquarium)
 
-(defun anchor-tick (world anchor)
-  "Advance ANCHOR's fall-then-settle state machine by one tick. Once it
-reaches its :TARGET-DEPTH, stop its descent, mark it :DROPPED, arm its
-+ANCHOR-THREAT+ row and register that activation in WORLD, and start the
-finite dwell countdown."
-  (let ((data (creature-data anchor)))
-    (when (and
-           (not (getf data :dropped))
-           (>= (creature-y anchor) (getf data :target-depth)))
-      (setf (entity-dy (creature-entity anchor)) 0)
-      (setf (getf data :dropped) t)
-      (arm-threat world anchor +anchor-threat+)
-      (setf (creature-ttl anchor) +anchor-dropped-ticks+))))
-
-(defun maybe-drop-anchor (world ship)
-  "Create the anchor CREATURE once SHIP reaches its scheduled :DROP-TICK, in
-WORLD. Guarded by :ANCHOR-DROPPED so a ship drops at most one anchor."
-  (when (and
-         (not (getf (creature-data ship) :anchor-dropped))
-         (>= (world-tick world) (getf (creature-data ship) :drop-tick)))
-    (setf (getf (creature-data ship) :anchor-dropped) t)
-    (%add-world-creature world (make-anchor world ship))))
-
 (defun dolphin-tick (world dolphin)
   "Recompute DOLPHIN's Y as a sine wave around its :BASELINE-Y, amplitude
 :AMPLITUDE, and period :PERIOD (all in its :DATA, set by MAKE-DOLPHIN),

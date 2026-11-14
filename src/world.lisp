@@ -339,7 +339,12 @@ blinking animations; see BLINK-FRAME-PERIOD. Neither draws a random number."
 
 (defparameter +background-creature-kinds+
   '(:ambient-current :waterline :ripple :sky :sand :castle :seaweed
-    :coral :rock :starfish :vent :chest)
+    :coral :rock :starfish :vent :chest
+    :plume
+    :octopus
+    :tentacle
+    :ink
+    :crab)
   "Every CREATURE-KIND MAKE-BACKGROUND-CREATURES (art-decor.lisp) lays out
 from the screen size, and so WORLD-RESIZE rebuilds.")
 
@@ -369,10 +374,13 @@ than clamped, and the status bar is refreshed onto the new bottom row."
                                                    (max
                                                     0
                                                     (- height creature-height))))))
+  ;; Mark the discarded background REMOVEP so a creature that references one
+  ;; (a diver's chest, a caught fish's tentacle) sees it leave.
   (%set-world-creatures
    world
    (remove-if (lambda (creature)
-                (member (creature-kind creature) +background-creature-kinds+))
+                (when (member (creature-kind creature) +background-creature-kinds+)
+                  (setf (creature-removep creature) t)))
               (world-%creatures world)))
   (populate-background world)
   (world-refresh-hud world)
@@ -391,7 +399,15 @@ than clamped, and the status bar is refreshed onto the new bottom row."
                                            :duck-line
                                            :dolphin
                                            :sea-monster
-                                           :monster-segment)
+                                           :monster-segment
+                                           :chain
+                                           :coin
+                                           :sub
+                                           :sonar
+                                           :stun-mark
+                                           :dinghy
+                                           :rope
+                                           :diver)
   "Every CREATURE-KIND that WORLD-REDRAW clears: predators, prey, their
 by-products, and every special guest. Deliberately excludes the background
 (+BACKGROUND-CREATURE-KINDS+) and the UI creatures

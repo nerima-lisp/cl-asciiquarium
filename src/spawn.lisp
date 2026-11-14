@@ -19,7 +19,9 @@ pending. Called by every effect that takes a fish out of play."
   (when (zerop (world-refill-at world))
     (setf (world-refill-at world) (+ (world-tick world) +refill-delay-ticks+))))
 
-(defparameter +big-event-kinds+ '(:ship)
+(defparameter +big-event-kinds+ '(:ship
+                                   :sub
+                                   :dinghy)
   "The CREATURE-KIND of each big event's lead creature. At most
 +MAX-BIG-EVENTS+ of them may be on screen before the automatic paths
 (MAYBE-SPAWN-GUEST, ADVANCE-WORLD-EVENTS) hold back; keys spawn regardless.")
@@ -61,6 +63,26 @@ return true; otherwise spawn nothing and return NIL."
 
 (defun big-event-room-p (world)
   (< (big-event-count world) +max-big-events+))
+
+(defun find-creature-of-kind (world kind)
+  "The first creature of KIND in WORLD that is not marked REMOVEP, or NIL."
+  (find-if (lambda (creature)
+             (and (eq (creature-kind creature) kind)
+                  (not (creature-removep creature))))
+           (world-%creatures world)))
+
+(defun seabed-life (world ornaments)
+  "Return the seabed ORNAMENTS (MAKE-SEABED-ORNAMENTS, art-decor.lisp) plus the
+resident creatures that live on them, arming each ornament that animates.
+Called while the background is built, so it draws no random number."
+  (let ((life '()))
+    (dolist (ornament ornaments)
+      (case (creature-kind ornament)
+        (:vent (let ((plume (make-vent-plume world ornament)))
+                 (when plume (push plume life))))))
+    (let ((crab (make-crab world)))
+      (when crab (push crab life)))
+    (append ornaments life)))
 
 (defun make-edge-fish (world)
   "A random fish entering at the screen edge it swims away from: column 0

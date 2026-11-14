@@ -310,7 +310,7 @@ as before the layout existed, so seeded runs keep their fish."
                    (when (< (1+ (world-waterline-row world)) (world-sand-top world))
                      (make-ripple world))
                    (make-sand world))
-             (make-seabed-ornaments world))))
+             (seabed-life world (make-seabed-ornaments world)))))
 
 ;;; -- Status bar ----------------------------------------------------------
 
