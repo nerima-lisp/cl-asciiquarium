@@ -2,9 +2,12 @@
 ;;;;
 ;;;; The octopus's :PHASE is :PEEK (looking for a fish), :REACH (a tentacle
 ;;;; out, growing toward it or retracting with or without a fish), or :INKED
-;;;; (hidden behind the rock until :INK-UNTIL). The tentacle
+;;;; (hidden behind the rock while its ink cloud lasts). The tentacle
 ;;;; is its own creature: its tip is a threat (+TENTACLE-THREAT+) that the
 ;;;; collision pass applies, and its tick grows or retracts it one column.
+;;;; The tentacle and the ink are attached to the octopus (ATTACH-CREATURE),
+;;;; so they leave with it; they are transient, so `r' clears them while the
+;;;; octopus stays, and the octopus then peeks again.
 (in-package #:cl-asciiquarium)
 
 (defparameter +octopus-reach-columns+ 12
@@ -44,19 +47,26 @@ the rock FISH is on."
                                      (+ top (floor height 2)))))
         (setf (getf data :tentacle) tentacle
               (getf data :phase) :reach)
-        (%add-world-creature world tentacle)))))
+        (attach-creature world octopus tentacle)))))
+
+(defun %octopus-peek (octopus)
+  "Put OCTOPUS back to peeking over its rock, its tentacle and ink forgotten."
+  (let ((data (creature-data octopus)))
+    (setf (getf data :phase) :peek
+          (getf data :tentacle) nil
+          (getf data :ink) nil
+          (entity-y (creature-entity octopus)) (octopus-peek-y (getf data :rock)))))
 
 (defun octopus-tick (world octopus)
-  "The octopus's :TICK: come out of hiding once the ink is over, look for a
-fish every +OCTOPUS-LOOK-INTERVAL+ ticks while peeking, and peek again once
-its tentacle is gone."
+  "The octopus's :TICK: come out of hiding once its ink is gone, look
+for a fish every +OCTOPUS-LOOK-INTERVAL+ ticks while peeking, and peek again
+once its tentacle is gone."
   (let ((data (creature-data octopus))
         (tick (world-tick world)))
     (case (getf data :phase)
       (:inked
-       (when (>= tick (getf data :ink-until))
-         (setf (getf data :phase) :peek
-               (entity-y (creature-entity octopus)) (octopus-peek-y (getf data :rock)))))
+       (when (creature-removep (getf data :ink))
+         (%octopus-peek octopus)))
       (:peek
        (when (>= tick (getf data :reach-next))
          (setf (getf data :reach-next) (+ tick +octopus-look-interval+))
@@ -65,7 +75,7 @@ its tentacle is gone."
              (%launch-tentacle world octopus fish)))))
       (t
        (when (creature-removep (getf data :tentacle))
-         (setf (getf data :phase) :peek))))))
+         (%octopus-peek octopus))))))
 
 (defun %set-tentacle-length (tentacle length)
   "Show TENTACLE LENGTH columns long. A :LEFT tentacle keeps its right end on
@@ -115,11 +125,12 @@ pull back any tentacle that is out."
   (let ((data (creature-data octopus)))
     (unless (or (eq (creature-kind threat) :tentacle)
                 (eq (getf data :phase) :inked))
-      (let ((rock (getf data :rock))
-            (tentacle (getf data :tentacle)))
-        (%add-world-creature world (make-ink world rock))
+      (let* ((rock (getf data :rock))
+             (tentacle (getf data :tentacle))
+             (ink (make-ink world rock)))
+        (attach-creature world octopus ink)
         (setf (getf data :phase) :inked
-              (getf data :ink-until) (+ (world-tick world) +ink-ticks+)
+              (getf data :ink) ink
               (entity-y (creature-entity octopus)) (octopus-hide-y rock))
         (when tentacle
           (setf (getf (creature-data tentacle) :retracting) t))))))

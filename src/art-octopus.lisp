@@ -45,7 +45,7 @@ number: it is built with the background."
                         +octopus-roles+
                         :x (+ (creature-x rock) (floor (- (creature-dimensions rock) width) 2))
                         :y (octopus-peek-y rock) :z 0
-                        :data (list :phase :peek :ink-until 0 :tentacle nil :rock rock
+                        :data (list :phase :peek :tentacle nil :ink nil :rock rock
                                     :reach-next 0 :sense +octopus-sense+
                                     :tick 'octopus-tick))))
 

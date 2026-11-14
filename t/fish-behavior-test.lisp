@@ -406,3 +406,25 @@
           (expect (creature-x fish) :to-be fish-x)
           (expect (member lantern (cl-asciiquarium::world-%creatures world)) :to-be nil)
           (expect (member glow (cl-asciiquarium::world-%creatures world)) :to-be nil))))))
+
+(describe "the lantern glow attached to its lantern"
+  (it "leaves with its lantern when the lantern dies, on r, and on minus"
+    (dolist (exit '(:death :redraw :minus))
+      (with-seeded-random-state (66)
+        (let* ((world (hunting-world))
+               (lantern (behavior-fish world :lantern 40 14)))
+          (world-set-theme world :moonlight)
+          (setf (cl-asciiquarium::world-fish-count world) 1)
+          (world-advance world)
+          (let ((glow (getf (cl-asciiquarium::creature-data lantern) :glow)))
+            (expect (and glow t) :to-be t)
+            (ecase exit
+              (:death (cl-asciiquarium::eat-effect world nil lantern))
+              (:redraw (world-redraw world))
+              (:minus (world-apply-key-event world (first (decode-input "-")))))
+            (expect (list exit (cl-asciiquarium::creature-removep glow)) :to-equal (list exit t))
+            (expect (list exit (null (getf (cl-asciiquarium::creature-data lantern) :attached)))
+                    :to-equal (list exit t))
+            (world-advance world)
+            (expect (list exit (and (member glow (cl-asciiquarium::world-%creatures world)) t))
+                    :to-equal (list exit nil))))))))

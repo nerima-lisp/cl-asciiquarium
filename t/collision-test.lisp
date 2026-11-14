@@ -1030,7 +1030,7 @@
           (cl-asciiquarium::fish-stop-behaviour fish)
           (expect *on-stop-calls* :to-equal (list fish))
           (expect (getf (cl-asciiquarium::creature-data fish) :on-stop) :to-be nil)))))
-  (it "gives a lantern stop-lantern as its :on-stop"
+  (it "gives a lantern release-lantern-target as its :on-stop"
     (let ((world (tiny-world :width 40 :height 20)))
       (expect (getf (cl-asciiquarium::creature-data (make-fish world :species :lantern)) :on-stop)
-              :to-be 'cl-asciiquarium::stop-lantern))))
+              :to-be 'cl-asciiquarium::release-lantern-target))))

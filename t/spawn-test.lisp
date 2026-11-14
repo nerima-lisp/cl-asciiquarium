@@ -18,11 +18,9 @@
 (describe "anchor fall-then-rest state machine"
   (it "stops descending at target depth, enters :rest, arms its threat, and schedules the rise"
     (let* ((world (tiny-world :width 40 :height 20))
-           (anchor (make-creature :world world :kind :anchor :frames (list "( o )")
-                                  :x 10 :y 5 :dx 0 :dy 1 :policy :none
-                                  :data (list :phase :fall :target-depth 8 :rise-at 0
-                                              :threat nil :ship nil :chain nil
-                                              :tick 'cl-asciiquarium::anchor-tick))))
+           (anchor (cl-asciiquarium::make-anchor world (make-ship world :facing :right))))
+      (setf (getf (cl-asciiquarium::creature-data anchor) :target-depth) 8
+            (entity-y (cl-asciiquarium::creature-entity anchor)) 5)
       (cl-asciiquarium::%add-world-creature world anchor)
       (dotimes (i 3) (world-advance world))
       (with-soft-assertions
