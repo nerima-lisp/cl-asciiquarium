@@ -414,7 +414,10 @@
             (expect (random 1000000) :to-be (random 1000000 rng))
             (loop for fish in (list live dead) for snapshot in snapshots
                   do (destructuring-bind (frames data x y dx ttl style) snapshot
-                       (expect (cl-asciiquarium::creature-%frames fish) :to-be frames)
+                       ;; Same frames by content: a fish drawing its prototype's
+                       ;; frames takes the new theme's prototype, a fresh vector.
+                       (expect (coerce (cl-asciiquarium::creature-%frames fish) 'list)
+                               :to-equal (coerce frames 'list))
                        (expect (cl-asciiquarium::creature-data fish) :to-be data)
                        (expect (list (creature-x fish) (creature-y fish)
                                      (entity-dx (cl-asciiquarium::creature-entity fish))
