@@ -35,6 +35,17 @@ BODY, deleting it and its contents afterwards."
       (read-sequence bytes stream)
       bytes)))
 
+(defun %keeps-random-sequence-p (thunk)
+  "True when calling THUNK leaves *RANDOM-STATE* drawing the same numbers as a
+copy taken before the call: file I/O must not perturb a --seed run.
+t/snapshot-test.lisp, loaded after this file, uses it too."
+  (let* ((*random-state* (sb-ext:seed-random-state 7))
+         (reference (make-random-state *random-state*)))
+    (funcall thunk)
+    (equal (loop repeat 8 collect (random 1000000))
+           (let ((*random-state* reference))
+             (loop repeat 8 collect (random 1000000))))))
+
 (defun %directory-file-names (directory)
   (sort (mapcar #'file-namestring (uiop:directory-files directory)) #'string<))
 
@@ -128,7 +139,27 @@ BODY, deleting it and its contents afterwards."
       (let ((path (merge-pathnames "blocker/zukan.sexp" dir)))
         (expect (multiple-value-list (cl-asciiquarium::load-zukan path)) :to-equal '(nil t))
         (expect (cl-asciiquarium::save-zukan path '(:dart)) :to-be nil)
-        (expect (%directory-file-names dir) :to-equal '("blocker"))))))
+        (expect (%directory-file-names dir) :to-equal '("blocker")))))
+  (it "reports a write that fails after the staging file exists, removing it"
+    (with-zukan-directory (dir)
+      ;; A function cannot be printed readably, so PRIN1 fails mid-write.
+      (expect (cl-asciiquarium::save-zukan (%zukan-file dir) (list #'identity)) :to-be nil)
+      (expect (%directory-file-names dir) :to-be nil)))
+  (it-each (("a successful save" nil)
+            ("a save whose directory cannot be created" :blocker)
+            ("a save failing after the staging file exists" :unprintable))
+      "leaves the simulation's random sequence unchanged after ~A"
+      (description failure)
+    (declare (ignore description))
+    (with-zukan-directory (dir)
+      (%write-zukan-text (merge-pathnames "blocker" dir) "")
+      (let ((path (if (eq failure :blocker)
+                      (merge-pathnames "blocker/zukan.sexp" dir)
+                      (%zukan-file dir)))
+            (species (if (eq failure :unprintable) (list #'identity) '(:dart))))
+        (expect (%keeps-random-sequence-p
+                 (lambda () (cl-asciiquarium::save-zukan path species)))
+                :to-be-truthy)))))
 
 (describe "zukan-save-if-grown"
   (it "saves only when the discoveries grew and returns the new count"

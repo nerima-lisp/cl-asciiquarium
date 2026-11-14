@@ -62,13 +62,16 @@ untouched) or the write fails."
          (handler-case
              (let ((merged (append stored (remove-if (lambda (name) (member name stored)) species))))
                (ensure-directories-exist path)
-               (uiop:with-staging-pathname (staging path)
-                 (with-open-file (stream staging :direction :output :if-exists :supersede
-                                                 :external-format :utf-8)
-                   (with-standard-io-syntax
-                     (let ((*print-case* :downcase))
-                       (prin1 (list :zukan 1 :species merged) stream)
-                       (terpri stream)))))
+               ;; UIOP draws the staging file's name from *RANDOM-STATE*; a
+               ;; private state keeps a --seed run's simulation unperturbed.
+               (let ((*random-state* (make-random-state t)))
+                 (uiop:with-staging-pathname (staging path)
+                   (with-open-file (stream staging :direction :output :if-exists :supersede
+                                                   :external-format :utf-8)
+                     (with-standard-io-syntax
+                       (let ((*print-case* :downcase))
+                         (prin1 (list :zukan 1 :species merged) stream)
+                         (terpri stream))))))
                t)
            (error () nil)))))
 

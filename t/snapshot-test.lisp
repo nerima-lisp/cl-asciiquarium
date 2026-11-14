@@ -111,4 +111,10 @@ incrementally 30 times, so fish have moved since the first full paint."
         (expect (cl-asciiquarium::save-snapshot (make-screen 3 2) missing *snapshot-time*)
                 :to-be-null)
         (expect (uiop:directory-exists-p missing) :to-be-falsy)
-        (expect (uiop:directory-files directory) :to-be-null)))))
+        (expect (uiop:directory-files directory) :to-be-null))))
+
+  (it "leaves the simulation's random sequence unchanged"
+    (with-snapshot-directory (directory)
+      (expect (%keeps-random-sequence-p
+               (lambda () (cl-asciiquarium::save-snapshot (make-screen 3 2) directory *snapshot-time*)))
+              :to-be-truthy))))
