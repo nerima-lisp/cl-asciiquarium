@@ -12,11 +12,11 @@
 fixture species."
   (cl-asciiquarium::%set-world-creatures world (cons fish (cl-asciiquarium::world-%creatures world))))
 
-(defun %anchor-ship-world ()
-  "A 60x24 world (waterline 5, sand from row 20) with no fish, shark, or guest
-spawns and a right-facing ship at column 20 that drops its anchor on the next
-tick. Returns (VALUES WORLD SHIP)."
-  (let* ((world (make-world :width 60 :height 24 :fish-count 0 :shark-enabled-p nil))
+(defun %anchor-ship-world (&key (width 60) (height 24))
+  "A WIDTHxHEIGHT world (by default 60x24: waterline 5, sand from row 20) with
+no fish, shark, or guest spawns and a right-facing ship at column 20 that drops
+its anchor on the next tick. Returns (VALUES WORLD SHIP)."
+  (let* ((world (make-world :width width :height height :fish-count 0 :shark-enabled-p nil))
          (ship (make-ship world :facing :right)))
     (setf (cl-asciiquarium::world-guest-cooldown world) 100000
           (entity-x (cl-asciiquarium::creature-entity ship)) 20.0f0
@@ -69,6 +69,17 @@ tick. Returns (VALUES WORLD SHIP)."
           (expect (+ (creature-y anchor) 2) :to-be (1- (cl-asciiquarium::world-sand-top world)))
           (expect (entity-dy (cl-asciiquarium::creature-entity anchor)) :to-be 0)
           (expect (%anchor-data anchor :threat) :to-be cl-asciiquarium::+anchor-threat+)))))
+  (it "lands above the new sand when the screen shrinks while it falls"
+    (with-seeded-random-state (1)
+      (let ((world (%anchor-ship-world :width 80 :height 40)))
+        (world-advance world)
+        (let ((anchor (%anchor-kind world :anchor)))
+          (expect (%anchor-data anchor :phase) :to-be :fall)
+          (world-resize world 80 24)
+          (%advance-until world (lambda () (eq (%anchor-data anchor :phase) :rest)))
+          (with-soft-assertions
+            (expect (%anchor-data anchor :phase) :to-be :rest)
+            (expect (+ (creature-y anchor) 2) :to-be (1- (cl-asciiquarium::world-sand-top world))))))))
   (it "kills a fish placed under it during the rest"
     (with-seeded-random-state (1)
       (let* ((world (%anchor-ship-world))

@@ -67,25 +67,24 @@ return true; otherwise spawn nothing and return NIL."
   (< (big-event-count world) +max-big-events+))
 
 (defun find-creature-of-kind (world kind)
-  "The first creature of KIND in WORLD that is not marked REMOVEP, or NIL."
-  (find-if (lambda (creature)
-             (and (eq (creature-kind creature) kind)
-                  (not (creature-removep creature))))
-           (world-%creatures world)))
+  "The first creature of KIND in WORLD, or NIL. Callers run between ticks,
+when no creature in the list is REMOVEP: WORLD-ADVANCE flushes them at its
+end, and WORLD-RESIZE drops the background it replaces."
+  (find kind (world-%creatures world) :key #'creature-kind))
 
 (defun seabed-life (world ornaments)
   "Return the seabed ORNAMENTS (MAKE-SEABED-ORNAMENTS, art-decor.lisp) plus the
 resident creatures that live on them, arming each ornament that animates.
-Called while the background is built, so it draws no random number."
+The list may hold NILs (a plume or crab with no room), which the caller
+MAKE-BACKGROUND-CREATURES removes. Called while the background is built, so
+it draws no random number."
   (let ((life '()))
     (dolist (ornament ornaments)
       (case (creature-kind ornament)
         (:chest (arm-chest world ornament))
         (:rock (push (make-octopus world ornament) life))
-        (:vent (let ((plume (make-vent-plume world ornament)))
-                 (when plume (push plume life))))))
-    (let ((crab (make-crab world)))
-      (when crab (push crab life)))
+        (:vent (push (make-vent-plume world ornament) life))))
+    (push (make-crab world) life)
     (append ornaments life)))
 
 (defun make-edge-fish (world)

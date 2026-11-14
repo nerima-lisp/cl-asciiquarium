@@ -54,24 +54,24 @@ role styles stay: the chest's roles (data :ROLES) cover both arts."
 
 (defun empty-chest (world chest)
   "The diver takes CHEST's gold: shut it if open and keep it shut for
-+CHEST-EMPTY-TICKS+."
++CHEST-EMPTY-TICKS+. Overriding the :NEXT-AT that CLOSE-CHEST just set only
+delays the opening, as every :NEXT-AT a closed chest holds is at most the top
+of +CHEST-REOPEN-RANGE+ away."
   (when (eq (getf (creature-data chest) :state) :open)
     (close-chest world chest))
-  (setf (getf (creature-data chest) :empty-until)
+  (setf (getf (creature-data chest) :next-at)
         (+ (world-tick world) +chest-empty-ticks+)))
 
 (defun chest-tick (world chest)
-  "The chest's :TICK: open once :NEXT-AT is due, unless the diver emptied it
-(then wait until :EMPTY-UNTIL), and close after +CHEST-OPEN-TICKS+."
+  "The chest's :TICK: open once :NEXT-AT is due, and close after
++CHEST-OPEN-TICKS+."
   (let ((data (creature-data chest))
         (tick (world-tick world)))
     (if (eq (getf data :state) :open)
         (when (>= tick (getf data :close-at))
           (close-chest world chest))
         (when (>= tick (getf data :next-at))
-          (if (< tick (getf data :empty-until))
-              (setf (getf data :next-at) (getf data :empty-until))
-              (open-chest world chest))))))
+          (open-chest world chest)))))
 
 (defun coin-tick (world coin)
   "A coin's :TICK: gravity turns its rise into a fall; it is gone once it

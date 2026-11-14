@@ -136,19 +136,22 @@ sand, its :TARGET-DEPTH; only then does it carry +ANCHOR-THREAT+."
           (make-chain world anchor chain-top (max 0 (- target-depth chain-top))))
     anchor))
 
+(defun vertical-line-frames (glyph max-length)
+  "Frames for a line hanging down: frame N is N lines of GLYPH, for N from 0
+(a single space) to MAX-LENGTH, built up front so a tick only picks a frame
+index and never builds a string."
+  (loop for length from 0 to max-length
+        collect (if (zerop length)
+                    " "
+                    (format nil "~{~A~^~%~}" (make-list length :initial-element glyph)))))
+
 (defun make-chain (world anchor top max-length)
   "Create the :CHAIN CREATURE hanging from row TOP above ANCHOR, in the
-anchor's shaft column. Frame N is N links long, for N from 0 (empty) to
-MAX-LENGTH, built here so CHAIN-TICK (update-anchor.lisp) only picks a frame
-index and never builds a string."
+anchor's shaft column, with VERTICAL-LINE-FRAMES up to MAX-LENGTH links for
+CHAIN-TICK (update-anchor.lisp) to pick from."
   (make-creature :world world
                  :kind :chain
-                 :frames (loop for length from 0 to max-length
-                               collect (if (zerop length)
-                                           " "
-                                           (format nil "~{~A~^~%~}"
-                                                   (make-list length
-                                                              :initial-element +chain-glyph+))))
+                 :frames (vertical-line-frames +chain-glyph+ max-length)
                  :style (world-style world :bright-black)
                  :%trusted-frames-p t
                  :%trusted-style-p t

@@ -78,12 +78,17 @@ returning WORLD. Bound to the `m' key."
 
 (defparameter +diver-no-chest-message+ "No treasure chest for a diver")
 
+(defparameter +diver-busy-message+ "A diver is already out")
+
 (defun world-spawn-diver (world)
   "Send a diver for the treasure chest (SPAWN-DIVER-NOW, art-treasure.lisp)
-immediately, or say why not in the status bar when the screen is too small to
-hold a chest, returning WORLD. Bound to the `d' key."
+immediately, returning WORLD. When none can go, the status bar says why: the
+screen is too small to hold a chest, or a diver is already out for it. Bound
+to the `d' key."
   (unless (spawn-diver-now world)
-    (world-notify world +diver-no-chest-message+))
+    (world-notify world (if (find-creature-of-kind world :dinghy)
+                            +diver-busy-message+
+                            +diver-no-chest-message+)))
   world)
 
 (defparameter +key-bindings+

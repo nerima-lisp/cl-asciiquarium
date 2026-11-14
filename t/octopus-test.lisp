@@ -83,10 +83,14 @@ of ticks taken, or NIL."
                   :to-be-truthy)
           (expect (first-of-kind world :ink) :to-be nil)
           (expect (plusp (cl-asciiquarium::world-refill-at world)) :to-be-truthy)
-          (let ((caught-x (creature-x fish)))
+          (let ((caught-x (creature-x fish))
+                (caught-length (getf (cl-asciiquarium::creature-data tentacle) :length)))
             (dotimes (tick 3) (world-advance world))
-            (expect (getf (octopus-data world) :phase) :to-be :pull)
-            (expect (< (creature-x fish) caught-x) :to-be-truthy))
+            (with-soft-assertions
+              (expect (getf (cl-asciiquarium::creature-data tentacle) :retracting) :to-be-truthy)
+              (expect (< (getf (cl-asciiquarium::creature-data tentacle) :length) caught-length)
+                      :to-be-truthy)
+              (expect (< (creature-x fish) caught-x) :to-be-truthy)))
           (expect (advance-until world (lambda () (not (in-world-p world fish))) 20)
                   :to-be-truthy)
           (expect (in-world-p world tentacle) :to-be nil)
@@ -114,7 +118,7 @@ of ticks taken, or NIL."
       (let* ((world (octopus-test-world))
              (rock (first-of-kind world :rock))
              (far (place-test-fish world (+ (creature-x rock) 10 13) (1- (creature-y rock))))
-             (high (place-test-fish world (creature-x rock)
+             (high (place-test-fish world (+ (creature-x rock) 10 1)
                                     (- (creature-y rock) 7
                                        (nth-value 1 (creature-dimensions
                                                      (make-fish world :species :dart
@@ -123,6 +127,38 @@ of ticks taken, or NIL."
                 :to-be nil)
         (expect (and (cl-asciiquarium::alive-fish-p far) (cl-asciiquarium::alive-fish-p high))
                 :to-be-truthy))))
+
+  (it "reaches for no fish right above the rock"
+    (with-seeded-random-state (7)
+      (let* ((world (octopus-test-world))
+             (rock (first-of-kind world :rock))
+             (above (place-test-fish world (creature-x rock)
+                                     (- (creature-y rock)
+                                        (nth-value 1 (creature-dimensions
+                                                      (make-fish world :species :dart
+                                                                       :x 0 :y 0 :dx 0)))))))
+        (expect (advance-until world (lambda () (first-of-kind world :tentacle)) 40)
+                :to-be nil)
+        (expect (cl-asciiquarium::alive-fish-p above) :to-be-truthy))))
+
+  (it "catches nothing with an empty tentacle on the tick it is removed"
+    (with-seeded-random-state (8)
+      (let* ((world (octopus-test-world))
+             (rock (first-of-kind world :rock))
+             (fish (place-test-fish world (+ (creature-x rock) 10 12) (1- (creature-y rock)))))
+        (world-advance world)
+        (setf (cl-asciiquarium::creature-removep fish) t)
+        (let* ((tentacle (first-of-kind world :tentacle))
+               (data (cl-asciiquarium::creature-data tentacle)))
+          (expect (advance-until world (lambda () (and (getf data :retracting)
+                                                       (= (getf data :length) 1)))
+                                 40)
+                  :to-be-truthy)
+          (let ((late (place-test-fish world (getf data :base) (creature-y tentacle))))
+            (world-advance world)
+            (with-soft-assertions
+              (expect (in-world-p world tentacle) :to-be nil)
+              (expect (cl-asciiquarium::alive-fish-p late) :to-be-truthy)))))))
 
   (it "retracts an empty tentacle at its full length"
     (with-seeded-random-state (8)

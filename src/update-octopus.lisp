@@ -1,8 +1,8 @@
 ;;;; src/update-octopus.lisp -- the octopus's hunt and its ink.
 ;;;;
 ;;;; The octopus's :PHASE is :PEEK (looking for a fish), :REACH (a tentacle
-;;;; growing toward it), :PULL (the tentacle retracting, with or without a
-;;;; fish), or :INKED (hidden behind the rock until :INK-UNTIL). The tentacle
+;;;; out, growing toward it or retracting with or without a fish), or :INKED
+;;;; (hidden behind the rock until :INK-UNTIL). The tentacle
 ;;;; is its own creature: its tip is a threat (+TENTACLE-THREAT+) that the
 ;;;; collision pass applies, and its tick grows or retracts it one column.
 (in-package #:cl-asciiquarium)
@@ -19,13 +19,14 @@ for it.")
   "How many ticks apart a peeking octopus looks for a fish.")
 
 (defun octopus-prey (world rock)
-  "The first live fish in WORLD within +OCTOPUS-REACH-COLUMNS+ empty columns
-and +OCTOPUS-REACH-ROWS+ empty rows of ROCK, or NIL."
+  "The first live fish in WORLD beside ROCK, 1 to +OCTOPUS-REACH-COLUMNS+ empty
+columns from it, and within +OCTOPUS-REACH-ROWS+ empty rows of it, or NIL. A
+fish right above the rock is out of reach: a tentacle grows out of a side."
   (multiple-value-bind (rock-left rock-top rock-width rock-height) (creature-bounds rock)
     (dolist (creature (world-%creatures world))
       (when (alive-fish-p creature)
         (multiple-value-bind (left top width height) (creature-bounds creature)
-          (when (and (<= (%axis-gap left width rock-left rock-width) +octopus-reach-columns+)
+          (when (and (<= 1 (%axis-gap left width rock-left rock-width) +octopus-reach-columns+)
                      (<= (%axis-gap top height rock-top rock-height) +octopus-reach-rows+))
             (return creature)))))))
 
@@ -84,17 +85,18 @@ with the tip by its caught-fish offset."
   "The tentacle's :TICK: grow one column a tick until it holds a fish or is
 +TENTACLE-MAX-LENGTH+ long, then retract one column a tick, and leave once
 fully back under the rock. Leaving marks it REMOVEP, which makes the fish it
-holds (CAUGHT-FISH-TICK) leave too."
+holds (CAUGHT-FISH-TICK) leave too, and drops its :THREAT, since this tick's
+collision pass still runs the threats of REMOVEP creatures."
   (declare (ignore world))
   (let* ((data (creature-data tentacle))
          (length (getf data :length)))
     (cond ((getf data :retracting)
            (if (= length 1)
-               (setf (creature-removep tentacle) t)
+               (setf (creature-removep tentacle) t
+                     (getf data :threat) nil)
                (%set-tentacle-length tentacle (1- length))))
           ((or (getf data :holding) (= length +tentacle-max-length+))
-           (setf (getf data :retracting) t
-                 (getf (creature-data (getf data :octopus)) :phase) :pull))
+           (setf (getf data :retracting) t))
           (t
            (%set-tentacle-length tentacle (1+ length))))))
 

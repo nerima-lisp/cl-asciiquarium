@@ -4,16 +4,15 @@
 (in-package #:cl-asciiquarium)
 
 (defun maybe-drop-anchor (world ship)
-  "The :TICK of a ship. Once SHIP reaches its scheduled :DROP-TICK, stop it,
-saving its DX in :SAVED-DX, and add its anchor and chain to WORLD. Guarded by
-:ANCHOR-DROPPED so a ship drops at most one anchor."
+  "The :TICK of a ship. Once SHIP reaches its scheduled :DROP-TICK, stop it
+(MAKE-SHIP saved its DX in :SAVED-DX) and add its anchor and chain to WORLD.
+Guarded by :ANCHOR-DROPPED so a ship drops at most one anchor."
   (let ((data (creature-data ship)))
     (when (and (not (getf data :anchor-dropped))
                (>= (world-tick world) (getf data :drop-tick)))
       (let ((entity (creature-entity ship))
             (anchor (make-anchor world ship)))
         (setf (getf data :anchor-dropped) t
-              (getf data :saved-dx) (entity-dx entity)
               (entity-dx entity) 0)
         ;; The anchor goes in last so it sits ahead of its chain in the list:
         ;; it moves first each tick, and the chain then matches it in the
@@ -22,7 +21,8 @@ saving its DX in :SAVED-DX, and add its anchor and chain to WORLD. Guarded by
         (%add-world-creature world anchor)))))
 
 (defun anchor-tick (world anchor)
-  "Advance ANCHOR through its :PHASE. :FALL ends on the seabed (:TARGET-DEPTH):
+  "Advance ANCHOR through its :PHASE. :FALL ends on the seabed (:TARGET-DEPTH,
+or the row above the sand of a screen resized smaller since):
 the anchor stops and arms +ANCHOR-THREAT+ until :RISE-AT, +ANCHOR-REST-TICKS+
 later. :REST then disarms it and starts the climb at the falling speed. :RISE
 ends at the waterline row, where the anchor leaves and its ship resumes its
@@ -31,7 +31,10 @@ ends at the waterline row, where the anchor leaves and its ship resumes its
         (entity (creature-entity anchor)))
     (case (getf data :phase)
       (:fall
-       (when (>= (creature-y anchor) (getf data :target-depth))
+       ;; Only ever shortens the fall, so the chain's frames still reach.
+       (when (>= (creature-y anchor)
+                 (min (getf data :target-depth)
+                      (- (world-sand-top world) (nth-value 1 (creature-dimensions anchor)))))
          (setf (entity-dy entity) 0
                (getf data :phase) :rest
                (getf data :rise-at) (+ (world-tick world) +anchor-rest-ticks+))

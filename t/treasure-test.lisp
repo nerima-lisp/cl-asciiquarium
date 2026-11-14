@@ -45,7 +45,6 @@ bubbles."
       (with-soft-assertions
         (expect (%chest-data world :state) :to-be :closed)
         (expect (%chest-data world :next-at) :to-be cl-asciiquarium::+chest-first-open-delay+)
-        (expect (%chest-data world :empty-until) :to-be 0)
         (expect (%chest-data world :roles) :to-be-truthy))))
   (it "opens for 45 ticks with 8 bubbles and 6 arcing coins, then schedules the next opening"
     (with-treasure-world (world 62)
@@ -99,16 +98,18 @@ bubbles."
             (expect (%chest-data world :state) :to-be :open)
             (expect (cdr (assoc #\k (cl-asciiquarium::creature-%role-styles chest)))
                     :to-equal (color-style :chest-wood :theme :coral)))))))
-  (it "waits until :empty-until when an opening falls due while it is empty"
+  (it "stays shut for 700 ticks once emptied, even with an opening due on the next tick"
     (with-treasure-world (world 64)
-      (let ((empty-until (+ (world-tick world) 30)))
-        (%set-chest-data world :empty-until empty-until)
-        (%set-chest-data world :next-at (1+ (world-tick world)))
-        (world-advance world)
-        (expect (%chest-data world :next-at) :to-be empty-until)
-        (loop while (< (world-tick world) (1- empty-until))
-              do (world-advance world))
-        (expect (%chest-data world :state) :to-be :closed)
+      (let ((emptied-at (world-tick world))
+            (stayed-shut t))
+        (%set-chest-data world :next-at (1+ emptied-at))
+        (cl-asciiquarium::empty-chest world (%treasure-chest world))
+        (expect (%chest-data world :next-at) :to-be (+ emptied-at 700))
+        (loop while (< (world-tick world) (+ emptied-at 699))
+              do (world-advance world)
+                 (unless (eq (%chest-data world :state) :closed)
+                   (setf stayed-shut nil)))
+        (expect stayed-shut :to-be t)
         (world-advance world)
         (expect (%chest-data world :state) :to-be :open)))))
 
@@ -170,20 +171,32 @@ the dinghy is gone, and return a plist of what happened."
               (expect (member (getf result :diver) creatures) :to-be nil)
               (expect (member (getf result :rope) creatures) :to-be nil)
               (expect (member (getf result :dinghy) creatures) :to-be nil)
-              (expect (%chest-data world :empty-until) :to-be (+ (getf result :grab-tick) 700))))))))
+              (expect (%chest-data world :next-at) :to-be (+ (getf result :grab-tick) 700))))))))
   (it "leaves the chest shut for 700 ticks after the grab, even with an opening due"
     (with-treasure-world (world 72)
-      (let* ((result (%watch-dive world :right))
-             (empty-until (+ (getf result :grab-tick) 700))
-             (stayed-shut t))
-        (%set-chest-data world :next-at (1+ (world-tick world)))
-        (loop while (< (world-tick world) (1- empty-until))
-              do (world-advance world)
-                 (unless (eq (%chest-data world :state) :closed)
-                   (setf stayed-shut nil)))
-        (expect stayed-shut :to-be t)
-        (world-advance world)
-        (expect (%chest-data world :state) :to-be :open))))
+      ;; The chest keeps its own schedule here, so an opening is due inside
+      ;; the 700 ticks; the check below makes sure of it.
+      (let* ((dinghy (cl-asciiquarium::spawn-diver-now world :facing :right))
+             (next-at-before-grab nil))
+        (expect (%advance-until world (lambda ()
+                                        (setf next-at-before-grab
+                                              (or (and (eq (%dinghy-phase dinghy) :grab)
+                                                       next-at-before-grab)
+                                                  (%chest-data world :next-at)))
+                                        (eq (%dinghy-phase dinghy) :grab)))
+                :to-be t)
+        (let ((grab-tick (world-tick world))
+              (stayed-shut t))
+          (expect (< next-at-before-grab (+ grab-tick 700)) :to-be t)
+          (loop while (< (world-tick world) (+ grab-tick 699))
+                do (unless (eq (%chest-data world :state) :closed)
+                     (setf stayed-shut nil))
+                   (world-advance world))
+          (with-soft-assertions
+            (expect stayed-shut :to-be t)
+            (expect (%chest-data world :state) :to-be :closed))
+          (world-advance world)
+          (expect (%chest-data world :state) :to-be :open)))))
   (it "closes an open chest when it takes the gold"
     (with-treasure-world (world 73)
       (%set-chest-data world :next-at most-positive-fixnum)
@@ -202,7 +215,7 @@ the dinghy is gone, and return a plist of what happened."
           (expect (%chest-data world :state) :to-be :closed)
           (expect (creature-art chest) :to-equal cl-asciiquarium::+chest-art+)
           (expect (creature-y chest) :to-be closed-y)
-          (expect (%chest-data world :empty-until) :to-be (+ (world-tick world) 700))))))
+          (expect (%chest-data world :next-at) :to-be (+ (world-tick world) 700))))))
   (it "climbs back empty-handed when the chest leaves mid-dive"
     (with-treasure-world (world 74)
       (%set-chest-data world :next-at most-positive-fixnum)
@@ -217,6 +230,7 @@ the dinghy is gone, and return a plist of what happened."
         (world-resize world 80 24)
         (world-advance world)
         (expect (getf data :phase) :to-be :ascend)
+        (let ((next-at (%chest-data world :next-at)))
         (loop repeat 2000
               until (cl-asciiquarium::creature-removep dinghy)
               do (world-advance world)
@@ -225,7 +239,15 @@ the dinghy is gone, and return a plist of what happened."
           (expect (getf data :carrying) :to-be nil)
           (expect carried :to-be nil)
           (expect (cl-asciiquarium::creature-removep dinghy) :to-be t)
-          (expect (%chest-data world :empty-until) :to-be 0)))))
+          ;; Emptying would have put the new chest's opening 700 ticks out.
+          (expect (%chest-data world :next-at) :to-be next-at))))))
+  (it "spawns nothing while a dinghy is already out for the chest"
+    (with-treasure-world (world 77)
+      (expect (cl-asciiquarium::spawn-diver-now world :facing :right) :to-be-truthy)
+      (let ((before (copy-list (cl-asciiquarium::world-%creatures world))))
+        (with-soft-assertions
+          (expect (cl-asciiquarium::spawn-diver-now world :facing :left) :to-be nil)
+          (expect (cl-asciiquarium::world-%creatures world) :to-equal before)))))
   (it "spawns nothing in a world without a chest"
     (with-seeded-random-state (75)
       (let* ((world (tiny-world :width 20 :height 10))

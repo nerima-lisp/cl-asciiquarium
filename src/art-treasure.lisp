@@ -15,7 +15,6 @@ the background is built, so it draws no random number."
               :state :closed
               :next-at (+ (world-tick world) +chest-first-open-delay+)
               :close-at 0
-              :empty-until 0
               :tick 'chest-tick)))
 
 ;;; -- Coins ---------------------------------------------------------------
@@ -64,36 +63,22 @@ row. Its side and spread come from INDEX; COIN-TICK pulls it back down."
 (defparameter +diver-rope-column+ 3
   "The dinghy column the rope hangs from, under the boatman.")
 
-(defun %dinghy-creature (world facing x dx chest diver)
-  (let ((theme (world-theme world)))
-    (make-creature :world world :kind :dinghy
-                   :frames (list +dinghy-art+) :masks (list +dinghy-mask+)
-                   :role-styles (%resolve-roles theme +dinghy-roles+)
-                   :style (color-style :fg :theme theme)
-                   :%trusted-frames-p t :facing facing :z 7 :policy :despawn
-                   :x x :y (max 0 (1- (world-waterline-row world))) :dx dx
-                   :data (list :roles +dinghy-roles+
-                               :phase :arrive
-                               ;; The diver hangs left of the chest, its coin
-                               ;; hand one column short of the chest's side.
-                               :stop-x (- (creature-x chest) 1
-                                          (sprite-width +diver-art+)
-                                          (- +diver-rope-column+ 1))
-                               :dx dx :chest chest :diver diver
-                               :depth 0.0f0 :max-depth 0 :grab-until 0
-                               :carrying nil
-                               :tick 'dinghy-tick))))
-
 (defun spawn-diver-now (world &key facing)
   "Add the diver event to WORLD and return its dinghy: the dinghy (kind
 :DINGHY, the lead creature) enters from the edge opposite FACING (random by
 default) and stops so its diver can climb down the rope to the left of the
 chest. Spawns nothing and returns NIL when WORLD has no chest, which small
-screens leave out."
+screens leave out, or when a dinghy is already out for it."
   (let ((chest (find-creature-of-kind world :chest)))
-    (when chest
+    (when (and chest (not (find-creature-of-kind world :dinghy)))
       (let* ((facing (or facing (random-facing)))
              (theme (world-theme world))
+             (dinghy-y (max 0 (1- (world-waterline-row world))))
+             (chest-bottom (+ (creature-y chest)
+                              (nth-value 1 (creature-dimensions chest)) -1))
+             (max-depth (- chest-bottom
+                           (1- (nth-value 1 (sprite-dimensions +diver-art+)))
+                           (+ dinghy-y 2)))
              (diver (make-creature :world world :kind :diver
                                    :frames +diver-frames+ :masks +diver-masks+
                                    :role-styles (%resolve-roles theme +diver-roles+)
@@ -105,21 +90,30 @@ screens leave out."
              (dinghy (multiple-value-bind (x dx)
                          (off-screen-entry facing (sprite-width +dinghy-art+)
                                            (world-width world) +dinghy-speed+)
-                       (%dinghy-creature world facing x dx chest diver)))
-             (top (+ (creature-y dinghy) 2))
-             (chest-bottom (+ (creature-y chest)
-                              (nth-value 1 (creature-dimensions chest)) -1))
-             (max-depth (- chest-bottom (1- (nth-value 1 (sprite-dimensions +diver-art+))) top))
+                       (make-creature :world world :kind :dinghy
+                                      :frames (list +dinghy-art+) :masks (list +dinghy-mask+)
+                                      :role-styles (%resolve-roles theme +dinghy-roles+)
+                                      :style (color-style :fg :theme theme)
+                                      :%trusted-frames-p t :facing facing :z 7 :policy :despawn
+                                      :x x :y dinghy-y :dx dx
+                                      :data (list :roles +dinghy-roles+
+                                                  :phase :arrive
+                                                  ;; The diver hangs left of the chest, its coin
+                                                  ;; hand one column short of the chest's side.
+                                                  :stop-x (- (creature-x chest) 1
+                                                             (sprite-width +diver-art+)
+                                                             (- +diver-rope-column+ 1))
+                                                  :dx dx :chest chest :diver diver
+                                                  :depth 0.0f0 :max-depth max-depth :grab-until 0
+                                                  :carrying nil
+                                                  :tick 'dinghy-tick))))
              (rope (make-creature :world world :kind :rope
-                                  :frames (cons " " (loop for length from 1 to max-depth
-                                                          collect (format nil "~{~A~^~%~}"
-                                                                          (make-list length :initial-element "|"))))
+                                  :frames (vertical-line-frames "|" max-depth)
                                   :style (world-style world :white)
                                   :%trusted-frames-p t :%trusted-style-p t
                                   :z 6 :policy :none :x 0 :y 0
                                   :data (list :leader dinghy :tick 'rope-tick))))
-        (setf (getf (creature-data diver) :leader) dinghy
-              (getf (creature-data dinghy) :max-depth) max-depth)
+        (setf (getf (creature-data diver) :leader) dinghy)
         ;; The dinghy goes in last so it is first in the creature list and
         ;; ticks before the rope and the diver that read its position.
         (%add-world-creature world rope)

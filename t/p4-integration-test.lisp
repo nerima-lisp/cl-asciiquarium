@@ -33,6 +33,15 @@
         (expect (cl-asciiquarium::big-event-count world) :to-be 3)
         (p4-press world "d")
         (expect (cl-asciiquarium::big-event-count world) :to-be 4))))
+  (it "sends no second diver while one is out, and says so"
+    (with-seeded-random-state (5)
+      (let ((world (make-world :width 80 :height 24 :fish-count 0)))
+        (p4-press world "dd")
+        (with-soft-assertions
+          (expect (p4-kind-count world :dinghy) :to-be 1)
+          (expect (p4-kind-count world :diver) :to-be 1)
+          (expect (cl-asciiquarium::world-notification world)
+                  :to-equal cl-asciiquarium::+diver-busy-message+)))))
   (it "says why no diver comes when the screen holds no chest"
     (let ((world (tiny-world :width 20 :height 10)))
       (expect (cl-asciiquarium::find-creature-of-kind world :chest) :to-be-null)
@@ -84,7 +93,7 @@
 
 (describe "P4 integration"
   (it "runs 3000 ticks with every seabed event, never more than two automatic big events"
-    (with-seeded-random-state (11)
+    (with-seeded-random-state (12)
       (let ((world (make-world :width 100 :height 30 :fish-count 18))
             (seen '())
             (most 0))
