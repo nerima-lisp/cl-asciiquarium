@@ -75,6 +75,12 @@ only when a resize has moved the ship up, so they are rebuilt then."
     (%set-creature-frames chain (vertical-line-frames +chain-glyph+ reach)))
   (setf (creature-frame-index chain) length))
 
+(defun chain-top-row (world ship ship-height)
+  "The row SHIP-HEIGHT rows below SHIP's top on WORLD's current tick. The row
+comes from BOAT-SWAY-ROW, not the ship's entity Y: SWAY-BOATS moves the ship
+only after every creature has ticked, so its Y is the previous tick's row."
+  (+ (boat-sway-row world (getf (creature-data ship) :boat-rise)) ship-height))
+
 (defun place-chain (world chain)
   "The :PLACE of an anchor chain: hang from the row under its anchor's ship in
 the anchor's shaft column, reaching down to the row above the anchor. The
@@ -83,8 +89,8 @@ already been placed."
   (let* ((data (creature-data chain))
          (anchor (getf data :anchor))
          (entity (creature-entity chain))
-         (top (+ (creature-y (getf (creature-data anchor) :ship))
-                 (getf data :ship-height))))
+         (top (chain-top-row world (getf (creature-data anchor) :ship)
+                             (getf data :ship-height))))
     (setf (entity-x entity) (+ (creature-x anchor) (getf data :shaft-x))
           (entity-y entity) top)
     (%set-chain-length chain

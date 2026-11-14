@@ -155,7 +155,7 @@ index and never builds a string."
 VERTICAL-LINE-FRAMES up to MAX-LENGTH links for PLACE-CHAIN (update-anchor.lisp)
 to pick from."
   (let ((shaft-x (position #\| +anchor-art+))
-        (top (+ (creature-y (getf (creature-data anchor) :ship)) ship-height)))
+        (top (chain-top-row world (getf (creature-data anchor) :ship) ship-height)))
     (make-creature :world world
                    :kind :chain
                    :frames (vertical-line-frames +chain-glyph+ max-length)

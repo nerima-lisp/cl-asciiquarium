@@ -224,6 +224,27 @@ and whether each one was present exactly on its first two ticks."
         (world-advance world)
         (pushnew (creature-y boat) rows))
       (expect (sort rows #'<) :to-equal '(0 1))))
+  (it "keeps an anchor chain hanging from its ship's bottom row on every storm tick"
+    (multiple-value-bind (world ship) (%anchor-ship-world :height 24)
+      (cl-asciiquarium::world-change-weather world :storm)
+      (setf (cl-asciiquarium::world-weather-at world) most-positive-fixnum)
+      (let ((sway-steps 0)
+            (ship-rows '())
+            (previous-row (creature-y ship)))
+        (dotimes (i 120)
+          (world-advance world)
+          (let ((chain (%anchor-kind world :chain)))
+            (when chain
+              (pushnew (creature-y ship) ship-rows)
+              (unless (= previous-row (creature-y ship))
+                (incf sway-steps))
+              (expect (creature-y chain)
+                      :to-be (+ (creature-y ship) (%anchor-data chain :ship-height)))))
+          (setf previous-row (creature-y ship)))
+        ;; Non-vacuity: the chain hung through ticks on which the ship moved
+        ;; to another row, the ticks the old placement got wrong.
+        (expect (plusp sway-steps) :to-be t)
+        (expect (length ship-rows) :to-be 3))))
   (it "moves a ship to the new waterline on the tick after a resize"
     (let ((world (make-world :width 40 :height 12 :fish-count 0)))
       (spawn-guest-now world :ship)
