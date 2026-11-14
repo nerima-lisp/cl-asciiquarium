@@ -82,6 +82,21 @@ as new struct types:
   how a despawning head propagates: a segment marks itself `REMOVEP` once it
   observes the head already `REMOVEP`, one tick after the head itself exits.
 
+A creature leaves the world by being marked `REMOVEP`; `WORLD-ADVANCE` deletes
+marked creatures at the end of each call, even while paused. Only two
+functions delete by kind: `WORLD-REDRAW` drops every kind in
+`+TRANSIENT-CREATURE-KINDS+`, and `WORLD-RESIZE` drops every kind in
+`+BACKGROUND-CREATURE-KINDS+` and rebuilds the background. Some creatures exist
+only for another one: a lantern fish's night glow, the `!` over a stunned
+fish, and the octopus's tentacle and ink cloud. Their factories add them with
+`ATTACH-CREATURE` (`src/world.lisp`), which records the child in its owner's
+`:ATTACHED` data entry. Every path that takes an owner out of play calls
+`RELEASE-ATTACHED`, which marks those children `REMOVEP`. For a fish, these
+paths are `FISH-STOP-BEHAVIOUR` (the `-` key, being eaten, being caught, and a
+school leaving the screen). For any creature, they are the two kind-wide
+deletions. The tentacle and the ink are transient kinds, so a redraw clears
+them while the octopus stays; the octopus sees them gone and peeks again.
+
 Four of those factories -- `MAKE-SHIP`, `MAKE-DUCK-LINE`, `MAKE-DOLPHIN`, and
 `MAKE-SEA-MONSTER` (`src/art-guests.lisp`) -- share a further, more specific
 shape on top of `CREATURE` itself: each enters `WORLD` fully off-screen on one

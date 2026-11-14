@@ -15,10 +15,11 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
   repopulates a fresh
   set of fish at random lanes and speeds. Ships with their anchor and chain,
   submarines with their sonar rings, divers with their dinghy and rope, and
-  coins from the chest go too. The background scenery (see
-  [Screen layout](#screen-layout)) is left in place, along with the seabed's
-  residents (vent plume, crab, octopus), as are the status bar and help panel
-  if they are visible.
+  coins from the chest go too, and so do the octopus's tentacle and ink cloud.
+  The background scenery (see [Screen layout](#screen-layout)) is left in
+  place, along with the seabed's residents (vent plume, crab, octopus), as are
+  the status bar and help panel if they are visible. An octopus that was
+  reaching or hiding in its ink peeks over its rock again on the next tick.
 - Space -- pause or resume. `WORLD-ADVANCE` becomes a no-op while
   `WORLD-PAUSED-P` is true: the whole simulation freezes, not just the
   redraw, so nothing moves, ages, or spawns until unpaused.
@@ -123,7 +124,8 @@ the rock, and the plume the vent.
 - **The submarine** crosses the water at 0.35 columns per tick. It enters on
   its own first at tick 900 and then every 1200 to 2000 ticks. Every 50 ticks it
   sends out a sonar ring, `( )`, that widens; a fish the ring passes stops
-  for 25 ticks with a `!` over its head. Fish in a school are not stunned.
+  for 25 ticks with a `!` over its head. Fish in a school stop too, even while
+  the school scatters, and rejoin the school's formation once the stun ends.
 - **The treasure chest** opens every 380 to 520 ticks for 45 ticks, releasing
   8 bubbles and throwing 6 `$` coins that arc up and fall back. A diver also
   arrives on their own, first at tick 1200 and then every 1400 to 2400 ticks:
