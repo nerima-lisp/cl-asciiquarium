@@ -102,11 +102,10 @@ lit sky's (one prototype per screen geometry and theme) followed by the bolt's
 own one-cell runs, which the blit draws over them, so a strike builds runs
 for the bolt only."
   (let ((rows (world-waterline-row world))
-        (width (world-width world))
-        (theme (world-theme world)))
+        (width (world-width world)))
     (when (plusp rows)
       (let ((sky (%decor-prototype
-                  (list :flash-sky width rows) theme +flash-roles+
+                  world (list :flash-sky width rows) +flash-roles+
                   (lambda ()
                     (values (list (%grid-text (make-array (list rows width)
                                                           :initial-element #\Space)))

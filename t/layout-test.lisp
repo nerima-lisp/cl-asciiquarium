@@ -319,3 +319,30 @@ creature kept OLD's colors."
         (expect (svref (svref (runs two) 0) 2) :to-be (svref frame-runs 2))
         ;; Five lit rows, then one bolt cell per row.
         (expect (length frame-runs) :to-be (* 3 (+ 5 5)))))))
+
+(describe "background prototype cache"
+  (it "keeps only the entries for the screen size last asked for"
+    (dolist (height '(24 30 40 52))
+      (make-world :width 80 :height height :fish-count 0))
+    (let ((last-size (hash-table-count cl-asciiquarium::*decor-prototypes*)))
+      (expect (plusp last-size) :to-be-truthy)
+      (clrhash cl-asciiquarium::*decor-prototypes*)
+      (setf cl-asciiquarium::*decor-prototype-width* 0)
+      (make-world :width 80 :height 52 :fish-count 0)
+      (expect (hash-table-count cl-asciiquarium::*decor-prototypes*) :to-be last-size)))
+  (it "rebuilds for the new size after a resize, keeping the restyle fast path"
+    (let* ((*color-mode* :truecolor)
+           (world (make-world :width 80 :height 24 :fish-count 0 :theme :abyss)))
+      (world-resize world 90 30)
+      (let ((castle (%kind-creature world :castle)))
+        (world-set-theme world :coral)
+        (expect (cl-asciiquarium::creature-%frame-runs castle)
+                :to-be (cl-asciiquarium::creature-%frame-runs
+                        (%kind-creature (make-world :width 90 :height 30 :fish-count 0
+                                                    :theme :coral)
+                                        :castle))))))
+  (it "builds identical sprites after the cache is emptied by another size"
+    (let* ((*color-mode* :truecolor)
+           (before (%drawn-rows (make-world :width 80 :height 24 :fish-count 0))))
+      (make-world :width 60 :height 40 :fish-count 0)
+      (expect (%drawn-rows (make-world :width 80 :height 24 :fish-count 0)) :to-equal before))))

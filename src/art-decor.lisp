@@ -30,17 +30,27 @@
 (defvar *decor-prototypes* (make-hash-table :test #'equal)
   "Background sprite prototypes keyed by (KEY THEME COLOR-MODE ASCII), so
 building or restyling a background creature whose art was already prepared
-for that theme builds no blit runs. WORLD-RESIZE clears it: its keys carry the
-screen geometry, which a resize retires.")
+for that theme builds no blit runs. It holds one screen size's entries only;
+see %DECOR-PROTOTYPE.")
 
-(defun clear-decor-prototypes ()
-  (clrhash *decor-prototypes*))
+(defvar *decor-prototype-width* 0)
 
-(defun %decor-prototype (key theme roles build)
-  "Return the prototype for KEY under THEME, painted in ROLES. BUILD is called
-only on a miss and returns (VALUES FRAMES MASKS), or NIL when there is nothing
-to draw, in which case NIL is returned and nothing is cached."
-  (let ((full-key (list key theme (effective-color-mode) *ascii*)))
+(defvar *decor-prototype-height* 0)
+
+(defun %decor-prototype (world key roles build)
+  "Return the prototype for KEY under WORLD's theme, painted in ROLES. BUILD
+is called only on a miss and returns (VALUES FRAMES MASKS), or NIL when there
+is nothing to draw, in which case NIL is returned and nothing is cached. A
+lookup for another screen size than the cached entries were built for first
+empties the cache: background art is laid out from the screen size, so the
+old entries would never be asked for again by a world of this size."
+  (unless (and (= (world-width world) *decor-prototype-width*)
+               (= (world-height world) *decor-prototype-height*))
+    (clrhash *decor-prototypes*)
+    (setf *decor-prototype-width* (world-width world)
+          *decor-prototype-height* (world-height world)))
+  (let* ((theme (world-theme world))
+         (full-key (list key theme (effective-color-mode) *ascii*)))
     (or (gethash full-key *decor-prototypes*)
         (multiple-value-bind (frames masks) (funcall build)
           (when frames
@@ -57,7 +67,7 @@ to draw, in which case NIL is returned and nothing is cached."
 identify what BUILD returns under WORLD's theme. KEY, BUILD, ROLES, and the
 prototype's frames are kept in the creature's data so RESTYLE-DECOR can take
 another theme's prototype."
-  (let ((prototype (%decor-prototype key (world-theme world) roles build)))
+  (let ((prototype (%decor-prototype world key roles build)))
     (when prototype
       (make-creature :world world :kind kind :%sprite-prototype prototype
                      :frame-period frame-period :z z :policy :none
@@ -86,7 +96,7 @@ because reading them through CREATURE-FRAMES or CREATURE-ART copies them."
         (data (creature-data creature)))
     (if (and (getf data :decor-build)
              (%same-frames-p (creature-%frames creature) (getf data :decor-frames)))
-        (let ((prototype (%decor-prototype (getf data :decor-key) theme (getf data :roles)
+        (let ((prototype (%decor-prototype world (getf data :decor-key) (getf data :roles)
                                            (getf data :decor-build))))
           (setf (getf (creature-data creature) :decor-frames) (creature-%frames prototype))
           (%adopt-sprite-prototype creature prototype))

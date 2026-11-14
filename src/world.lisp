@@ -435,7 +435,6 @@ row."
       (when place
         (funcall place world creature))))
   (%drop-creature-kinds world +background-creature-kinds+)
-  (clear-decor-prototypes)
   (populate-background world)
   (populate-gulls world)
   (world-refresh-hud world)
