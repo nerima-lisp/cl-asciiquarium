@@ -273,8 +273,8 @@ only its current children."
             (cons child (delete-if #'creature-removep (getf data :attached))))
       (setf (creature-data owner) data)))
   (defun release-attached (owner)
-    "Mark every child ATTACH-CREATURE registered on OWNER REMOVEP and forget
-them. A child released during a tick stays in the list until the end of the
+    "Mark every child ATTACH-CREATURE or ATTACH-EXISTING-CREATURE registered
+on OWNER REMOVEP and forget them. A child released during a tick stays in the list until the end of the
 next WORLD-ADVANCE, so its :TICK is cleared too: it must not act on an owner
 that has left (a stun mark restoring a dying fish's speed)."
     (let ((data (creature-data owner)))
