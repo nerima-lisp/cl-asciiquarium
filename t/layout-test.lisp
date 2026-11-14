@@ -252,7 +252,7 @@ creature kept OLD's colors."
                                         :seaweed :coral :rock :starfish :vent :chest :hud
                                         :help-overlay :shark :bubble :ship :anchor :chain :duck-line
                                         :dolphin :sea-monster :monster-segment
-                                        :plume :crab)
+                                        :plume :crab :octopus)
                                   #'string<))
           ;; Precondition: before the switch every kind shows an abyss-only
           ;; color, so the assertion below cannot pass vacuously.

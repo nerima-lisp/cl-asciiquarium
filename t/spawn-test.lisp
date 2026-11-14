@@ -248,7 +248,7 @@
 
 (defun refill-world ()
   "An 80x24 world of three fish with no automatic shark."
-  (make-world :width 80 :height 24 :fish-count 3 :shark-enabled-p nil))
+  (remove-octopus (make-world :width 80 :height 24 :fish-count 3 :shark-enabled-p nil)))
 
 (describe "refilling fish taken out of play"
   (it "adds one fish at a screen edge exactly 90 ticks after one is eaten"
@@ -423,8 +423,8 @@
         (expect (length (live-fish world)) :to-be 30))))
   (it "the automatic :school row on a full tank adds no fish and reschedules"
     (with-seeded-random-state (12)
-      (let ((world (make-world :width 80 :height 24 :fish-count 30 :max-fish 30
-                               :shark-enabled-p nil)))
+      (let ((world (remove-octopus (make-world :width 80 :height 24 :fish-count 30 :max-fish 30
+                                               :shark-enabled-p nil))))
         (setf (cl-asciiquarium::world-guest-cooldown world) 1000000)
         (dotimes (i 600) (world-advance world))
         (expect (school-fish-count world) :to-be 0)

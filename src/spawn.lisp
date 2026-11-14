@@ -79,6 +79,7 @@ Called while the background is built, so it draws no random number."
     (dolist (ornament ornaments)
       (case (creature-kind ornament)
         (:chest (arm-chest world ornament))
+        (:rock (push (make-octopus world ornament) life))
         (:vent (let ((plume (make-vent-plume world ornament)))
                  (when plume (push plume life))))))
     (let ((crab (make-crab world)))
