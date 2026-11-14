@@ -132,7 +132,6 @@ the 10-row height the tests use)."
     (tick 0 :type fixnum)
     (render-change-count 0 :type fixnum)
     (%creatures nil :type list)
-    (removal-pending-p nil :type boolean)
     (active-predator-count 0 :type fixnum)
     (fish-count 0 :type fixnum)
     (max-fish +default-max-fish+ :type fixnum)
@@ -227,13 +226,9 @@ notification never outlives its four seconds."
     (setf (world-render-order-valid-p world) nil)
     world)
   (defun %set-world-creatures (world creatures)
-    ;; A creature marked REMOVEP outside a tick (the `-' key) may survive a
-    ;; list replaced by another key in the same input batch, so recompute the
-    ;; pending flag from the new list rather than clearing it.
     (setf (world-%creatures world) creatures
           (world-active-predator-count world) (%recount-world-active-predators
-                                               creatures)
-          (world-removal-pending-p world) (and (some #'creature-removep creatures) t))
+                                               creatures))
     (incf (world-render-change-count world))
     (%invalidate-world-render-order world)
     creatures)
@@ -547,8 +542,7 @@ input.lisp."
     (when (> (count-if #'alive-fish-p (world-%creatures world)) (world-fish-count world))
       (let ((fish (find-if #'alive-fish-p (world-%creatures world))))
         (fish-stop-behaviour fish)
-        (setf (creature-removep fish) t
-              (world-removal-pending-p world) t))))
+        (setf (creature-removep fish) t))))
   (world-refresh-hud world)
   world)
 

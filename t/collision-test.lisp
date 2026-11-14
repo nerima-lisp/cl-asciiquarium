@@ -917,8 +917,7 @@
         (expect (list (- (creature-x fish) (creature-x threat))
                       (- (creature-y fish) (creature-y threat)))
                 :to-equal (list offset-x offset-y)))
-      (setf (cl-asciiquarium::creature-removep threat) t
-            (cl-asciiquarium::world-removal-pending-p world) t)
+      (setf (cl-asciiquarium::creature-removep threat) t)
       (world-advance world)
       (expect (member fish (cl-asciiquarium::world-%creatures world)) :to-be-falsy)))
   (it "applies only the first removing effect when two threats grip one fish"

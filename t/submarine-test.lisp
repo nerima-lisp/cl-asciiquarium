@@ -243,6 +243,25 @@
         (world-advance world)
         (expect (cl-asciiquarium::creature-removep fish) :to-be t)
         (expect (length (creatures-of-kind world :stun-mark)) :to-be 0))))
+  (it "takes the ! away with a stunned fish a shark kills, when paused on the next key"
+    (with-seeded-random-state (77)
+      (let* ((world (sub-test-world :width 100 :height 30))
+             (fish (make-fish world :species :dart :x 40 :y 12 :dx 0.3 :facing :right))
+             (shark (make-shark world :facing :right)))
+        (cl-asciiquarium::%set-world-creatures world (list fish shark))
+        (setf (entity-x (sub-entity shark)) (- 41 (cl-asciiquarium::creature-dimensions shark))
+              (entity-y (sub-entity shark)) 12)
+        ;; The mark goes ahead of the fish, so its own tick has already run
+        ;; when the collision releases it.
+        (cl-asciiquarium::stun-effect world nil fish)
+        (let ((mark (first (creatures-of-kind world :stun-mark))))
+          (world-advance world)
+          (expect (getf (sub-data fish) :dying) :to-be-truthy)
+          (expect (cl-asciiquarium::creature-removep mark) :to-be t)
+          (world-apply-key-event world (first (decode-input " ")))
+          (world-advance world)
+          (expect (world-paused-p world) :to-be t)
+          (expect (creatures-of-kind world :stun-mark) :to-be nil)))))
   (it "stops every school member for 25 ticks under a ! even while the school scatters, then regroups"
     (with-seeded-random-state (42)
       (let ((world (sub-test-world :width 160 :height 30)))
