@@ -78,47 +78,57 @@
            (run-symbol 'cl-asciiquarium:run)
            (original-terminal-size (symbol-function terminal-size-symbol))
            (original-run (symbol-function run-symbol))
+           (original-color-environment (symbol-function 'cl-asciiquarium::color-environment))
            (arguments nil))
       (unwind-protect
            (progn
              (setf (symbol-function terminal-size-symbol)
                    (lambda () (values 100 40))
                    (symbol-function run-symbol)
-                   (lambda (&rest received) (setf arguments received)))
+                   (lambda (&rest received) (setf arguments received))
+                   (symbol-function 'cl-asciiquarium::color-environment)
+                   (lambda () (values nil "xterm-256color" nil)))
              (expect (zerop (cl-asciiquarium::run-handler
                              (parse-argv *app* '("asciiquarium"))))
                      :to-be-truthy)
              (expect (equal arguments
                             '(:width 100 :height 40 :seed nil :interval 1/20
-                              :shark-enabled-p t :monochrome-p nil :theme :abyss))
+                              :shark-enabled-p t :monochrome-p nil :theme :abyss
+                              :color-mode :ansi256 :ascii-p nil))
                      :to-be-truthy))
         (setf (symbol-function terminal-size-symbol) original-terminal-size
-              (symbol-function run-symbol) original-run))))
+              (symbol-function run-symbol) original-run
+              (symbol-function 'cl-asciiquarium::color-environment) original-color-environment))))
 
   (it "passes explicit CLI options to run instead of terminal defaults"
     (let* ((terminal-size-symbol 'cl-asciiquarium::terminal-size)
            (run-symbol 'cl-asciiquarium:run)
            (original-terminal-size (symbol-function terminal-size-symbol))
            (original-run (symbol-function run-symbol))
+           (original-color-environment (symbol-function 'cl-asciiquarium::color-environment))
            (arguments nil))
       (unwind-protect
            (progn
              (setf (symbol-function terminal-size-symbol)
                    (lambda () (values 100 40))
                    (symbol-function run-symbol)
-                   (lambda (&rest received) (setf arguments received)))
+                   (lambda (&rest received) (setf arguments received))
+                   (symbol-function 'cl-asciiquarium::color-environment)
+                   (lambda () (values nil "xterm-256color" nil)))
              (expect (zerop (cl-asciiquarium::run-handler
                              (parse-argv *app*
                                          '("asciiquarium" "--width" "90" "--height" "30"
                                            "--seed" "42" "--fps" "25" "--no-shark"
-                                           "--monochrome" "--theme" "moonlight"))))
+                                           "--monochrome" "--theme" "moonlight" "--ascii"))))
                      :to-be-truthy)
              (expect (equal arguments
                             '(:width 90 :height 30 :seed 42 :interval 1/25
-                              :shark-enabled-p nil :monochrome-p t :theme :moonlight))
+                              :shark-enabled-p nil :monochrome-p t :theme :moonlight
+                              :color-mode :mono :ascii-p t))
                      :to-be-truthy))
         (setf (symbol-function terminal-size-symbol) original-terminal-size
-              (symbol-function run-symbol) original-run)))))
+              (symbol-function run-symbol) original-run
+              (symbol-function 'cl-asciiquarium::color-environment) original-color-environment)))))
 (describe "CLI entry points"
   (it "uses the ASDF version when available and falls back when unavailable"
     (let* ((find-system-symbol (quote asdf:find-system))
