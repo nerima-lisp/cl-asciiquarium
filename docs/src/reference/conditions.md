@@ -13,7 +13,9 @@ error
 └── asciiquarium-error                  (base for everything below)
     ├── asciiquarium-invalid-dimensions
     ├── asciiquarium-unknown-species
-    └── asciiquarium-invalid-policy
+    ├── asciiquarium-invalid-policy
+    ├── asciiquarium-invalid-mask
+    └── asciiquarium-invalid-argument
 ```
 
 ## `asciiquarium-error`
@@ -57,6 +59,37 @@ keywords.
 Signaled by `make-creature` when its `:policy` argument is anything other than
 `:wrap`, `:despawn`, or `:none`. See [Off-bounds policy](architecture.md#off-bounds-policy)
 for what each of the three does.
+
+## `asciiquarium-invalid-mask`
+
+Raised when a creature's sprite masks do not match its frames.
+
+| Slot | Reader | Value |
+| --- | --- | --- |
+| frame-index | `invalid-mask-frame-index` | the index of the frame whose mask is wrong, or the frame count when the number of masks is wrong |
+| line | `invalid-mask-line` | the line index inside that frame, or `nil` when the mismatch is in the number of masks or lines |
+| detail | `invalid-mask-detail` | a string describing the mismatch |
+
+Signaled by `make-creature` when its `:masks` argument has a different number
+of masks than `:frames`, a mask has a different number of lines than its
+frame, a mask line has a different length than its art line, or a non-space
+mask character has no entry in `:role-styles`. See
+[Render order, blit runs, and incremental frames](architecture.md#render-order-blit-runs-and-incremental-frames)
+for what a mask does.
+
+## `asciiquarium-invalid-argument`
+
+Raised when a function is given an argument value outside the set it accepts.
+
+| Slot | Reader | Value |
+| --- | --- | --- |
+| value | `invalid-argument-value` | the rejected value |
+| expected | `invalid-argument-expected` | a string describing the accepted values |
+
+Signaled by `parse-visual-theme` for an unknown theme, `resolve-color-mode`
+for an unknown `--color` value, `rgb-color` for a color designator that is not
+a `"#rrggbb"` string, an `(R G B)` list, or a known color role, and by
+`make-creature` and `(setf creature-frames)` when given no frames.
 
 ## See also
 
