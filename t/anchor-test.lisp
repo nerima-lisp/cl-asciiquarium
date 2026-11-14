@@ -185,6 +185,53 @@ its anchor on the next tick. Returns (VALUES WORLD SHIP)."
             (expect (find-if (lambda (entry) (and (eq (car entry) :rise) (< 0 (cdr entry) 8))) lengths)
                     :to-be-truthy)))))))
 
+(defun %anchor-rig-in-line-p (ship anchor chain)
+  "True when ANCHOR hangs under SHIP at MAKE-ANCHOR's offset and CHAIN runs in
+its shaft column from the row under SHIP down to the row above ANCHOR, within
+its precomputed frames."
+  (and (= (creature-x anchor) (+ (creature-x ship) 4))
+       (= (creature-x chain) (+ (creature-x anchor) 2))
+       (= (creature-y chain) (+ (creature-y ship) 5))
+       (< (cl-asciiquarium::creature-frame-index chain)
+          (length (cl-asciiquarium::creature-frames chain)))
+       (= (+ (creature-y chain) (cl-asciiquarium::creature-frame-index chain) -1)
+          (1- (creature-y anchor)))))
+
+(describe "anchor: shrinking resize"
+  (flet ((rig-world ()
+           (multiple-value-bind (world ship) (%anchor-ship-world :width 100 :height 40)
+             (setf (entity-x (cl-asciiquarium::creature-entity ship)) 60.0f0)
+             (world-advance world)
+             (values world ship (%anchor-kind world :anchor) (%anchor-kind world :chain)))))
+    (it "lands on the new sand with the chain in its shaft when the screen shrinks while it falls"
+      (with-seeded-random-state (1)
+        (multiple-value-bind (world ship anchor chain) (rig-world)
+          (%advance-until world (lambda () (>= (creature-y anchor) 25)))
+          (expect (%anchor-data anchor :phase) :to-be :fall)
+          (world-resize world 40 24)
+          (world-advance world)
+          (with-soft-assertions
+            (expect (%anchor-data anchor :phase) :to-be :rest)
+            (expect (creature-y anchor) :to-be (- (cl-asciiquarium::world-sand-top world) 3))
+            (expect (creature-x anchor) :to-be (+ (creature-x ship) 4))
+            (expect (creature-x chain) :to-be (+ (creature-x anchor) 2))
+            (expect (+ (creature-y chain) (cl-asciiquarium::creature-frame-index chain) -1)
+                    :to-be (1- (creature-y anchor)))
+            (expect (%anchor-rig-in-line-p ship anchor chain) :to-be-truthy)))))
+    (it "moves a resting anchor up onto the new sand, chain and all"
+      (with-seeded-random-state (1)
+        (multiple-value-bind (world ship anchor chain) (rig-world)
+          (%advance-until world (lambda () (eq (%anchor-data anchor :phase) :rest)))
+          (expect (creature-y anchor) :to-be 33)
+          (world-resize world 40 24)
+          (world-advance world)
+          (with-soft-assertions
+            (expect (%anchor-data anchor :phase) :to-be :rest)
+            (expect (creature-y anchor) :to-be (- (cl-asciiquarium::world-sand-top world) 3))
+            (expect (%anchor-rig-in-line-p ship anchor chain) :to-be-truthy))
+          (%advance-until world (lambda () (cl-asciiquarium::creature-removep anchor)))
+          (expect (cl-asciiquarium::creature-removep chain) :to-be-truthy))))))
+
 (describe "anchor: allocation"
   (flet ((bytes-consed-by-ticks (world anchor chain)
            (dotimes (i 100)

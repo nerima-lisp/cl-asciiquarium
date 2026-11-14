@@ -114,7 +114,8 @@ exercise one crossing direction deterministically."
 with its chain (data :CHAIN, see MAKE-CHAIN). It falls (policy :NONE; ANCHOR-TICK
 in update-anchor.lisp stops it) until its bottom row rests on the row above the
 sand, its :TARGET-DEPTH; only then does it carry +ANCHOR-THREAT+."
-  (let* ((x (+ (creature-x ship) (round (/ (sprite-width +ship-art+) 2))))
+  (let* ((offset-x (round (/ (sprite-width +ship-art+) 2)))
+         (x (+ (creature-x ship) offset-x))
          (target-depth (- (world-sand-top world)
                           (nth-value 1 (sprite-dimensions +anchor-art+))))
          (chain-top (+ (creature-y ship) (nth-value 1 (sprite-dimensions +ship-art+))))
@@ -131,9 +132,11 @@ sand, its :TARGET-DEPTH; only then does it carry +ANCHOR-THREAT+."
                                 :dx 0 :dy +anchor-speed+
                                 :data (list :phase :fall :target-depth target-depth
                                             :rise-at 0 :threat nil :ship ship :chain nil
+                                            :offset-x offset-x
                                             :tick 'anchor-tick))))
     (setf (getf (creature-data anchor) :chain)
-          (make-chain world anchor chain-top (max 0 (- target-depth chain-top))))
+          (make-chain world anchor (- chain-top (creature-y ship))
+                      (max 0 (- target-depth chain-top))))
     anchor))
 
 (defun vertical-line-frames (glyph max-length)
@@ -145,22 +148,26 @@ index and never builds a string."
                     " "
                     (format nil "~{~A~^~%~}" (make-list length :initial-element glyph)))))
 
-(defun make-chain (world anchor top max-length)
-  "Create the :CHAIN CREATURE hanging from row TOP above ANCHOR, in the
-anchor's shaft column, with VERTICAL-LINE-FRAMES up to MAX-LENGTH links for
-CHAIN-TICK (update-anchor.lisp) to pick from."
-  (make-creature :world world
-                 :kind :chain
-                 :frames (vertical-line-frames +chain-glyph+ max-length)
-                 :style (world-style world :bright-black)
-                 :%trusted-frames-p t
-                 :%trusted-style-p t
-                 :z 3
-                 :policy :none
-                 :x (+ (creature-x anchor) (position #\| +anchor-art+))
-                 :y top
-                 :dx 0 :dy 0
-                 :data (list :anchor anchor :top top :tick 'chain-tick)))
+(defun make-chain (world anchor ship-height max-length)
+  "Create the :CHAIN CREATURE hanging from the row under ANCHOR's ship
+(SHIP-HEIGHT rows below the ship's top) in the anchor's shaft column, with
+VERTICAL-LINE-FRAMES up to MAX-LENGTH links for CHAIN-TICK (update-anchor.lisp)
+to pick from."
+  (let ((shaft-x (position #\| +anchor-art+))
+        (top (+ (creature-y (getf (creature-data anchor) :ship)) ship-height)))
+    (make-creature :world world
+                   :kind :chain
+                   :frames (vertical-line-frames +chain-glyph+ max-length)
+                   :style (world-style world :bright-black)
+                   :%trusted-frames-p t
+                   :%trusted-style-p t
+                   :z 3
+                   :policy :none
+                   :x (+ (creature-x anchor) shaft-x)
+                   :y top
+                   :dx 0 :dy 0
+                   :data (list :anchor anchor :shaft-x shaft-x :ship-height ship-height
+                               :tick 'chain-tick))))
 
 (define-off-screen-guest make-duck-line
     "Create a decorative line-of-ducks CREATURE crossing WORLD near the

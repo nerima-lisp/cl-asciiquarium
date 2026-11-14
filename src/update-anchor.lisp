@@ -21,42 +21,55 @@ Guarded by :ANCHOR-DROPPED so a ship drops at most one anchor."
         (%add-world-creature world anchor)))))
 
 (defun anchor-tick (world anchor)
-  "Advance ANCHOR through its :PHASE. :FALL ends on the seabed (:TARGET-DEPTH,
-or the row above the sand of a screen resized smaller since):
-the anchor stops and arms +ANCHOR-THREAT+ until :RISE-AT, +ANCHOR-REST-TICKS+
-later. :REST then disarms it and starts the climb at the falling speed. :RISE
+  "Advance ANCHOR through its :PHASE, keeping it under its ship at its
+:OFFSET-X. :FALL ends on the seabed, the lower of :TARGET-DEPTH and the row
+above the sand of a screen resized smaller since: the anchor stops there and
+arms +ANCHOR-THREAT+ until :RISE-AT, +ANCHOR-REST-TICKS+ later. A resize can
+clamp a falling or resting anchor below that row, so it is moved back up to
+it. :REST then disarms it and starts the climb at the falling speed. :RISE
 ends at the waterline row, where the anchor leaves and its ship resumes its
 :SAVED-DX."
-  (let ((data (creature-data anchor))
-        (entity (creature-entity anchor)))
+  (let* ((data (creature-data anchor))
+         (entity (creature-entity anchor))
+         (ship (getf data :ship))
+         (seabed (min (getf data :target-depth)
+                     (- (world-sand-top world) (nth-value 1 (creature-dimensions anchor))))))
+    (setf (entity-x entity) (+ (creature-x ship) (getf data :offset-x)))
     (case (getf data :phase)
       (:fall
-       ;; Only ever shortens the fall, so the chain's frames still reach.
-       (when (>= (creature-y anchor)
-                 (min (getf data :target-depth)
-                      (- (world-sand-top world) (nth-value 1 (creature-dimensions anchor)))))
-         (setf (entity-dy entity) 0
+       (when (>= (creature-y anchor) seabed)
+         (setf (entity-y entity) seabed
+               (entity-dy entity) 0
                (getf data :phase) :rest
                (getf data :rise-at) (+ (world-tick world) +anchor-rest-ticks+))
          (arm-threat world anchor +anchor-threat+)))
       (:rest
+       (when (> (creature-y anchor) seabed)
+         (setf (entity-y entity) seabed))
        (when (>= (world-tick world) (getf data :rise-at))
          (setf (getf data :threat) nil
                (getf data :phase) :rise
                (entity-dy entity) (- +anchor-speed+))))
       (:rise
        (when (<= (creature-y anchor) (world-waterline-row world))
-         (let ((ship (getf data :ship)))
-           (setf (creature-removep anchor) t
-                 (entity-dx (creature-entity ship)) (getf (creature-data ship) :saved-dx))))))))
+         (setf (creature-removep anchor) t
+               (entity-dx (creature-entity ship)) (getf (creature-data ship) :saved-dx)))))))
 
 (defun chain-tick (world chain)
-  "The :TICK of an anchor chain: show the frame whose length spans :TOP down
-to the row above its :ANCHOR, and leave together with the anchor."
+  "The :TICK of an anchor chain: hang from the row under its anchor's ship in
+the anchor's shaft column, show the frame whose length reaches down to the row
+above the anchor, and leave together with the anchor. The length stays within
+the frames built for the fall: the anchor never sinks below :TARGET-DEPTH, and a
+resize clamps the ship up only on a screen whose sand lies above the ship's
+bottom row, which leaves no room for a chain."
   (declare (ignore world))
   (let* ((data (creature-data chain))
-         (anchor (getf data :anchor)))
+         (anchor (getf data :anchor))
+         (entity (creature-entity chain)))
     (if (creature-removep anchor)
         (setf (creature-removep chain) t)
-        (setf (creature-frame-index chain)
-              (max 0 (- (creature-y anchor) (getf data :top)))))))
+        (let ((top (+ (creature-y (getf (creature-data anchor) :ship))
+                      (getf data :ship-height))))
+          (setf (entity-x entity) (+ (creature-x anchor) (getf data :shaft-x))
+                (entity-y entity) top
+                (creature-frame-index chain) (max 0 (- (creature-y anchor) top)))))))
