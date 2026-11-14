@@ -5,24 +5,32 @@
   (let* ((leader (getf (creature-data sensor) :leader))
          (members (getf (creature-data leader) :school-members))
          (until (+ (world-tick world) +school-scatter-ticks+)))
+    ;; A stunned member keeps standing still; END-STUN gives it the scatter
+    ;; velocity if the school is still scattering then.
     (loop for fish across members
           when (alive-fish-p fish)
             do (let ((data (creature-data fish))
                      (entity (creature-entity fish)))
-                 (setf (getf data :scatter-until) until
-                       (entity-dx entity) (+ (getf data :school-dx)
-                                             (getf data :scatter-dx))
-                       (entity-dy entity) (getf data :scatter-dy))))))
+                 (setf (getf data :scatter-until) until)
+                 (unless (fish-stunned-p world fish)
+                   (setf (entity-dx entity) (+ (getf data :school-dx)
+                                               (getf data :scatter-dx))
+                         (entity-dy entity) (getf data :scatter-dy)))))))
 
-(defun leave-school (fish &optional departing)
+(defun leave-school (world fish &optional departing)
   (let ((data (creature-data fish))
         (entity (creature-entity fish)))
     (setf (getf data :leader) nil
           (getf data :school-members) nil
           (getf data :sense) nil
-          (getf data :tick) (getf data :school-tick)
-          (entity-dx entity) (getf data :school-dx)
-          (entity-dy entity) 0)
+          (getf data :tick) (getf data :school-tick))
+    ;; A stunned fish keeps standing still and swims off at the school's speed
+    ;; once END-STUN, which now sees an ordinary fish, restores the saved one.
+    (if (fish-stunned-p world fish)
+        (setf (getf data :saved-dx) (getf data :school-dx)
+              (getf data :saved-dy) 0)
+        (setf (entity-dx entity) (getf data :school-dx)
+              (entity-dy entity) 0))
     ;; A crossing ends at the far edge; a lost leader leaves ordinary fish.
     (unless departing
       (setf (entity-on-exit entity) (getf data :school-on-exit)))))
@@ -40,17 +48,19 @@
 (defun school-tick (world fish)
   (let* ((data (creature-data fish))
          (leader (getf data :leader))
-         (entity (creature-entity fish)))
+         (entity (creature-entity fish))
+         (stunned (fish-stunned-p world fish)))
     (when (not (alive-fish-p leader))
-      (leave-school fish (getf (creature-data leader) :school-departed))
+      (leave-school world fish (getf (creature-data leader) :school-departed))
       (funcall (getf data :tick) world fish)
       (return-from school-tick))
     (when (and (plusp (getf data :scatter-until))
                (>= (world-tick world) (getf data :scatter-until)))
-      (setf (getf data :scatter-until) 0
-            (entity-dx entity) (getf data :school-dx)
-            (entity-dy entity) 0))
-    (when (and (not (eq fish leader)) (zerop (getf data :scatter-until)))
+      (setf (getf data :scatter-until) 0)
+      (unless stunned
+        (setf (entity-dx entity) (getf data :school-dx)
+              (entity-dy entity) 0)))
+    (when (and (not (eq fish leader)) (not stunned) (zerop (getf data :scatter-until)))
       (incf (entity-x entity)
             (clamp (- (+ (creature-x leader) (getf data :offset-x))
                       (creature-x fish))

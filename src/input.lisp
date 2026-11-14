@@ -1,8 +1,9 @@
 ;;;; src/input.lisp -- turning decoded cl-tty-kit KEY-EVENTs into WORLD state
 ;;;; changes: `q' to quit, `r' to redraw/reshuffle, space to pause/resume,
-;;;; `+'/`-' to adjust the live fish count, `s'/`g'/`c' to force an immediate
-;;;; shark/guest/school spawn, `t' to cycle the visual theme, `u' to toggle the HUD,
-;;;; and `h' to toggle the on-screen help panel.
+;;;; `+'/`-' to adjust the live fish count, `s'/`g'/`c'/`a'/`m'/`d' to force an
+;;;; immediate shark/guest/school/ship/submarine/diver spawn, `t' to cycle the
+;;;; visual theme, `u' to toggle the HUD, and `h' to toggle the on-screen help
+;;;; panel.
 (in-package #:cl-asciiquarium)
 
 (defparameter +quit-characters+ (list #\q #\Q)
@@ -62,6 +63,34 @@ bar, returning WORLD. Bound to the `c' key."
     (world-notify world +school-no-room-message+))
   world)
 
+(defun world-spawn-ship (world)
+  "Spawn a ship that stops and lowers its anchor (MAKE-SHIP, art-guests.lisp)
+immediately, returning WORLD. Bound to the `a' key; like every key spawn it
+ignores the +MAX-BIG-EVENTS+ cap."
+  (spawn-guest-now world :ship)
+  world)
+
+(defun world-spawn-submarine (world)
+  "Spawn a submarine (SPAWN-SUBMARINE-NOW, art-submarine.lisp) immediately,
+returning WORLD. Bound to the `m' key."
+  (spawn-submarine-now world)
+  world)
+
+(defparameter +diver-no-chest-message+ "No treasure chest for a diver")
+
+(defparameter +diver-busy-message+ "A diver is already out")
+
+(defun world-spawn-diver (world)
+  "Send a diver for the treasure chest (SPAWN-DIVER-NOW, art-treasure.lisp)
+immediately, returning WORLD. When none can go, the status bar says why: the
+screen is too small to hold a chest, or a diver is already out for it. Bound
+to the `d' key."
+  (unless (spawn-diver-now world)
+    (world-notify world (if (find-creature-of-kind world :dinghy)
+                            +diver-busy-message+
+                            +diver-no-chest-message+)))
+  world)
+
 (defparameter +key-bindings+
   (list (cons (list #\r #\R) #'world-redraw)
         (cons (list #\Space) #'world-toggle-pause)
@@ -69,6 +98,9 @@ bar, returning WORLD. Bound to the `c' key."
         (cons (list #\- #\_) #'world-decrease-fish-count)
         (cons (list #\g #\G) #'world-spawn-random-guest)
         (cons (list #\c #\C) #'world-spawn-school)
+        (cons (list #\a #\A) #'world-spawn-ship)
+        (cons (list #\m #\M) #'world-spawn-submarine)
+        (cons (list #\d #\D) #'world-spawn-diver)
         (cons (list #\t #\T) #'world-cycle-theme)
         (cons (list #\u #\U) #'world-toggle-hud)
         (cons (list #\h #\H) #'world-toggle-help-overlay))

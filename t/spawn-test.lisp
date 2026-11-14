@@ -15,20 +15,21 @@
         (expect (find :shark (cl-asciiquarium::world-%creatures world) :key #'cl-asciiquarium::creature-kind) :to-be-truthy)
         (expect (plusp (cl-asciiquarium::world-shark-cooldown world)) :to-be-truthy)))))
 
-(describe "anchor fall-then-settle state machine"
-  (it "stops descending, marks itself dropped, and starts its despawn countdown once it reaches target depth"
+(describe "anchor fall-then-rest state machine"
+  (it "stops descending at target depth, enters :rest, arms its threat, and schedules the rise"
     (let* ((world (tiny-world :width 40 :height 20))
-           (anchor (make-creature :world world :kind :anchor :frames (list "( o )")
-                                  :x 10 :y 5 :dx 0 :dy 1 :policy :none
-                                  :data (list :target-depth 8 :dropped nil :threat nil
-                                              :tick 'cl-asciiquarium::anchor-tick))))
+           (anchor (cl-asciiquarium::make-anchor world (make-ship world :facing :right))))
+      (setf (getf (cl-asciiquarium::creature-data anchor) :target-depth) 8
+            (entity-y (cl-asciiquarium::creature-entity anchor)) 5)
       (cl-asciiquarium::%add-world-creature world anchor)
       (dotimes (i 3) (world-advance world))
       (with-soft-assertions
         (expect (creature-y anchor) :to-be 8)
-        (expect (getf (cl-asciiquarium::creature-data anchor) :dropped) :to-be-truthy)
+        (expect (getf (cl-asciiquarium::creature-data anchor) :phase) :to-be :rest)
         (expect (entity-dy (cl-asciiquarium::creature-entity anchor)) :to-be 0)
-        (expect (cl-asciiquarium::creature-ttl anchor) :to-be +anchor-dropped-ticks+)
+        (expect (getf (cl-asciiquarium::creature-data anchor) :rise-at)
+                :to-be (+ (world-tick world) cl-asciiquarium::+anchor-rest-ticks+))
+        (expect (cl-asciiquarium::creature-ttl anchor) :to-be-null)
         (expect (cl-asciiquarium::world-active-predator-count world) :to-be 1))
       (world-advance world)
       (expect (cl-asciiquarium::world-active-predator-count world) :to-be 1))))
@@ -62,10 +63,11 @@
       (expect (count :anchor (cl-asciiquarium::world-%creatures world) :key #'cl-asciiquarium::creature-kind) :to-be 1)
       (expect (getf (cl-asciiquarium::creature-data ship) :anchor-dropped) :to-be-truthy)
       (cl-asciiquarium::maybe-drop-anchor world ship)
-      (expect (count :anchor (cl-asciiquarium::world-%creatures world) :key #'cl-asciiquarium::creature-kind) :to-be 1)))
+      (expect (count :anchor (cl-asciiquarium::world-%creatures world) :key #'cl-asciiquarium::creature-kind) :to-be 1)
+      (expect (count :chain (cl-asciiquarium::world-%creatures world) :key #'cl-asciiquarium::creature-kind) :to-be 1)))
   (it "a ship eventually drops an anchor while advancing the world"
-    ;; The anchor despawns +ANCHOR-DROPPED-TICKS+ after it settles (see
-    ;; art-guests.lisp), so this stops advancing the moment one appears
+    ;; The anchor is hauled up +ANCHOR-REST-TICKS+ after it settles (see
+    ;; update-anchor.lisp), so this stops advancing the moment one appears
     ;; rather than running the full budget and checking only at the end --
     ;; a fixed-length run can easily outlast the anchor's own lifetime and
     ;; find it already gone, which is exactly what this scenario intends to
@@ -79,21 +81,6 @@
             (return))
           (world-advance world))
         (expect (find :anchor (cl-asciiquarium::world-%creatures world) :key #'cl-asciiquarium::creature-kind) :to-be-truthy)))))
-
-(describe "anchor fall-then-settle state machine"
-  (it "stops descending, marks itself dropped, and starts its despawn countdown once it reaches target depth"
-    (let* ((world (tiny-world :width 40 :height 20))
-           (anchor (make-creature :world world :kind :anchor :frames (list "( o )")
-                                  :x 10 :y 5 :dx 0 :dy 1 :policy :none
-                                  :data (list :target-depth 8 :dropped nil :threat nil
-                                              :tick 'cl-asciiquarium::anchor-tick))))
-      (cl-asciiquarium::%add-world-creature world anchor)
-      (dotimes (i 3) (world-advance world))
-      (with-soft-assertions
-        (expect (creature-y anchor) :to-be 8)
-        (expect (getf (cl-asciiquarium::creature-data anchor) :dropped) :to-be-truthy)
-        (expect (entity-dy (cl-asciiquarium::creature-entity anchor)) :to-be 0)
-        (expect (cl-asciiquarium::creature-ttl anchor) :to-be +anchor-dropped-ticks+)))))
 
 (describe "off-screen crossing factories position and aim consistently by facing"
   (it-each ((make-shark :right) (make-shark :left)
@@ -259,7 +246,7 @@
 
 (defun refill-world ()
   "An 80x24 world of three fish with no automatic shark."
-  (make-world :width 80 :height 24 :fish-count 3 :shark-enabled-p nil))
+  (remove-octopus (make-world :width 80 :height 24 :fish-count 3 :shark-enabled-p nil)))
 
 (describe "refilling fish taken out of play"
   (it "adds one fish at a screen edge exactly 90 ticks after one is eaten"
@@ -434,8 +421,8 @@
         (expect (length (live-fish world)) :to-be 30))))
   (it "the automatic :school row on a full tank adds no fish and reschedules"
     (with-seeded-random-state (12)
-      (let ((world (make-world :width 80 :height 24 :fish-count 30 :max-fish 30
-                               :shark-enabled-p nil)))
+      (let ((world (remove-octopus (make-world :width 80 :height 24 :fish-count 30 :max-fish 30
+                                               :shark-enabled-p nil))))
         (setf (cl-asciiquarium::world-guest-cooldown world) 1000000)
         (dotimes (i 600) (world-advance world))
         (expect (school-fish-count world) :to-be 0)

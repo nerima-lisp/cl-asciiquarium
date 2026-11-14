@@ -18,6 +18,15 @@ creatures are present. FISH-COUNT defaults to 0 so a test can add its own
 fixture creatures without a random population interfering."
   (make-world :width width :height height :fish-count fish-count))
 
+(defun remove-octopus (world)
+  "Drop every :OCTOPUS creature from WORLD and return WORLD."
+  ;; These tests place fish to exercise another feature; the resident
+  ;; octopus would otherwise take them.
+  (cl-asciiquarium::%set-world-creatures
+   world (remove :octopus (cl-asciiquarium::world-%creatures world)
+                 :key #'cl-asciiquarium::creature-kind))
+  world)
+
 (defparameter *body-eat-threat*
   '(:grip :body :effect cl-asciiquarium::eat-effect :prey nil :alarm nil)
   "A :THREAT row that eats any fish overlapping the threat's whole bounding

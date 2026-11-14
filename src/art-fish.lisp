@@ -89,7 +89,7 @@
             (:puffer (initialize-puffer fish))
             (:lantern
              (initialize-lantern world fish)
-             (setf (getf (creature-data fish) :on-stop) 'stop-lantern)
+             (setf (getf (creature-data fish) :on-stop) 'release-lantern-target)
              fish)
             (otherwise fish)))))))
 
@@ -108,13 +108,15 @@ tick is only killed once."
     (setf (entity-dy (creature-entity fish)) 0)))
 
 (defun fish-stop-behaviour (fish)
-  "Call and clear FISH's :ON-STOP entry, if any, then clear its :TICK, :THREAT,
-and :SENSE entries in place, so a fish leaving play neither acts, threatens,
-nor reacts. Keys it does not carry stay absent."
+  "Call and clear FISH's :ON-STOP entry, if any, release the creatures attached
+to it (RELEASE-ATTACHED), then clear its :TICK, :THREAT, and :SENSE entries in
+place, so a fish leaving play neither acts, threatens, nor reacts. Keys it does
+not carry stay absent."
   (let ((on-stop (getf (creature-data fish) :on-stop)))
     (when on-stop
       (setf (getf (creature-data fish) :on-stop) nil)
       (funcall on-stop fish)))
+  (release-attached fish)
   (let ((data (creature-data fish)))
     (dolist (key '(:tick :threat :sense))
       (when (getf data key)

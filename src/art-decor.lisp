@@ -179,7 +179,7 @@ waterline on screens too short for the full layout."
     (:rock ,+rock-art+ ,+rock-mask+ ((#\r :rock) (#\R :rockhi)) 1/2)
     (:starfish ,+starfish-art+ ,+starfish-mask+ ((#\a :starfish) (#\A :starfish-alt)) 31/50)
     (:vent ,+vent-art+ ,+vent-mask+ ((#\r :rock) (#\R :rockhi) (#\m :bubble)) 18/25)
-    (:chest ,+chest-art+ ,+chest-mask+ ((#\w :chest-wood) (#\g :gold)) 9/10))
+    (:chest ,+chest-art+ ,+chest-mask+ ((#\w :chest-wood) (#\g :gold) (#\k :chest-wood)) 9/10))
   "The static seabed ornaments, left to right: (KIND ART MASK ROLES
 CENTER), CENTER being the fraction of the screen width the ornament is
 centered on. The chest, rock, and vent are separate kinds because P4 finds
@@ -310,7 +310,7 @@ as before the layout existed, so seeded runs keep their fish."
                    (when (< (1+ (world-waterline-row world)) (world-sand-top world))
                      (make-ripple world))
                    (make-sand world))
-             (make-seabed-ornaments world))))
+             (seabed-life world (make-seabed-ornaments world)))))
 
 ;;; -- Status bar ----------------------------------------------------------
 
@@ -414,6 +414,7 @@ too narrow, then the summary's least important groups (see %STATUS-GROUPS)."
 (defparameter +help-entries+
   '(("q" . "quit") ("r" . "redraw") ("space" . "pause") ("+ / -" . "fish count")
     ("s" . "spawn shark") ("g" . "spawn guest") ("c" . "spawn school")
+    ("a" . "ship and anchor") ("m" . "submarine") ("d" . "diver")
     ("t" . "cycle theme")
     ("u" . "status bar") ("h" . "this help"))
   "Every key binding the application implements (input.lisp), in help order.")

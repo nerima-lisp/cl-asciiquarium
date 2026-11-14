@@ -19,7 +19,9 @@ pending. Called by every effect that takes a fish out of play."
   (when (zerop (world-refill-at world))
     (setf (world-refill-at world) (+ (world-tick world) +refill-delay-ticks+))))
 
-(defparameter +big-event-kinds+ '(:ship)
+(defparameter +big-event-kinds+ '(:ship
+                                   :sub
+                                   :dinghy)
   "The CREATURE-KIND of each big event's lead creature. At most
 +MAX-BIG-EVENTS+ of them may be on screen before the automatic paths
 (MAYBE-SPAWN-GUEST, ADVANCE-WORLD-EVENTS) hold back; keys spawn regardless.")
@@ -27,7 +29,9 @@ pending. Called by every effect that takes a fish out of play."
 (defparameter +max-big-events+ 2)
 
 (defvar *auto-events*
-  '((:id :school :big nil :every (900 1600) :first 600 :spawn spawn-school-if-room))
+  '((:id :school :big nil :every (900 1600) :first 600 :spawn spawn-school-if-room)
+    (:id :sub :big t :every (1200 2000) :first 900 :spawn spawn-submarine-now)
+    (:id :diver :big t :every (1400 2400) :first 1200 :spawn spawn-diver-now))
   "The automatic events ADVANCE-WORLD-EVENTS runs, one plist row each:
 (:ID keyword :BIG boolean :EVERY (low high) :FIRST ticks :SPAWN symbol).
 :SPAWN names a (WORLD) function. :FIRST is the fixed tick of the first
@@ -61,6 +65,27 @@ return true; otherwise spawn nothing and return NIL."
 
 (defun big-event-room-p (world)
   (< (big-event-count world) +max-big-events+))
+
+(defun find-creature-of-kind (world kind)
+  "The first creature of KIND in WORLD, or NIL. Callers run between ticks,
+when no creature in the list is REMOVEP: WORLD-ADVANCE flushes them at its
+end, and WORLD-RESIZE drops the background it replaces."
+  (find kind (world-%creatures world) :key #'creature-kind))
+
+(defun seabed-life (world ornaments)
+  "Return the seabed ORNAMENTS (MAKE-SEABED-ORNAMENTS, art-decor.lisp) plus the
+resident creatures that live on them, arming each ornament that animates.
+The list may hold NILs (a plume or crab with no room), which the caller
+MAKE-BACKGROUND-CREATURES removes. Called while the background is built, so
+it draws no random number."
+  (let ((life '()))
+    (dolist (ornament ornaments)
+      (case (creature-kind ornament)
+        (:chest (arm-chest world ornament))
+        (:rock (push (make-octopus world ornament) life))
+        (:vent (push (make-vent-plume world ornament) life))))
+    (push (make-crab world) life)
+    (append ornaments life)))
 
 (defun make-edge-fish (world)
   "A random fish entering at the screen edge it swims away from: column 0

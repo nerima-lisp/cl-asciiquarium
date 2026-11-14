@@ -13,9 +13,13 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
   shark (if present), any bubbles in flight, every egg, fry, and heart, and
   every special guest (including a dolphin or sea monster mid-crossing), then
   repopulates a fresh
-  set of fish at random lanes and speeds. The background scenery (see
-  [Screen layout](#screen-layout)) is left in place, as are the status bar
-  and help panel if they are visible.
+  set of fish at random lanes and speeds. Ships with their anchor and chain,
+  submarines with their sonar rings, divers with their dinghy and rope, and
+  coins from the chest go too, and so do the octopus's tentacle and ink cloud.
+  The background scenery (see [Screen layout](#screen-layout)) is left in
+  place, along with the seabed's residents (vent plume, crab, octopus), as are
+  the status bar and help panel if they are visible. An octopus that was
+  reaching or hiding in its ink peeks over its rock again on the next tick.
 - Space -- pause or resume. `WORLD-ADVANCE` becomes a no-op while
   `WORLD-PAUSED-P` is true: the whole simulation freezes, not just the
   redraw, so nothing moves, ages, or spawns until unpaused.
@@ -40,6 +44,13 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
 - `c` or `C` -- spawn a school of six fish immediately
   (`SPAWN-SCHOOL-IF-ROOM`). When the six would take the tank past
   `--max-fish`, nothing spawns and the status bar says the tank is too full.
+- `a` or `A` -- spawn a ship immediately (`WORLD-SPAWN-SHIP`); it stops near
+  mid-screen and lowers its anchor. See [Seabed life](#seabed-life).
+- `m` or `M` -- spawn a submarine immediately (`WORLD-SPAWN-SUBMARINE`).
+- `d` or `D` -- send a diver in a dinghy for the treasure chest immediately
+  (`WORLD-SPAWN-DIVER`). When the screen is too small to hold a chest, nothing
+  spawns and the status bar says "No treasure chest for a diver"; while a
+  diver is already out, nothing spawns and it says "A diver is already out".
 - `h` or `H` -- toggle the help panel (`WORLD-TOGGLE-HELP-OVERLAY`), a
   rounded box just below the waterline listing every binding above.
 
@@ -80,10 +91,10 @@ frame, 20 per second unless `--fps` says otherwise.
   in from the left or right edge, one at a time, until the tank is back at the
   target fish count.
 - **Schools.** Six fish of one small species swim in formation. When a threat
-  (the shark or a landed anchor) comes within 26 columns, they scatter for 30
-  ticks and then regroup. A school also appears on its own, first at tick 600
-  and then every 900 to 1600 ticks, but only when it fits under
-  `--max-fish`.
+  (the shark, a landed anchor, the submarine, or an octopus's tentacle) comes
+  within 26 columns, they scatter for 30 ticks and then regroup. A school also
+  appears on its own, first at tick 600 and then every 900 to 1600 ticks, but
+  only when it fits under `--max-fish`.
 - **Puffers** inflate for 45 ticks when a threat comes within 18 columns and 7
   rows.
 - **Lantern fish** blink their light. Every 240 ticks one draws in the
@@ -96,8 +107,41 @@ frame, 20 per second unless `--fps` says otherwise.
   live fish as `--max-fish`) keeps it a fry until there is room. At most three
   eggs and fry exist at once.
 
-Ships appear on their own at most two at a time, so the anchors they drop do
-not crowd the tank. The `g` key can add a third.
+Ships, submarines, and divers' dinghies are big events: they appear on their
+own only while fewer than two of them in total are on screen. The `g`, `a`,
+`m`, and `d` keys spawn past that limit.
+
+## Seabed life
+
+The chest, rock, and vent are placed only where they fit (see
+[Screen layout](#screen-layout)); on a small screen any of them may be left
+out, and then so is what lives on it: the diver needs the chest, the octopus
+the rock, and the plume the vent.
+
+- **The anchor.** A ship stops near mid-screen and lowers its anchor on a `¦`
+  chain to the seabed. Only after landing does it eat fish: for 70 ticks it
+  eats any fish it rests on, then it rises and the ship sails on.
+- **The submarine** crosses the water at 0.35 columns per tick. It enters on
+  its own first at tick 900 and then every 1200 to 2000 ticks. Every 50 ticks it
+  sends out a sonar ring, `( )`, that widens; a fish the ring passes stops
+  for 25 ticks with a `!` over its head. Fish in a school stop too, even while
+  the school scatters, and rejoin the school's formation once the stun ends.
+- **The treasure chest** opens every 380 to 520 ticks for 45 ticks, releasing
+  8 bubbles and throwing 6 `$` coins that arc up and fall back. A diver also
+  arrives on their own, first at tick 1200 and then every 1400 to 2400 ticks:
+  a dinghy stops on the surface, the diver climbs down a rope beside the
+  chest, breathing out bubbles, takes the gold, and climbs back, and the
+  dinghy sails on. After the diver takes the gold, the chest stays shut for
+  700 ticks.
+- **The vent** always sends up a plume of bubbles 9 columns wide, which
+  pushes any fish swimming in it upward.
+- **The crab** walks along the sand and turns around at the screen edges.
+- **The octopus** peeks over the rock. When a fish swims within 12 columns
+  and 6 rows of the rock, it reaches a `()()` tentacle out and drags the fish
+  into its den; the fish is replaced from the screen edge like an eaten one.
+  When the shark, a landed anchor, or the submarine comes within 14 columns
+  and 6 rows, the octopus spits a `▒` ink cloud that thins away over 50 ticks
+  and hides behind the rock until the ink is gone.
 
 ## Color modes
 
@@ -119,8 +163,8 @@ wins over `NO_COLOR`, and `--monochrome` forces `mono` whatever `--color` says
 (`RESOLVE-COLOR-MODE`).
 
 `--ascii` replaces every non-ASCII symbol a sprite draws (the waterline crest,
-the help panel's box lines, the status bar's dots) with a one-column ASCII
-stand-in (`ASCII-TEXT`).
+the help panel's box lines, the status bar's dots, the anchor chain's `¦`, the
+octopus's `▒` ink) with a one-column ASCII stand-in (`ASCII-TEXT`).
 
 ## Screen layout
 

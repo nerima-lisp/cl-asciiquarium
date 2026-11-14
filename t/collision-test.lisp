@@ -139,7 +139,7 @@
            :policy
            :none
            :data
-           (list :target-depth 8 :dropped t :threat *body-eat-threat*)))
+           (list :target-depth 8 :phase :rest :threat *body-eat-threat*)))
          (fish (make-fish world :species :dart :x 10 :y 8 :dx 0)))
     (cl-asciiquarium::%add-world-creature world anchor)
     (cl-asciiquarium::%add-world-creature world fish)
@@ -167,7 +167,7 @@
            :policy
            :none
            :data
-           (list :target-depth 15 :dropped nil)))
+           (list :target-depth 15 :phase :fall)))
          (fish (make-fish world :species :dart :x 10 :y 8 :dx 0)))
     (cl-asciiquarium::%add-world-creature world anchor)
     (cl-asciiquarium::%add-world-creature world fish)
@@ -218,7 +218,7 @@
            :policy
            :none
            :data
-           (list :dropped t :threat *body-eat-threat*)))
+           (list :phase :rest :threat *body-eat-threat*)))
          (anchor-fish (make-fish world :species :dart :x 5 :y 5 :dx 0))
          (shark-fish (make-fish world :species :dart :x 20 :y 5 :dx 0))
          (safe-fish (make-fish world :species :dart :x 45 :y 5 :dx 0)))
@@ -569,7 +569,7 @@
            :policy
            :none
            :data
-           (list :dropped nil)))
+           (list :phase :fall)))
          (fish
           (make-creature
            :world
@@ -639,7 +639,7 @@
            :policy
            :none
            :data
-           (list :dropped nil)))
+           (list :phase :fall)))
          (shark-fish (make-fish world :species :dart :x 0 :y 0 :dx 0))
          (anchor-fish (make-fish world :species :dart :x 10 :y 0 :dx 0)))
     (cl-asciiquarium::%set-world-creatures
@@ -648,7 +648,7 @@
     (expect (apply-collisions world) :to-be world)
     (expect (getf (cl-asciiquarium::creature-data shark-fish) :dying) :to-be-truthy)
     (expect (getf (cl-asciiquarium::creature-data anchor-fish) :dying) :to-be-falsy)
-    (setf (cl-asciiquarium::creature-data anchor) (list :dropped t :threat *body-eat-threat*))
+    (setf (cl-asciiquarium::creature-data anchor) (list :phase :rest :threat *body-eat-threat*))
     (expect (apply-collisions world) :to-be world)
     (expect (getf (cl-asciiquarium::creature-data anchor-fish) :dying) :to-be-truthy)))
  (it
@@ -782,7 +782,7 @@
            :policy
            :none
            :data
-           (list :dropped t :threat *body-eat-threat*)))
+           (list :phase :rest :threat *body-eat-threat*)))
          (shark-fish (make-fish world :species :dart :x 0 :y 0 :dx 0))
          (anchor-fish (make-fish world :species :dart :x 10 :y 0 :dx 0))
          (already-dying
@@ -917,8 +917,7 @@
         (expect (list (- (creature-x fish) (creature-x threat))
                       (- (creature-y fish) (creature-y threat)))
                 :to-equal (list offset-x offset-y)))
-      (setf (cl-asciiquarium::creature-removep threat) t
-            (cl-asciiquarium::world-removal-pending-p world) t)
+      (setf (cl-asciiquarium::creature-removep threat) t)
       (world-advance world)
       (expect (member fish (cl-asciiquarium::world-%creatures world)) :to-be-falsy)))
   (it "applies only the first removing effect when two threats grip one fish"
@@ -1030,7 +1029,7 @@
           (cl-asciiquarium::fish-stop-behaviour fish)
           (expect *on-stop-calls* :to-equal (list fish))
           (expect (getf (cl-asciiquarium::creature-data fish) :on-stop) :to-be nil)))))
-  (it "gives a lantern stop-lantern as its :on-stop"
+  (it "gives a lantern release-lantern-target as its :on-stop"
     (let ((world (tiny-world :width 40 :height 20)))
       (expect (getf (cl-asciiquarium::creature-data (make-fish world :species :lantern)) :on-stop)
-              :to-be 'cl-asciiquarium::stop-lantern))))
+              :to-be 'cl-asciiquarium::release-lantern-target))))

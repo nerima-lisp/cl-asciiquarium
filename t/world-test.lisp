@@ -146,8 +146,7 @@
                                   :data cl-asciiquarium::+bubble-data+)))
       (cl-asciiquarium::%add-world-creature world bubble)
       (world-advance world)
-      (expect (member bubble (cl-asciiquarium::world-%creatures world)) :to-be-falsy)
-      (expect (cl-asciiquarium::world-removal-pending-p world) :to-be-falsy)))
+      (expect (member bubble (cl-asciiquarium::world-%creatures world)) :to-be-falsy)))
 
 (describe "world-advance while paused"
   (it "does not increment the tick counter"
@@ -327,12 +326,16 @@
           (world-toggle-help-overlay world))
         (setf (world-paused-p world) paused)
         (world-apply-key-events world (decode-input keys))
-        (expect (cl-asciiquarium::world-removal-pending-p world) :to-be t)
+        (expect (count-if #'cl-asciiquarium::creature-removep
+                          (cl-asciiquarium::world-%creatures world))
+                :to-be 1)
         (world-advance world)
         (expect (count :fish (cl-asciiquarium::world-%creatures world)
                        :key #'cl-asciiquarium::creature-kind)
                 :to-be 2)
-        (expect (cl-asciiquarium::world-removal-pending-p world) :to-be nil)))))
+        (expect (some #'cl-asciiquarium::creature-removep
+                      (cl-asciiquarium::world-%creatures world))
+                :to-be nil)))))
 
 (describe "the + key never pushes live fish above max-fish"
   (it "raises the target but adds no fish while a visiting school fills the tank"

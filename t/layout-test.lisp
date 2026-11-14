@@ -233,8 +233,12 @@ creature kept OLD's colors."
         (spawn-shark-now world)
         (dolist (kind '(:ship :duck-line :dolphin :sea-monster))
           (spawn-guest-now world kind))
-        (cl-asciiquarium::%add-world-creature
-         world (cl-asciiquarium::make-anchor world (%kind-creature world :ship)))
+        (let* ((anchor (cl-asciiquarium::make-anchor world (%kind-creature world :ship)))
+               (chain (getf (cl-asciiquarium::creature-data anchor) :chain)))
+          ;; Frame 0 of a chain is empty; one link gives it a color to check.
+          (setf (cl-asciiquarium::creature-frame-index chain) 1)
+          (cl-asciiquarium::%add-world-creature world chain)
+          (cl-asciiquarium::%add-world-creature world anchor))
         (cl-asciiquarium::%add-world-creature world (make-bubble world fish))
         (world-toggle-help-overlay world)
         (let* ((old-colors (%old-theme-only-colors :abyss :coral))
@@ -246,8 +250,9 @@ creature kept OLD's colors."
           (expect (sort (copy-list kinds) #'string<)
                   :to-equal (sort (list :ambient-current :waterline :ripple :sky :sand :castle
                                         :seaweed :coral :rock :starfish :vent :chest :hud
-                                        :help-overlay :shark :bubble :ship :anchor :duck-line
-                                        :dolphin :sea-monster :monster-segment)
+                                        :help-overlay :shark :bubble :ship :anchor :chain :duck-line
+                                        :dolphin :sea-monster :monster-segment
+                                        :plume :crab :octopus)
                                   #'string<))
           ;; Precondition: before the switch every kind shows an abyss-only
           ;; color, so the assertion below cannot pass vacuously.

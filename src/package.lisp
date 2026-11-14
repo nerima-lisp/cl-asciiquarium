@@ -151,7 +151,7 @@
    #:apply-collisions
    #:+death-animation-ticks+
    #:+waterline-row+
-   #:+anchor-dropped-ticks+
+   #:+anchor-rest-ticks+
 
    ;; -- Spawning --
    #:make-fish

@@ -132,7 +132,6 @@ the 10-row height the tests use)."
     (tick 0 :type fixnum)
     (render-change-count 0 :type fixnum)
     (%creatures nil :type list)
-    (removal-pending-p nil :type boolean)
     (active-predator-count 0 :type fixnum)
     (fish-count 0 :type fixnum)
     (max-fish +default-max-fish+ :type fixnum)
@@ -227,13 +226,9 @@ notification never outlives its four seconds."
     (setf (world-render-order-valid-p world) nil)
     world)
   (defun %set-world-creatures (world creatures)
-    ;; A creature marked REMOVEP outside a tick (the `-' key) may survive a
-    ;; list replaced by another key in the same input batch, so recompute the
-    ;; pending flag from the new list rather than clearing it.
     (setf (world-%creatures world) creatures
           (world-active-predator-count world) (%recount-world-active-predators
-                                               creatures)
-          (world-removal-pending-p world) (and (some #'creature-removep creatures) t))
+                                               creatures))
     (incf (world-render-change-count world))
     (%invalidate-world-render-order world)
     creatures)
@@ -250,6 +245,28 @@ notification never outlives its four seconds."
     (incf (world-render-change-count world))
     (%invalidate-world-render-order world)
     creature)
+  (defun attach-creature (world owner child)
+    "Add CHILD to WORLD as a creature that leaves with OWNER: every path that
+takes OWNER out of play calls RELEASE-ATTACHED. Children that already left on
+their own are dropped from OWNER's :ATTACHED here, so a long-lived owner's
+list holds only its current children."
+    (let ((data (creature-data owner)))
+      (setf (getf data :attached)
+            (cons child (delete-if #'creature-removep (getf data :attached))))
+      (setf (creature-data owner) data))
+    (%add-world-creature world child))
+  (defun release-attached (owner)
+    "Mark every child ATTACH-CREATURE registered on OWNER REMOVEP and forget
+them. A child released during a tick stays in the list until the end of the
+next WORLD-ADVANCE, so its :TICK is cleared too: it must not act on an owner
+that has left (a stun mark restoring a dying fish's speed)."
+    (let ((data (creature-data owner)))
+      (when (getf data :attached)
+        (dolist (child (getf data :attached))
+          (setf (creature-removep child) t)
+          (when (getf (creature-data child) :tick)
+            (setf (getf (creature-data child) :tick) nil)))
+        (setf (getf data :attached) nil))))
   (defun %world-render-order-cache-valid-p (world)
     (world-render-order-valid-p world))
   (defun %rebuild-world-render-order (world)
@@ -339,18 +356,39 @@ blinking animations; see BLINK-FRAME-PERIOD. Neither draws a random number."
 
 (defparameter +background-creature-kinds+
   '(:ambient-current :waterline :ripple :sky :sand :castle :seaweed
-    :coral :rock :starfish :vent :chest)
+    :coral :rock :starfish :vent :chest
+    :plume
+    :octopus
+    :crab)
   "Every CREATURE-KIND MAKE-BACKGROUND-CREATURES (art-decor.lisp) lays out
 from the screen size, and so WORLD-RESIZE rebuilds.")
+
+(defun %drop-creature-kinds (world kinds)
+  "Take every creature whose kind is in KINDS out of WORLD together with the
+children attached to it (ATTACH-CREATURE). They are marked REMOVEP first, so a
+creature that keeps a reference to one (a diver's chest, an octopus's
+tentacle) sees it leave; the list then drops them along with anything else
+already marked, so a released child never ticks or threatens again."
+  (let ((creatures (world-%creatures world)))
+    (dolist (creature creatures)
+      (when (member (creature-kind creature) kinds)
+        (setf (creature-removep creature) t)
+        (release-attached creature)))
+    (%set-world-creatures world (remove-if #'creature-removep creatures))))
 
 (defun world-resize (world width height)
   "Resize WORLD to WIDTH by HEIGHT in place, returning WORLD.
 Existing creatures keep their current position; a creature now outside the
 new bounds is clamped back inside rather than left to drift until its next
 ENTITY-TICK notices, since a resize can move the bounds inward faster than any
-single tick's velocity would. The background (+BACKGROUND-CREATURE-KINDS+)
+single tick's velocity would. A creature whose data has a :PLACE (a function
+of the world and the creature) is then put back where it belongs relative to
+the creature it hangs from, in creature-list order, so a paused world shows it
+there without waiting for a tick. The background (+BACKGROUND-CREATURE-KINDS+)
 is laid out from the screen size, so it is rebuilt for the new size rather
-than clamped, and the status bar is refreshed onto the new bottom row."
+than clamped (the old octopus's tentacle and ink leave with it, see
+%DROP-CREATURE-KINDS), and the status bar is refreshed onto the new bottom
+row."
   (assert-dimensions width height)
   (setf (world-width world) width
         (world-height world) height)
@@ -369,11 +407,11 @@ than clamped, and the status bar is refreshed onto the new bottom row."
                                                    (max
                                                     0
                                                     (- height creature-height))))))
-  (%set-world-creatures
-   world
-   (remove-if (lambda (creature)
-                (member (creature-kind creature) +background-creature-kinds+))
-              (world-%creatures world)))
+  (dolist (creature (world-%creatures world))
+    (let ((place (getf (creature-data creature) :place)))
+      (when place
+        (funcall place world creature))))
+  (%drop-creature-kinds world +background-creature-kinds+)
   (populate-background world)
   (world-refresh-hud world)
   world)
@@ -391,7 +429,17 @@ than clamped, and the status bar is refreshed onto the new bottom row."
                                            :duck-line
                                            :dolphin
                                            :sea-monster
-                                           :monster-segment)
+                                           :monster-segment
+                                           :chain
+                                           :coin
+                                           :sub
+                                           :sonar
+                                           :stun-mark
+                                           :tentacle
+                                           :ink
+                                           :dinghy
+                                           :rope
+                                           :diver)
   "Every CREATURE-KIND that WORLD-REDRAW clears: predators, prey, their
 by-products, and every special guest. Deliberately excludes the background
 (+BACKGROUND-CREATURE-KINDS+) and the UI creatures
@@ -457,15 +505,11 @@ aquarium."
 (defun world-redraw (world)
   "Reshuffle WORLD: remove every fish, shark, bubble, and guest (see
 +TRANSIENT-CREATURE-KINDS+), then repopulate fish at fresh random positions.
-The background (waterline, castle, seaweed) is left in place, since it is not
-what a player watching the aquarium expects a redraw to change. Bound to the
-`r' key; see input.lisp."
-  (%set-world-creatures
-   world
-   (remove-if
-    (lambda (creature)
-      (member (creature-kind creature) +transient-creature-kinds+))
-    (world-%creatures world)))
+The background (waterline, castle, seaweed, the octopus) is left in place,
+since it is not what a player watching the aquarium expects a redraw to
+change; the octopus's tentacle and ink are transient and go. Bound to the `r'
+key; see input.lisp."
+  (%drop-creature-kinds world +transient-creature-kinds+)
   (populate-fish world (world-fish-count world))
   (setf (world-shark-cooldown world) (apply
                                       #'random-between
@@ -496,16 +540,16 @@ while a refill is pending lowers the target instead of taking a second fish.
 A fish already dying (see ALIVE-FISH-P) is left alone, so this never
 interrupts a death animation already in progress. The removed fish stops its
 behaviour (FISH-STOP-BEHAVIOUR) and is marked REMOVEP, so it stops counting as
-live at once and WORLD-ADVANCE deletes it at the end of its next call, paused
-or not; creatures that hold it (school followers, a lantern's glow) let go on
-their next tick. Bound to the `-' key; see input.lisp."
+live at once and WORLD-ADVANCE deletes it, with the creatures attached to it
+(a lantern's glow, a stun mark), at the end of its next call, paused or not;
+school followers let go on their next tick. Bound to the `-' key; see
+input.lisp."
   (when (plusp (world-fish-count world))
     (decf (world-fish-count world))
     (when (> (count-if #'alive-fish-p (world-%creatures world)) (world-fish-count world))
       (let ((fish (find-if #'alive-fish-p (world-%creatures world))))
         (fish-stop-behaviour fish)
-        (setf (creature-removep fish) t
-              (world-removal-pending-p world) t))))
+        (setf (creature-removep fish) t))))
   (world-refresh-hud world)
   world)
 
