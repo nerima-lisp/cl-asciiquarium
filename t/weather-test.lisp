@@ -245,6 +245,27 @@ and whether each one was present exactly on its first two ticks."
         ;; to another row, the ticks the old placement got wrong.
         (expect (plusp sway-steps) :to-be t)
         (expect (length ship-rows) :to-be 3))))
+  (it "puts an anchored ship, its chain, and a fisher's boat under the new waterline on a paused resize"
+    (multiple-value-bind (world ship) (%anchor-ship-world :width 100 :height 30)
+      (let ((anchor (%advance-until-landed world))
+            (boat (cl-asciiquarium::spawn-fisher-now world)))
+        (world-apply-key-event world (first (decode-input " ")))
+        (let ((old-row (creature-y ship)))
+          (world-resize world 100 14)
+          (world-advance world)
+          (let ((chain (%anchor-kind world :chain))
+                (row (1- (cl-asciiquarium::world-waterline-row world))))
+            (with-soft-assertions
+              (expect (world-paused-p world) :to-be t)
+              ;; Non-vacuity: the waterline moved up past the ship's old row.
+              (expect (< row old-row) :to-be t)
+              (expect (creature-y ship) :to-be row)
+              (expect (creature-y boat)
+                      :to-be (cl-asciiquarium::boat-sway-row
+                              world (%anchor-data boat :boat-rise)))
+              (expect (creature-y chain)
+                      :to-be (+ row (%anchor-data chain :ship-height)))
+              (expect (cl-asciiquarium::creature-removep anchor) :to-be nil)))))))
   (it "moves a ship to the new waterline on the tick after a resize"
     (let ((world (make-world :width 40 :height 12 :fish-count 0)))
       (spawn-guest-now world :ship)
