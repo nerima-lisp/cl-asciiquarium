@@ -17,3 +17,8 @@ in `(lambda () ...)'."
 creatures are present. FISH-COUNT defaults to 0 so a test can add its own
 fixture creatures without a random population interfering."
   (make-world :width width :height height :fish-count fish-count))
+
+(defparameter *body-eat-threat*
+  '(:grip :body :effect cl-asciiquarium::eat-effect :prey nil :alarm nil)
+  "A :THREAT row that eats any fish overlapping the threat's whole bounding
+box: the geometry every pre-row collision test was written against.")

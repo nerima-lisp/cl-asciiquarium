@@ -1,8 +1,8 @@
 ;;;; src/art-guests.lisp -- special guests: a ship that drops an anchor, a
 ;;;; line of ducks, a leaping dolphin, and a segmented sea monster. Only the
-;;;; ship's anchor is interactive (it can remove a fish directly beneath it);
-;;;; every other guest, including the dolphin and sea monster, is purely
-;;;; decorative.
+;;;; ship's anchor is a threat: once it lands it carries +ANCHOR-THREAT+ (see
+;;;; collision.lisp) and eats a fish beneath it. The duck line, the dolphin,
+;;;; and the sea monster are purely decorative.
 (in-package #:cl-asciiquarium)
 
 ;;; These four factories share the same off-screen entry, traversal, and
@@ -105,13 +105,14 @@ direction deterministically."
          (travel-to-midpoint (round (/ distance-to-midpoint speed))))
   :y (max 0 (1- (world-waterline-row world)))
   :data (list :drop-tick (+ (world-tick world) travel-to-midpoint)
-              :anchor-dropped nil))
+              :anchor-dropped nil
+              :tick 'maybe-drop-anchor))
 
 (defun make-anchor (world ship)
   "Create an anchor CREATURE falling from SHIP's current position. It falls
 (policy :NONE; its descent is stopped explicitly, see ANCHOR-TICK in update.lisp) to a
-random :TARGET-DEPTH row, then stops and becomes :DROPPED (active for
-COLLISION.LISP) for +ANCHOR-DROPPED-TICKS+ before despawning."
+random :TARGET-DEPTH row, then stops, becomes :DROPPED, and carries +ANCHOR-THREAT+ (see
+collision.lisp) for +ANCHOR-DROPPED-TICKS+ before despawning."
   (let* ((height (world-height world))
          (target-depth (random-between (+ (world-waterline-row world) 3)
                                         (max (+ (world-waterline-row world) 4) (- height 3)))))
@@ -126,7 +127,8 @@ COLLISION.LISP) for +ANCHOR-DROPPED-TICKS+ before despawning."
                     :x (+ (creature-x ship) (round (/ (sprite-width +ship-art+) 2)))
                     :y (world-waterline-row world)
                     :dx 0 :dy 1
-                    :data (list :target-depth target-depth :dropped nil))))
+                    :data (list :target-depth target-depth :dropped nil :threat nil
+                                :tick 'anchor-tick))))
 
 (define-off-screen-guest make-duck-line
     "Create a decorative line-of-ducks CREATURE crossing WORLD near the
@@ -159,7 +161,8 @@ tick DOLPHIN-TICK (update.lisp) recomputes Y from a sine wave around its
   :data (list :start-tick (world-tick world)
               :baseline-y baseline
               :amplitude +dolphin-arc-amplitude+
-              :period +dolphin-arc-period+))
+              :period +dolphin-arc-period+
+              :tick 'dolphin-tick))
 
 (define-off-screen-guest make-sea-monster
     "Create the head CREATURE (kind :SEA-MONSTER) of a segmented sea monster
@@ -195,7 +198,8 @@ trail rather than each segment separately simulating its own off-screen exit."
                     :x (+ (creature-x leader) offset-x)
                     :y (creature-y leader)
                     :dx 0 :dy 0
-                    :data (list :leader leader :offset-x offset-x :phase (* index 0.8)))))
+                    :data (list :leader leader :offset-x offset-x :phase (* index 0.8)
+                                :tick 'monster-segment-tick))))
 
 (defun sea-monster-segments (world leader)
   "Return a fresh list of +SEA-MONSTER-SEGMENT-COUNT+ :MONSTER-SEGMENT

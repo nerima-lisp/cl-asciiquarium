@@ -9,15 +9,16 @@
 
 (defun anchor-tick (world anchor)
   "Advance ANCHOR's fall-then-settle state machine by one tick. Once it
-reaches its :TARGET-DEPTH, stop its descent, mark it :DROPPED, register its
-activation in WORLD, and start the finite dwell countdown."
+reaches its :TARGET-DEPTH, stop its descent, mark it :DROPPED, arm its
++ANCHOR-THREAT+ row and register that activation in WORLD, and start the
+finite dwell countdown."
   (let ((data (creature-data anchor)))
     (when (and
            (not (getf data :dropped))
            (>= (creature-y anchor) (getf data :target-depth)))
       (setf (entity-dy (creature-entity anchor)) 0)
       (setf (getf data :dropped) t)
-      (%note-world-predator-activation world)
+      (arm-threat world anchor +anchor-threat+)
       (setf (creature-ttl anchor) +anchor-dropped-ticks+))))
 
 (defun maybe-drop-anchor (world ship)
@@ -67,8 +68,23 @@ does not instead force leader-before-follower tick ordering)."
                                                     (getf data :offset-x)))
         (setf (entity-y (creature-entity segment)) (+ (creature-y leader) bob))))))
 
+(defun drifting-fish-tick (world fish)
+  "The :TICK of a live fish of a DRIFTS-P species: bob around its drift row,
+then count its bubble timer down."
+  (fish-drift-tick world fish)
+  (maybe-emit-bubble world fish))
+
+(defun bubble-tick (world bubble)
+  "The :TICK of a bubble: mark it REMOVEP once it reaches the waterline row."
+  (when (<= (creature-y bubble) (world-waterline-row world))
+    (setf (creature-removep bubble) t)))
+
 (defun tick-creature (world creature width height)
-  "Advance one CREATURE and return whether it is marked for removal and its render state changed."
+  "Advance one CREATURE and return whether it is marked for removal and its
+render state changed. After motion, animation, and the TTL countdown, call the
+function designator in CREATURE's :TICK data entry, if any, with WORLD and
+CREATURE. Every kind-specific per-tick behaviour lives there, set by the
+factory that builds the creature."
   (let ((x (creature-x creature))
         (y (creature-y creature))
         (frame-index (creature-frame-index creature))
@@ -84,18 +100,9 @@ does not instead force leader-before-follower tick ordering)."
       (decf (creature-ttl creature))
       (when (<= (creature-ttl creature) 0)
         (setf (creature-removep creature) t)))
-    (case (creature-kind creature)
-      (:fish
-       (when (alive-fish-p creature)
-         (fish-drift-tick world creature)
-         (maybe-emit-bubble world creature)))
-      (:ship (maybe-drop-anchor world creature))
-      (:anchor (anchor-tick world creature))
-      (:bubble
-       (when (<= (creature-y creature) (world-waterline-row world))
-         (setf (creature-removep creature) t)))
-      (:dolphin (dolphin-tick world creature))
-      (:monster-segment (monster-segment-tick world creature)))
+    (let ((tick (getf (creature-data creature) :tick)))
+      (when tick
+        (funcall tick world creature)))
     (values
      (creature-removep creature)
      (or
@@ -124,9 +131,21 @@ new-list removedp)."
       (setf (cdr tail) nil))
     (values head removedp)))
 
+(defun %flush-removed-creatures (world)
+  "Delete WORLD's REMOVEP creatures when a removal is pending."
+  (when (world-removal-pending-p world)
+    (multiple-value-bind (creatures removedp) (%delete-removed-creatures
+                                               (world-%creatures world))
+      (when removedp
+        (%set-world-creatures world creatures)))))
+
 (defun world-advance (world)
-  "Advance WORLD by exactly one tick, returning WORLD."
+  "Advance WORLD by exactly one tick, returning WORLD. While paused nothing
+moves, ages, or spawns, but creatures already marked REMOVEP (by the `-' key)
+are still deleted, so they leave the screen."
   (world-tick-ui world)
+  (when (world-paused-p world)
+    (%flush-removed-creatures world))
   (unless (world-paused-p world)
     (incf (world-tick world))
     (setf (world-render-change-count world) 0)
@@ -148,10 +167,7 @@ new-list removedp)."
       (apply-collisions world)
       (maybe-spawn-shark world)
       (maybe-spawn-guest world)
-      (when (world-removal-pending-p world)
-        (multiple-value-bind (creatures removedp) (%delete-removed-creatures
-                                                   (world-%creatures world))
-          (when removedp
-            (%set-world-creatures world creatures))))
+      (advance-world-events world)
+      (%flush-removed-creatures world)
       (incf (world-render-change-count world) render-change-count)))
   world)

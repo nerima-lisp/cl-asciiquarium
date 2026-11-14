@@ -20,7 +20,8 @@
     (let* ((world (tiny-world :width 40 :height 20))
            (anchor (make-creature :world world :kind :anchor :frames (list "( o )")
                                   :x 10 :y 5 :dx 0 :dy 1 :policy :none
-                                  :data (list :target-depth 8 :dropped nil))))
+                                  :data (list :target-depth 8 :dropped nil :threat nil
+                                              :tick 'cl-asciiquarium::anchor-tick))))
       (cl-asciiquarium::%add-world-creature world anchor)
       (dotimes (i 3) (world-advance world))
       (with-soft-assertions
@@ -84,7 +85,8 @@
     (let* ((world (tiny-world :width 40 :height 20))
            (anchor (make-creature :world world :kind :anchor :frames (list "( o )")
                                   :x 10 :y 5 :dx 0 :dy 1 :policy :none
-                                  :data (list :target-depth 8 :dropped nil))))
+                                  :data (list :target-depth 8 :dropped nil :threat nil
+                                              :tick 'cl-asciiquarium::anchor-tick))))
       (cl-asciiquarium::%add-world-creature world anchor)
       (dotimes (i 3) (world-advance world))
       (with-soft-assertions
@@ -251,3 +253,199 @@
         (cl-asciiquarium::maybe-emit-bubble world fish)
         (expect (find :bubble (cl-asciiquarium::world-%creatures world) :key #'cl-asciiquarium::creature-kind) :to-be-truthy)
         (expect (plusp (getf (cl-asciiquarium::creature-data fish) :bubble-timer)) :to-be-truthy)))))
+
+(defun live-fish (world)
+  (remove-if-not #'cl-asciiquarium::alive-fish-p (cl-asciiquarium::world-%creatures world)))
+
+(defun refill-world ()
+  "An 80x24 world of three fish with no automatic shark."
+  (make-world :width 80 :height 24 :fish-count 3 :shark-enabled-p nil))
+
+(describe "refilling fish taken out of play"
+  (it "adds one fish at a screen edge exactly 90 ticks after one is eaten"
+    (with-seeded-random-state (42)
+      (let* ((world (refill-world))
+             (before (live-fish world)))
+        (cl-asciiquarium::eat-effect world nil (first before))
+        (dotimes (i 89) (world-advance world))
+        (expect (length (live-fish world)) :to-be 2)
+        (world-advance world)
+        (let ((added (set-difference (live-fish world) before)))
+          (with-soft-assertions
+            (expect (length (live-fish world)) :to-be 3)
+            (expect (length added) :to-be 1)
+            (expect (member (creature-x (first added))
+                            (list 0 (- (world-width world)
+                                       (creature-dimensions (first added)))))
+                    :to-be-truthy)
+            (expect (cl-asciiquarium::world-refill-at world) :to-be 0))))))
+  (it "keeps refilling every 90 ticks until the target count is back"
+    (with-seeded-random-state (42)
+      (let* ((world (refill-world))
+             (before (live-fish world)))
+        (cl-asciiquarium::eat-effect world nil (first before))
+        (cl-asciiquarium::eat-effect world nil (second before))
+        (expect (cl-asciiquarium::world-refill-at world) :to-be 90)
+        (dotimes (i 90) (world-advance world))
+        (expect (length (live-fish world)) :to-be 2)
+        (expect (cl-asciiquarium::world-refill-at world) :to-be 180)
+        (dotimes (i 90) (world-advance world))
+        (expect (length (live-fish world)) :to-be 3))))
+  (it "does not refill once the - key has lowered the target to the live count"
+    (with-seeded-random-state (42)
+      (let* ((world (refill-world)))
+        (cl-asciiquarium::eat-effect world nil (first (live-fish world)))
+        (dolist (event (decode-input "-"))
+          (world-apply-key-event world event))
+        (expect (world-fish-count world) :to-be 2)
+        (expect (length (live-fish world)) :to-be 2)
+        (dotimes (i 100) (world-advance world))
+        (expect (length (live-fish world)) :to-be 2)
+        (expect (cl-asciiquarium::world-refill-at world) :to-be 0)))))
+
+(defvar *probe-spawn-ticks* nil)
+
+(defun probe-spawn (world)
+  (push (world-tick world) *probe-spawn-ticks*))
+
+(defun probe-ship-spawn (world)
+  (spawn-guest-now world :ship))
+
+(defun ship-count (world)
+  (count :ship (cl-asciiquarium::world-%creatures world) :key #'cl-asciiquarium::creature-kind))
+
+(describe "the automatic event table"
+  (it "fires a row first at its :first tick, then reschedules it within :every"
+    (let* ((cl-asciiquarium::*auto-events*
+             '((:id :probe :big nil :every (50 60) :first 3 :spawn probe-spawn)))
+           (*probe-spawn-ticks* nil)
+           (world (tiny-world :width 40 :height 20)))
+      (expect (equalp (cl-asciiquarium::world-event-due world) #(3)) :to-be-truthy)
+      (dotimes (i 2) (world-advance world))
+      (expect *probe-spawn-ticks* :to-be nil)
+      (world-advance world)
+      (expect *probe-spawn-ticks* :to-equal '(3))
+      (expect (<= 53 (svref (cl-asciiquarium::world-event-due world) 0) 63) :to-be-truthy)))
+  (it "holds a due big event back while two are on screen, while a key still adds a third"
+    (with-seeded-random-state (6)
+      (let* ((cl-asciiquarium::*auto-events*
+               '((:id :probe :big t :every (50 60) :first 1 :spawn probe-ship-spawn)))
+             (world (tiny-world :width 40 :height 20)))
+        (dotimes (i 2) (cl-asciiquarium::%add-world-creature world (make-ship world)))
+        (world-advance world)
+        (expect (ship-count world) :to-be 2)
+        (expect (<= 51 (svref (cl-asciiquarium::world-event-due world) 0) 61) :to-be-truthy)
+        (spawn-guest-now world :ship)
+        (expect (ship-count world) :to-be 3))))
+  (it "lets a due big event through while fewer than two are on screen"
+    (with-seeded-random-state (6)
+      (let* ((cl-asciiquarium::*auto-events*
+               '((:id :probe :big t :every (50 60) :first 1 :spawn probe-ship-spawn)))
+             (world (tiny-world :width 40 :height 20)))
+        (cl-asciiquarium::%add-world-creature world (make-ship world))
+        (world-advance world)
+        (expect (ship-count world) :to-be 2)))))
+
+(describe "maybe-spawn-guest and the big-event cap"
+  (flet ((ship-drawing-seed ()
+           (loop for seed from 0
+                 when (eq (with-seeded-random-state (seed) (cl-asciiquarium::random-guest-kind))
+                          :ship)
+                   return seed)))
+    (it-each ((0 1) (1 2) (2 2))
+        "with ~D ships on screen, a drawn ship leaves ~D"
+        (present expected)
+      (let ((world (tiny-world :width 40 :height 20)))
+        (dotimes (i present) (cl-asciiquarium::%add-world-creature world (make-ship world)))
+        (with-seeded-random-state ((ship-drawing-seed))
+          (setf (cl-asciiquarium::world-guest-cooldown world) 1)
+          (cl-asciiquarium::maybe-spawn-guest world))
+        (expect (ship-count world) :to-be expected)
+        (expect (plusp (cl-asciiquarium::world-guest-cooldown world)) :to-be-truthy)))))
+
+(defun school-fish-count (world)
+  (count-if (lambda (creature) (getf (cl-asciiquarium::creature-data creature) :leader))
+            (cl-asciiquarium::world-%creatures world)))
+
+(defun courting-fish (world)
+  (remove-if-not (lambda (creature)
+                   (eq (getf (cl-asciiquarium::creature-data creature) :threat)
+                       cl-asciiquarium::+courting-threat+))
+                 (cl-asciiquarium::world-%creatures world)))
+
+(describe "P3 integration: schools, courting, and cleanup"
+  (it-each (("c") ("C"))
+      "the ~A key spawns a school of six"
+      (key)
+    (with-seeded-random-state (12)
+      (let ((world (make-world :width 80 :height 24 :fish-count 0 :shark-enabled-p nil)))
+        (dolist (event (decode-input key))
+          (world-apply-key-event world event))
+        (expect (school-fish-count world) :to-be 6))))
+  (it "fires the default :school row first at tick 600"
+    (with-seeded-random-state (12)
+      (let ((world (make-world :width 80 :height 24 :fish-count 0 :shark-enabled-p nil)))
+        (setf (cl-asciiquarium::world-guest-cooldown world) 1000000)
+        (dotimes (i 599) (world-advance world))
+        (expect (school-fish-count world) :to-be 0)
+        (world-advance world)
+        (expect (school-fish-count world) :to-be 6))))
+  (it "picks a courting fish only on ticks that are multiples of 50"
+    (with-seeded-random-state (12)
+      (let ((world (make-world :width 80 :height 24 :fish-count 3 :shark-enabled-p nil)))
+        (dotimes (i 49) (world-advance world))
+        (expect (courting-fish world) :to-be nil)
+        (world-advance world)
+        (expect (length (courting-fish world)) :to-be 1))))
+  (it "clears eggs, fry, hearts, and lantern glows on r"
+    (with-seeded-random-state (12)
+      (let* ((world (make-world :width 80 :height 24 :fish-count 0 :shark-enabled-p nil))
+             (fry (cl-asciiquarium::make-egg world :dart 10 10)))
+        (setf (cl-asciiquarium::creature-kind fry) :fry)
+        (dolist (creature (list (cl-asciiquarium::make-egg world :dart 20 10)
+                                fry
+                                (cl-asciiquarium::make-heart world 30 10)
+                                (make-creature :world world :kind :lantern-glow :frames (list "*")
+                                               :x 40 :y 10 :policy :none)))
+          (cl-asciiquarium::%add-world-creature world creature))
+        (dolist (event (decode-input "r"))
+          (world-apply-key-event world event))
+        (expect (intersection '(:egg :fry :heart :lantern-glow)
+                              (mapcar #'cl-asciiquarium::creature-kind
+                                      (cl-asciiquarium::world-%creatures world)))
+                :to-be nil)))))
+
+(describe "P3 integration: a school only spawns when it fits under max-fish"
+  (it "the c key on a full tank adds no fish and says why"
+    (with-seeded-random-state (12)
+      (let ((world (make-world :width 80 :height 24 :fish-count 25 :max-fish 30
+                               :shark-enabled-p nil)))
+        (dolist (event (decode-input "c"))
+          (world-apply-key-event world event))
+        (expect (length (live-fish world)) :to-be 25)
+        (expect (cl-asciiquarium::world-notification world)
+                :to-equal cl-asciiquarium::+school-no-room-message+))))
+  (it "the c key spawns when the school exactly fits"
+    (with-seeded-random-state (12)
+      (let ((world (make-world :width 80 :height 24 :fish-count 24 :max-fish 30
+                               :shark-enabled-p nil)))
+        (dolist (event (decode-input "c"))
+          (world-apply-key-event world event))
+        (expect (length (live-fish world)) :to-be 30))))
+  (it "the automatic :school row on a full tank adds no fish and reschedules"
+    (with-seeded-random-state (12)
+      (let ((world (make-world :width 80 :height 24 :fish-count 30 :max-fish 30
+                               :shark-enabled-p nil)))
+        (setf (cl-asciiquarium::world-guest-cooldown world) 1000000)
+        (dotimes (i 600) (world-advance world))
+        (expect (school-fish-count world) :to-be 0)
+        (expect (> (svref (cl-asciiquarium::world-event-due world) 0) 600) :to-be-truthy)))))
+
+(describe "world-decrease-fish-count releases what held the removed fish"
+  (it "marks the removed fish removep and stops its behaviour"
+    (with-seeded-random-state (12)
+      (let* ((world (make-world :width 80 :height 24 :fish-count 1 :shark-enabled-p nil))
+             (fish (first (live-fish world))))
+        (world-decrease-fish-count world)
+        (expect (cl-asciiquarium::creature-removep fish) :to-be t)
+        (expect (getf (cl-asciiquarium::creature-data fish) :tick) :to-be nil)))))

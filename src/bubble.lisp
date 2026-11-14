@@ -5,10 +5,14 @@
   "Select the immutable bubble sprite owner for THEME and render mode."
   (%themed-bubble-sprite-prototype theme))
 
+(defparameter +bubble-data+ (list :tick 'bubble-tick)
+  "The :DATA every bubble shares. Shared rather than built per bubble so an
+emission conses no plist; nothing may write to it.")
+
 (defun make-bubble (world fish)
   "Create a bubble CREATURE rising from FISH's current position in WORLD.
-Policy :NONE: a bubble is removed explicitly by WORLD-ADVANCE once it reaches
-+WATERLINE-ROW+ (see update.lisp), not by ENTITY's off-bounds callback, since
+Policy :NONE: a bubble is removed by its :TICK, BUBBLE-TICK (update.lisp),
+once it reaches the waterline row, not by ENTITY's off-bounds callback, since
 the waterline sits a few rows below the true top edge. The selected immutable
 sprite prototype matches the current color mode; mutable entity state remains
 per bubble."
@@ -34,7 +38,9 @@ per bubble."
       :dx
       0
       :dy
-      -0.5f0)))
+      -0.5f0
+      :data
+      +bubble-data+)))
 
 (register-creature-restyler
  :bubble

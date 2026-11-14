@@ -31,7 +31,7 @@
   `WORLD-FISH-COUNT` is the count `MAKE-WORLD` was originally given, live
   adjustable via `WORLD-INCREASE-FISH-COUNT`/`WORLD-DECREASE-FISH-COUNT`;
   `WORLD-REDRAW` repopulates that many fish rather than a fixed default.
-  The spawn cooldowns and the HUD-visibility flag are not accessors a consumer
+  The spawn cooldowns and the status-bar visibility flag are not accessors a consumer
   reads: they are simulation bookkeeping that `WORLD-ADVANCE` and the key
   handlers own.
 
@@ -206,9 +206,9 @@ A creature already on screen keeps the styles resolved for it until then.
   optional `:FACING` (`:LEFT` or `:RIGHT`), defaulting to a random choice as
   `MAKE-FISH`'s existing `:X`/`:Y`/`:DX` already do; an explicit override is
   what lets a test exercise one crossing direction deterministically.
-  `MAKE-FISH` spawns one of five species (`:DART`, `:PUFFER`, `:RIBBON`,
-  `:ANGEL`, `:GUPPY`), each with its own color *palette* rather than a single
-  fixed color -- two fish of the same species need not match.
+  `MAKE-FISH` spawns one of the species defined in `src/art-fish-data.lisp`, each with its
+  own color *palettes* rather than a single fixed color -- two fish of the
+  same species need not match.
   `MAKE-SEA-MONSTER` returns only the head; pair it with...
 - `SEA-MONSTER-SEGMENTS (world leader)` -- build the trailing
   `:MONSTER-SEGMENT` creatures behind a `MAKE-SEA-MONSTER` head,

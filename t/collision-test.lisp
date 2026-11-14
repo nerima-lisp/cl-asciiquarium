@@ -11,6 +11,8 @@
            world
            :kind
            :shark
+           :data
+           (list :threat *body-eat-threat*)
            :frames
            (list "=<{(o.o)}==>")
            :x
@@ -41,6 +43,8 @@
            world
            :kind
            :shark
+           :data
+           (list :threat *body-eat-threat*)
            :frames
            (list "=<{(o.o)}==>")
            :x
@@ -59,6 +63,8 @@
            world
            :kind
            :shark
+           :data
+           (list :threat *body-eat-threat*)
            :frames
            (list "=<{(o.o)}==>")
            :x
@@ -86,6 +92,8 @@
            world
            :kind
            :shark
+           :data
+           (list :threat *body-eat-threat*)
            :frames
            (list "=<{(o.o)}==>")
            :x
@@ -131,7 +139,7 @@
            :policy
            :none
            :data
-           (list :target-depth 8 :dropped t)))
+           (list :target-depth 8 :dropped t :threat *body-eat-threat*)))
          (fish (make-fish world :species :dart :x 10 :y 8 :dx 0)))
     (cl-asciiquarium::%add-world-creature world anchor)
     (cl-asciiquarium::%add-world-creature world fish)
@@ -177,6 +185,8 @@
            world
            :kind
            :shark
+           :data
+           (list :threat *body-eat-threat*)
            :frames
            (list "SSS")
            :x
@@ -208,7 +218,7 @@
            :policy
            :none
            :data
-           (list :dropped t)))
+           (list :dropped t :threat *body-eat-threat*)))
          (anchor-fish (make-fish world :species :dart :x 5 :y 5 :dx 0))
          (shark-fish (make-fish world :species :dart :x 20 :y 5 :dx 0))
          (safe-fish (make-fish world :species :dart :x 45 :y 5 :dx 0)))
@@ -235,6 +245,8 @@
            world
            :kind
            :shark
+           :data
+           (list :threat *body-eat-threat*)
            :frames
            (list "aa ")
            :x
@@ -284,6 +296,8 @@
            world
            :kind
            :shark
+           :data
+           (list :threat *body-eat-threat*)
            :frames
            (list "p")
            :x
@@ -333,6 +347,8 @@
            world
            :kind
            :shark
+           :data
+           (list :threat *body-eat-threat*)
            :frames
            (list "SSS")
            :x
@@ -351,6 +367,8 @@
            world
            :kind
            :shark
+           :data
+           (list :threat *body-eat-threat*)
            :frames
            (list "SSS")
            :x
@@ -401,6 +419,8 @@
                          world
                          :kind
                          :shark
+                         :data
+                         (list :threat *body-eat-threat*)
                          :frames
                          (list "SSS")
                          :x
@@ -468,6 +488,8 @@
            world
            :kind
            :shark
+           :data
+           (list :threat *body-eat-threat*)
            :frames
            (list "SSS")
            :x
@@ -584,6 +606,8 @@
            world
            :kind
            :shark
+           :data
+           (list :threat *body-eat-threat*)
            :frames
            (list "SSS")
            :x
@@ -624,7 +648,7 @@
     (expect (apply-collisions world) :to-be world)
     (expect (getf (cl-asciiquarium::creature-data shark-fish) :dying) :to-be-truthy)
     (expect (getf (cl-asciiquarium::creature-data anchor-fish) :dying) :to-be-falsy)
-    (setf (cl-asciiquarium::creature-data anchor) (list :dropped t))
+    (setf (cl-asciiquarium::creature-data anchor) (list :dropped t :threat *body-eat-threat*))
     (expect (apply-collisions world) :to-be world)
     (expect (getf (cl-asciiquarium::creature-data anchor-fish) :dying) :to-be-truthy)))
  (it
@@ -636,6 +660,8 @@
            world
            :kind
            :shark
+           :data
+           (list :threat *body-eat-threat*)
            :frames
            (list "SSS")
            :x
@@ -693,6 +719,8 @@
            world
            :kind
            :shark
+           :data
+           (list :threat *body-eat-threat*)
            :frames
            (list "SSS")
            :x
@@ -721,6 +749,8 @@
            world
            :kind
            :shark
+           :data
+           (list :threat *body-eat-threat*)
            :frames
            (list "SSS")
            :x
@@ -752,7 +782,7 @@
            :policy
            :none
            :data
-           (list :dropped t)))
+           (list :dropped t :threat *body-eat-threat*)))
          (shark-fish (make-fish world :species :dart :x 0 :y 0 :dx 0))
          (anchor-fish (make-fish world :species :dart :x 10 :y 0 :dx 0))
          (already-dying
@@ -786,3 +816,221 @@
     (expect (getf (cl-asciiquarium::creature-data already-dying) :dying) :to-be-truthy)
     (expect (cl-asciiquarium::creature-ttl already-dying) :to-be 7)
     (expect (getf (cl-asciiquarium::creature-data safe-fish) :dying) :to-be-falsy))))
+
+(defun threat-fixture (world row &key (frames (list "TTTTT")) (x 10) (y 5) (facing :right))
+  "A motionless creature at X Y carrying the :THREAT row ROW."
+  (make-creature :world world :kind :threat-fixture :frames frames :facing facing
+                 :x x :y y :dx 0 :dy 0 :policy :none :data (list :threat row)))
+
+(defun one-cell-fish (world x y)
+  "A motionless one-cell live fish at X Y."
+  (make-creature :world world :kind :fish :frames (list "f") :x x :y y
+                 :dx 0 :dy 0 :policy :none :data (list :species :test :tick nil)))
+
+(defun dying-p (fish)
+  (and (getf (cl-asciiquarium::creature-data fish) :dying) t))
+
+(defparameter *front-eat-threat*
+  '(:grip (:front 2) :effect cl-asciiquarium::eat-effect :prey nil :alarm nil))
+
+(defparameter *body-catch-threat*
+  '(:grip :body :effect cl-asciiquarium::catch-effect :prey nil :alarm nil))
+
+(defparameter *alarm-only-threat* '(:grip :body :effect nil :prey nil :alarm t))
+
+(defvar *sense-calls* nil)
+
+(defvar *allocation-sink* nil)
+
+(defun record-sense-call (world sensor threat)
+  (declare (ignore world))
+  (push (cons sensor threat) *sense-calls*))
+
+(describe "apply-collisions: grip rectangles"
+  (it-each ((9 nil) (10 t) (14 t) (15 nil))
+      "a :body grip over columns 10-14 takes a fish at column ~D: ~S"
+      (x expected)
+    (let* ((world (tiny-world :width 40 :height 20))
+           (threat (threat-fixture world *body-eat-threat*))
+           (fish (one-cell-fish world x 5)))
+      (cl-asciiquarium::%set-world-creatures world (list threat fish))
+      (apply-collisions world)
+      (expect (dying-p fish) :to-be expected)))
+  (it-each ((:right 12 nil) (:right 13 t) (:right 14 t) (:right 15 nil)
+            (:left 9 nil) (:left 10 t) (:left 11 t) (:left 12 nil))
+      "a (:front 2) grip facing ~S takes a fish at column ~D: ~S"
+      (facing x expected)
+    (let* ((world (tiny-world :width 40 :height 20))
+           (threat (threat-fixture world *front-eat-threat* :facing facing))
+           (fish (one-cell-fish world x 5)))
+      (cl-asciiquarium::%set-world-creatures world (list threat fish))
+      (apply-collisions world)
+      (expect (dying-p fish) :to-be expected)))
+  (it "takes only the listed species when the row names its prey"
+    (let* ((world (tiny-world :width 40 :height 20))
+           (threat (threat-fixture world '(:grip :body :effect cl-asciiquarium::eat-effect
+                                           :prey (:guppy) :alarm nil)
+                                   :frames (list "TTTTTTTTTTTTTTTTTTTT") :x 0))
+           (dart (make-fish world :species :dart :x 2 :y 5 :dx 0))
+           (guppy (make-fish world :species :guppy :x 10 :y 5 :dx 0)))
+      (cl-asciiquarium::%set-world-creatures world (list threat dart guppy))
+      (apply-collisions world)
+      (expect (dying-p dart) :to-be nil)
+      (expect (dying-p guppy) :to-be t))))
+
+(describe "apply-collisions: effects"
+  (it "eat kills the fish in place and schedules one refill"
+    (let* ((world (tiny-world :width 40 :height 20))
+           (threat (threat-fixture world *body-eat-threat*))
+           (fish (make-fish world :species :dart :x 10 :y 5 :dx 0.5f0)))
+      (cl-asciiquarium::%set-world-creatures world (list threat fish))
+      (world-advance world)
+      (with-soft-assertions
+        (expect (cl-asciiquarium::creature-kind fish) :to-be :fish)
+        (expect (dying-p fish) :to-be t)
+        (expect (getf (cl-asciiquarium::creature-data fish) :tick) :to-be nil)
+        (expect (entity-dx (cl-asciiquarium::creature-entity fish)) :to-be 0)
+        (expect (cl-asciiquarium::creature-ttl fish) :to-be +death-animation-ticks+)
+        (expect (cl-asciiquarium::world-refill-at world)
+                :to-be (+ 1 cl-asciiquarium::+refill-delay-ticks+)))))
+  (it "catch turns the fish into a :caught-fish that follows its captor and leaves with it"
+    (let* ((world (tiny-world :width 40 :height 20))
+           (threat (threat-fixture world *body-catch-threat*))
+           (fish (make-fish world :species :dart :x 11 :y 5 :dx 0.5f0)))
+      (cl-asciiquarium::%set-world-creatures world (list threat fish))
+      (world-advance world)
+      (with-soft-assertions
+        (expect (cl-asciiquarium::creature-kind fish) :to-be :caught-fish)
+        (expect (cl-asciiquarium::alive-fish-p fish) :to-be nil)
+        (expect (getf (cl-asciiquarium::creature-data fish) :captor) :to-be threat)
+        (expect (getf (cl-asciiquarium::creature-data fish) :tick)
+                :to-be 'cl-asciiquarium::caught-fish-tick)
+        (expect (entity-dx (cl-asciiquarium::creature-entity fish)) :to-be 0)
+        (expect (cl-tty-kit:entity-on-exit (cl-asciiquarium::creature-entity fish)) :to-be nil)
+        (expect (cl-asciiquarium::world-refill-at world)
+                :to-be (+ 1 cl-asciiquarium::+refill-delay-ticks+)))
+      (let ((offset-x (- (creature-x fish) (creature-x threat)))
+            (offset-y (- (creature-y fish) (creature-y threat))))
+        (setf (entity-x (cl-asciiquarium::creature-entity threat)) 20
+              (entity-y (cl-asciiquarium::creature-entity threat)) 3)
+        (world-advance world)
+        (expect (list (- (creature-x fish) (creature-x threat))
+                      (- (creature-y fish) (creature-y threat)))
+                :to-equal (list offset-x offset-y)))
+      (setf (cl-asciiquarium::creature-removep threat) t
+            (cl-asciiquarium::world-removal-pending-p world) t)
+      (world-advance world)
+      (expect (member fish (cl-asciiquarium::world-%creatures world)) :to-be-falsy)))
+  (it "applies only the first removing effect when two threats grip one fish"
+    (let* ((world (tiny-world :width 40 :height 20))
+           (catcher (threat-fixture world *body-catch-threat*))
+           (eater (threat-fixture world *body-eat-threat*))
+           (fish (one-cell-fish world 12 5)))
+      (cl-asciiquarium::%set-world-creatures world (list catcher eater fish))
+      (apply-collisions world)
+      (expect (cl-asciiquarium::creature-kind fish) :to-be :caught-fish)
+      (expect (dying-p fish) :to-be nil)))
+  (it "lets a threat that is itself a live fish skip itself"
+    (let* ((world (tiny-world :width 40 :height 20))
+           (lure (make-fish world :species :dart :x 10 :y 5 :dx 0)))
+      (setf (cl-asciiquarium::creature-data lure)
+            (list* :threat *body-eat-threat* (cl-asciiquarium::creature-data lure)))
+      (cl-asciiquarium::%set-world-creatures world (list lure))
+      (apply-collisions world)
+      (expect (dying-p lure) :to-be nil))))
+
+(describe "arm-threat"
+  (it "opens the collision gate for a creature that becomes a threat after it was added"
+    (let* ((world (tiny-world :width 40 :height 20))
+           (lurker (make-creature :world world :kind :threat-fixture :frames (list "TTTTT")
+                                  :x 10 :y 5 :policy :none :data (list :threat nil)))
+           (fish (one-cell-fish world 12 5)))
+      (cl-asciiquarium::%set-world-creatures world (list lurker fish))
+      (world-advance world)
+      (expect (dying-p fish) :to-be nil)
+      (expect (cl-asciiquarium::world-active-predator-count world) :to-be 0)
+      (cl-asciiquarium::arm-threat world lurker *body-eat-threat*)
+      (world-advance world)
+      (expect (dying-p fish) :to-be t))))
+
+(describe "apply-collisions: sensing"
+  (it-each ((18 1 t) (19 1 nil) (18 2 nil) (6 0 t) (5 0 nil))
+      "calls the reaction of a (3 1) sensor at column ~D, ~D rows clear of the threat: ~S"
+      (x rows-clear expected)
+    (let* ((world (tiny-world :width 40 :height 20))
+           (threat (threat-fixture world *alarm-only-threat*))
+           (sensor (make-creature :world world :kind :sensor :frames (list "s")
+                                  :x x :y (+ 5 1 rows-clear) :policy :none
+                                  :data (list :sense '(3 1 record-sense-call))))
+           (*sense-calls* nil))
+      (cl-asciiquarium::%set-world-creatures world (list threat sensor))
+      (apply-collisions world)
+      (expect (equal *sense-calls* (and expected (list (cons sensor threat)))) :to-be-truthy)))
+  (it "treats a NIL row range as unlimited and ignores threats without :alarm"
+    (let* ((world (tiny-world :width 40 :height 40))
+           (alarm (threat-fixture world *alarm-only-threat* :y 0))
+           (quiet (threat-fixture world *body-eat-threat* :y 0 :x 30))
+           (sensor (make-creature :world world :kind :sensor :frames (list "s")
+                                  :x 12 :y 35 :policy :none
+                                  :data (list :sense '(0 nil record-sense-call))))
+           (*sense-calls* nil))
+      (cl-asciiquarium::%set-world-creatures world (list alarm quiet sensor))
+      (apply-collisions world)
+      (expect (equal *sense-calls* (list (cons sensor alarm))) :to-be-truthy))))
+
+(describe "apply-collisions: allocation"
+  ;; SB-EXT:GET-BYTES-CONSED only moves when a thread's allocation region
+  ;; fills, so a single small cons can read as zero. Ten thousand passes
+  ;; would allocate well past one region if a pass consed at all.
+  (flet ((bytes-consed-by-passes (world)
+           (dotimes (i 100) (apply-collisions world))
+           (let ((before (sb-ext:get-bytes-consed)))
+             (dotimes (i 10000) (apply-collisions world))
+             (- (sb-ext:get-bytes-consed) before))))
+    (it "conses nothing on a tick with no threat"
+      (with-seeded-random-state (5)
+        (let ((world (make-world :width 80 :height 24 :fish-count 18 :shark-enabled-p nil)))
+          (expect (bytes-consed-by-passes world) :to-be 0))))
+    (it "conses nothing while a threat and a sensor are present but nothing is gripped"
+      (with-seeded-random-state (5)
+        (let ((world (make-world :width 80 :height 24 :fish-count 0 :shark-enabled-p nil)))
+          (cl-asciiquarium::%add-world-creature
+           world (threat-fixture world *alarm-only-threat* :x 0 :y 0))
+          (cl-asciiquarium::%add-world-creature
+           world (make-creature :world world :kind :sensor :frames (list "s") :x 50 :y 20
+                                :policy :none :data (list :sense '(3 1 record-sense-call))))
+          (cl-asciiquarium::%add-world-creature
+           world (make-fish world :species :dart :x 60 :y 20 :dx 0))
+          (expect (bytes-consed-by-passes world) :to-be 0))))
+    (it "measures allocation: a consing control reads as nonzero"
+      (let ((before (sb-ext:get-bytes-consed)))
+        (dotimes (i 10000) (setf *allocation-sink* (list i)))
+        (expect (plusp (- (sb-ext:get-bytes-consed) before)) :to-be-truthy)))))
+
+(defvar *on-stop-calls* nil)
+
+(defun record-on-stop (fish)
+  (push fish *on-stop-calls*))
+
+(describe "fish-stop-behaviour and :on-stop"
+  (it "calls a fish's :on-stop exactly once, whether it is eaten, caught, or removed by -"
+    (dolist (stop (list (lambda (world fish) (cl-asciiquarium::eat-effect world nil fish))
+                        (lambda (world fish)
+                          (cl-asciiquarium::catch-effect
+                           world (threat-fixture world *body-catch-threat*) fish))
+                        (lambda (world fish)
+                          (declare (ignore fish))
+                          (world-decrease-fish-count world))))
+      (with-seeded-random-state (3)
+        (let* ((world (make-world :width 40 :height 20 :fish-count 1 :shark-enabled-p nil))
+               (fish (find-if #'cl-asciiquarium::alive-fish-p (cl-asciiquarium::world-%creatures world)))
+               (*on-stop-calls* nil))
+          (setf (getf (cl-asciiquarium::creature-data fish) :on-stop) 'record-on-stop)
+          (funcall stop world fish)
+          (cl-asciiquarium::fish-stop-behaviour fish)
+          (expect *on-stop-calls* :to-equal (list fish))
+          (expect (getf (cl-asciiquarium::creature-data fish) :on-stop) :to-be nil)))))
+  (it "gives a lantern stop-lantern as its :on-stop"
+    (let ((world (tiny-world :width 40 :height 20)))
+      (expect (getf (cl-asciiquarium::creature-data (make-fish world :species :lantern)) :on-stop)
+              :to-be 'cl-asciiquarium::stop-lantern))))

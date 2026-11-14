@@ -4,16 +4,16 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Documentation](https://img.shields.io/badge/docs-MkDocs%20Material-0a7a5a)](https://nerima-lisp.github.io/cl-asciiquarium/)
 
-An original ASCII-art aquarium screensaver for the terminal: swimming fish (5
-species, color-varied), a shark, rising bubbles, an animated ambient current,
-swaying seaweed, a seabed with a castle and ornaments, a sky above the
+An original ASCII-art aquarium screensaver for the terminal: swimming fish of
+many color-varied species, a hunting shark, rising bubbles, an animated
+ambient current, swaying seaweed, a seabed with a castle and ornaments, a sky above the
 waterline, and periodic special guests (a ship that drops an anchor, a
 line of ducks, a leaping dolphin, a segmented sea monster), rendered live via
 [cl-tty-kit](https://github.com/nerima-lisp/cl-tty-kit). Choose between the
 `abyss`, `coral`, and `moonlight` visual themes, watch the status bar, pause,
-dial the fish count up or down, or spawn a shark or guest on demand, and choose
-a color depth from 24-bit color down to monochrome at startup. Press `h` in-app
-for the full key list. Every sprite is original
+dial the fish count up or down, or spawn a shark, guest, or school on demand,
+and choose a color depth from 24-bit color down to monochrome at startup. Press
+`h` in-app for the full key list. Every sprite is original
 art authored for this repository. Targets SBCL only.
 
 Full documentation is published at <https://nerima-lisp.github.io/cl-asciiquarium/>.
@@ -33,6 +33,15 @@ Or, once built, from the command line:
 ```sh
 asciiquarium --seed 42 --fps 24 --theme coral
 ```
+
+## Life in the tank
+
+The shark hunts, eaten fish are replaced from the screen edge, schools scatter
+and regroup, puffers inflate, lantern fish lure small fish to their light, and
+fish of the same species lay eggs that grow into new fish; see
+[Keybindings and CLI](https://nerima-lisp.github.io/cl-asciiquarium/guide/usage/).
+The tank starts with 18 fish, or `--max-fish N` (1-40, default 30) if that is
+lower, and `+` grows it up to `N`. `--calm` stops blinking animations.
 
 ## Visual modes
 
@@ -122,7 +131,7 @@ special-guest spawn scenarios are exactly reproducible; see
 over every Lisp source file.
 
 The collision pass validates mutable sprite caches and refreshes internal scalar
-bounds once for each active predator and live fish before scanning overlaps. Its
+bounds once for each threat, sensing creature, and live fish before scanning overlaps. Its
 steady-state path creates no temporary collision lists or records; those bounds
 are implementation details and do not expand the public `creature` API.
 

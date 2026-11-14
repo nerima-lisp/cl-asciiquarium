@@ -2,18 +2,19 @@
 
 ## Data apart from logic: the `-data.lisp` files
 
-`art-fish-data.lisp`, `art-decor-data.lisp`, and `art-guests-data.lisp` hold
-nothing but sprite-art strings, color/timing constants, and (for fish) the
-small `FISH-SPECIES-ENTRY` table -- no function bodies, no control flow.
-`art-fish.lisp`, `art-decor.lisp`, and `art-guests.lisp` hold the factories
-that read that data. The split runs one level below the CREATURE contract
+`art-fish-data.lisp`, `art-decor-data.lisp`, `art-guests-data.lisp`, and
+`art-shark-data.lisp` hold nothing but sprite-art strings, color/timing
+constants, `:THREAT` rows, and (for fish) the small `FISH-SPECIES-ENTRY` table
+-- no function bodies, no control flow. `art-fish.lisp`, `art-decor.lisp`,
+`art-guests.lisp`, and `art-shark.lisp` hold the factories that read that
+data, and the `update-*.lisp` files hold the per-tick behaviour (`update-shark.lisp`
+for the shark's hunt). The split runs one level below the CREATURE contract
 below: every sprite's *identity* (what it looks like, what it's called, how
 long its cooldown or arc is) is data a designer could hand-edit without
 touching a function body, and every sprite's *behavior* (how it's placed,
-how it animates) is logic that reads that data by name. `art-shark.lisp` and
-`bubble.lisp` stay as one file each -- one art string and one factory apiece
-is too little to split without turning "find the shark's art" into two file
-opens for no reader benefit.
+how it animates) is logic that reads that data by name. `bubble.lisp` stays
+as one file -- one factory is too little to split without turning "find the
+bubble's art" into two file opens for no reader benefit.
 
 ## The single entity/collision contract
 
@@ -27,18 +28,29 @@ Every sprite type in this repository -- the sky, the waterline and ripple row,
 the castle and seabed ornaments, seaweed, the sand, the ambient current, the
 status bar (HUD), the help panel, each fish species, the shark, bubbles, the ship,
 its anchor, the duck line, the dolphin, and the sea monster's head and body
-segments -- is a `CREATURE`. None of them has its own struct or its own
-per-kind update function.
+segments -- is a `CREATURE`. None of them has its own struct.
 `WORLD-ADVANCE` (`src/update.lisp`) ticks every creature the same way:
-`ENTITY-TICK`, then `CREATURE-TICK-ANIMATION`, then a `TTL` countdown, then a
-small `CASE` on `CREATURE-KIND` for the handful of kinds with extra per-tick
-behavior (a fish's bubble timer, a ship's anchor drop, an anchor's
-fall-then-settle, a bubble's waterline removal, a dolphin's leap arc, a
-sea-monster segment following its leader). Collision (`src/collision.lisp`)
-is one pass, not a per-pair matrix: only shark-vs-fish and
-dropped-anchor-vs-fish are checked, matching the project's interaction rule
-that only the shark and a dropped anchor ever remove a fish -- the dolphin
-and sea monster, like the duck line before them, are purely decorative.
+`ENTITY-TICK`, then `CREATURE-TICK-ANIMATION`, then a `TTL` countdown. A
+creature with extra per-tick behaviour (a fish's bubble timer, a ship's anchor
+drop, an anchor's fall-then-settle, a bubble's waterline removal, a dolphin's
+leap arc, a sea-monster segment following its leader, the shark steering
+toward the nearest fish ahead) carries a `:TICK` function in its `:DATA` plist, set by the
+factory that builds it, and `TICK-CREATURE` calls it last.
+
+Collision (`src/collision.lisp`) is one pass, not a per-pair matrix. A
+creature is a threat when its `:DATA` plist carries a `:THREAT` row. The row
+declares where the threat grips (its whole body or its leading N columns), the
+function applied to a fish it grips, which species it may take, and whether
+creatures carrying a `:SENSE` entry react when it comes within their range.
+Today the threats are the shark's mouth, a landed anchor, a lantern fish's
+light (its leading column, small species only), and one courting fish at a
+time. The pass loops over threats (a handful at most) and, for each, over every
+creature once, so its cost is threats × creatures. There is no all-pairs
+matrix: no creature is tested against every other one. Fish do interact with
+fish, but only through threats. A lantern fish picks the nearest small fish in
+range as its lure target on its own tick and eats it with its leading column.
+For spawning, one courting fish at a time becomes a temporary threat whose
+whole body is its grip.
 
 Two motion patterns beyond simple constant-velocity travel now live inside
 this same contract, both still expressed as ordinary `CREATURE`s rather than
@@ -87,7 +99,7 @@ from, not "every guest factory."
 - `:DESPAWN` -- mark it `REMOVEP`, removed at the end of the current tick
   (the shark, the ship, the duck line -- creatures whose next appearance is
   instead scheduled by a cooldown in `spawn.lisp`).
-- `:NONE` -- no callback (the background scenery, the HUD, and things
+- `:NONE` -- no callback (the background scenery, the status bar, and things
   like bubbles and the anchor whose removal condition is not a hard screen
   edge).
 
@@ -111,10 +123,10 @@ it only removes the creature on the edge its own velocity is carrying it
 toward -- the far edge it is *leaving through*, never the near edge it
 *entered from*.
 
-## Theme, ambient motion, and HUD
+## Theme, ambient motion, and status bar
 
 `WORLD` owns the selected visual theme (`:ABYSS`, `:CORAL`, or `:MOONLIGHT`)
-and whether the HUD is visible. Each theme has a 24-bit palette of named color
+and whether the status bar is visible. Each theme has a 24-bit palette of named color
 roles (`+THEME-RGB-PALETTES+` in `src/palette.lisp`), and `*COLOR-MODE*` decides
 how a role reaches the terminal: as a 24-bit color, the nearest 256-color
 index, the nearest of the 16 system colors, or no color. `COLOR-STYLE` resolves
@@ -130,7 +142,7 @@ run. Every kind but the fish has a restyler: the scenery, the status bar, the
 help panel, bubbles, and the shark and special guests (which share
 `REGISTER-NAMED-COLOR-RESTYLER`). A kind without one, today only the fish,
 keeps the colors it was built with. `WORLD-CYCLE-THEME` is `WORLD-SET-THEME` with the next
-member of `+VISUAL-THEMES+`. `WORLD-TOGGLE-HUD` adds or removes the HUD
+member of `+VISUAL-THEMES+`. `WORLD-TOGGLE-HUD` adds or removes the status bar
 creature without changing simulation state.
 
 The scenery is laid out from the screen size by `MAKE-BACKGROUND-CREATURES`
@@ -146,7 +158,7 @@ The ambient current is a four-row animated `:AMBIENT-CURRENT` creature with
 four deterministic frames, its rows spread through the water between the
 ripple row and the sand. It has no edge callback, but it still participates
 in z-ordering, clipping, prepared-sprite caching, and incremental redraw. The
-HUD is the one-row status bar, a `:HUD` creature at the top render layer on
+status bar is a one-row `:HUD` creature at the top render layer on
 the bottom row. Its text is rebuilt whenever something it shows changes
 (theme, pause, fish count, redraw, resize, a notification), never per tick; `WORLD-NOTIFY` sets a notification that `WORLD-ADVANCE` counts down,
 paused or not, for four seconds of ticks at the `TICKS-PER-SECOND` given to

@@ -26,7 +26,14 @@
       (setf art (add-fish-glow art #\✦)
             mask (add-fish-glow mask #\l)))
     (make-creature :kind :fish-sprite-prototype
-                   :frames art :masks mask
+                   :frames (case (fish-species-entry-name entry)
+                             (:puffer (list art +puffer-big-art+))
+                             (:lantern (list art +lantern-dim-art+))
+                             (otherwise art))
+                   :masks (case (fish-species-entry-name entry)
+                            (:puffer (list mask +puffer-big-mask+))
+                            (:lantern (list mask mask))
+                            (otherwise mask))
                    :role-styles (mask-role-styles palette :theme theme)
                    :style (color-style (first palette) :theme theme)
                    :%trusted-frames-p t :%trusted-style-p t
@@ -63,16 +70,28 @@
         (let* ((y (or y (random-between top bottom)))
                (data (list :species (fish-species-entry-name entry)
                            :palette-index palette-index
-                           :bubble-timer (random-between 20 60)))
+                           :bubble-timer (random-between 20 60)
+                           :threat nil :mate-ready-at 0 :on-stop nil
+                           :tick (if (fish-species-entry-drifts-p entry)
+                                     'drifting-fish-tick
+                                     'maybe-emit-bubble)))
                (fish (make-creature :world world :kind :fish
                                     :%sprite-prototype prototype
+                                    :frame-period (when (eq (fish-species-entry-name entry) :lantern)
+                                                    (blink-frame-period world 6))
                                     :facing facing :z 5 :policy :wrap
                                     :x (or x (random (world-width world)))
                                     :y y :dx dx :data data)))
           (when (fish-species-entry-drifts-p entry)
             (setf (creature-data fish)
                   (list* :drift-phase (random 120) :drift-y (round y) data)))
-          fish)))))
+          (case (fish-species-entry-name entry)
+            (:puffer (initialize-puffer fish))
+            (:lantern
+             (initialize-lantern world fish)
+             (setf (getf (creature-data fish) :on-stop) 'stop-lantern)
+             fish)
+            (otherwise fish)))))))
 
 (defun kill-fish (fish)
   "Convert a live FISH creature into its brief death animation, in place.
@@ -80,6 +99,7 @@ Idempotent: a fish already dying (checked via its :DYING data flag) is left
 alone, so a fish inside more than one predator's bounding box in the same
 tick is only killed once."
   (unless (getf (creature-data fish) :dying)
+    (fish-stop-behaviour fish)
     (setf (creature-data fish) (list* :dying t (creature-data fish)))
     (%set-creature-frames fish (vector +fish-death-art+))
     (setf (creature-frame-index fish) 0)
@@ -87,9 +107,25 @@ tick is only killed once."
     (setf (entity-dx (creature-entity fish)) 0)
     (setf (entity-dy (creature-entity fish)) 0)))
 
+(defun fish-stop-behaviour (fish)
+  "Call and clear FISH's :ON-STOP entry, if any, then clear its :TICK, :THREAT,
+and :SENSE entries in place, so a fish leaving play neither acts, threatens,
+nor reacts. Keys it does not carry stay absent."
+  (let ((on-stop (getf (creature-data fish) :on-stop)))
+    (when on-stop
+      (setf (getf (creature-data fish) :on-stop) nil)
+      (funcall on-stop fish)))
+  (let ((data (creature-data fish)))
+    (dolist (key '(:tick :threat :sense))
+      (when (getf data key)
+        (setf (getf data key) nil))))
+  fish)
+
 (defun alive-fish-p (creature)
-  "True for a fish CREATURE not already in its death animation."
+  "True for a fish CREATURE not already in its death animation and not marked
+REMOVEP, so a fish leaving the tank stops counting the moment it is marked."
   (and (eq (creature-kind creature) :fish)
+       (not (creature-removep creature))
        (not (getf (creature-data creature) :dying))))
 
 (defun add-fish-glow (text marker)
