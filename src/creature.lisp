@@ -19,6 +19,9 @@
   (%frame-heights #() :type simple-vector)
   (%frame-runs #() :type simple-vector)
   (%mirrored-frame-runs #() :type simple-vector)
+  (%masks nil :type (or null simple-vector))
+  (%mirrored-masks nil :type (or null simple-vector))
+  (%role-styles nil :type list)
   (frame-index 0 :type fixnum)
   (frame-period nil :type (or null fixnum))
   (frame-timer 0 :type fixnum)
@@ -119,6 +122,11 @@ default foreground. Bound as a dynamic variable rather than threaded through
 every creature factory's argument list, since SOLID-STYLE is already the one
 place every factory's color composition passes through.")
 
+(defvar *ascii* nil
+  "When true (the --ascii flag), every creature frame is passed through
+ASCII-TEXT as it is prepared, so no symbol outside ASCII reaches the screen.
+Bound by RUN; read only when frames are prepared, never per frame.")
+
 (defun solid-style (color)
   "Return a cl-tty-kit STYLE painting foreground text COLOR (a NAMED-COLOR
 keyword) solid, with no other attribute, or NIL when *MONOCHROME* is true.
@@ -134,6 +142,8 @@ same way; this is the one place that composition is spelled out."
     (dx 0)
     dy
     frames
+    masks
+    role-styles
     frame-period
     facing
     style
@@ -147,7 +157,12 @@ same way; this is the one place that composition is spelled out."
     %trusted-style-p)
   "Create a CREATURE at (X, Y) with velocity (DX, DY) and sprite art FRAMES
 (a single string, or a list of strings for a looping animation advanced every
-FRAME-PERIOD ticks). WORLD is the owning WORLD, used only to resolve :WRAP
+FRAME-PERIOD ticks). MASKS, when given, parallels FRAMES (a string or a
+list of strings) with one mask per frame of exactly the same line shape: a
+mask character other than a space selects that cell's style from ROLE-STYLES
+(an alist of (CHARACTER . STYLE), see MASK-ROLE-STYLES) and makes the cell
+opaque even where the art has a space; a space leaves the cell's art in STYLE,
+and a space under a space stays transparent. WORLD is the owning WORLD, used only to resolve :WRAP
 repositioning (see WRAP-CREATURE) and by default policy :NONE; it is omitted
 for creatures constructed as fixtures in isolation from a running world.
 POLICY selects the ENTITY :ON-EXIT behavior; see CREATURE-ON-EXIT. Internal
@@ -189,15 +204,19 @@ accessors."
             (creature-%frame-widths creature) (creature-%frame-widths %sprite-prototype)
             (creature-%frame-heights creature) (creature-%frame-heights %sprite-prototype)
             (creature-%frame-runs creature) (creature-%frame-runs %sprite-prototype)
-            (creature-%mirrored-frame-runs creature) (creature-%mirrored-frame-runs %sprite-prototype))
+            (creature-%mirrored-frame-runs creature) (creature-%mirrored-frame-runs %sprite-prototype)
+            (creature-%masks creature) (creature-%masks %sprite-prototype)
+            (creature-%mirrored-masks creature) (creature-%mirrored-masks %sprite-prototype)
+            (creature-%role-styles creature) (creature-%role-styles %sprite-prototype))
       (%set-creature-frames
         creature
-        (etypecase frames
-          (string (vector frames))
-          (list (coerce frames 'simple-vector))
-          (vector (coerce frames 'simple-vector)))
+        (%frame-vector frames)
         :escaped-p
-        (not %trusted-frames-p)))
+        (not %trusted-frames-p)
+        :masks
+        (and masks (%frame-vector masks))
+        :role-styles
+        role-styles))
     (setf (creature-entity creature) (make-entity
         :x
         x

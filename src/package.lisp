@@ -16,7 +16,15 @@
                 #:sprite-blit
                 #:make-style
                 #:style-fg
+                #:style-bg
                 #:named-color
+                #:parse-hex-color
+                #:rgb-to-256
+                #:rgb-to-ansi16
+                #:color-256-to-rgb
+                #:make-cell
+                #:style-merge
+                #:screen-put-cell
                 #:make-entity
                 #:entity-tick
                 #:entity-x
@@ -66,9 +74,17 @@
    #:unknown-species-name
    #:asciiquarium-invalid-policy
    #:invalid-policy-policy
+   #:asciiquarium-invalid-mask
+   #:invalid-mask-frame-index
+   #:invalid-mask-line
+   #:invalid-mask-detail
+   #:asciiquarium-invalid-argument
+   #:invalid-argument-value
+   #:invalid-argument-expected
 
    ;; -- Geometry / sprite helpers --
    #:mirror-sprite-text
+   #:mirror-sprite-mask
    #:sprite-dimensions
    #:sprite-width
    #:clamp
@@ -77,6 +93,16 @@
    ;; -- Creature: the one shape every sprite type goes through --
    #:creature
    #:creature-p
+   #:*color-mode*
+   #:+color-modes+
+   #:color-style
+   #:mask-role-styles
+   #:rgb-color
+   #:detect-color-mode
+   #:resolve-color-mode
+   #:*ascii*
+   #:ascii-text
+   #:background-cell
    #:make-creature
    #:creature-frames
    #:creature-facing
@@ -105,6 +131,15 @@
    #:world-resize
    #:world-redraw
    #:world-cycle-theme
+   #:world-set-theme
+   #:world-notify
+   #:world-waterline-row
+   #:world-status-row
+   #:world-sand-top
+   #:world-swim-band
+   #:world-background-cell
+   #:register-creature-restyler
+   #:register-named-color-restyler
    #:world-toggle-hud
    #:world-increase-fish-count
    #:world-decrease-fish-count

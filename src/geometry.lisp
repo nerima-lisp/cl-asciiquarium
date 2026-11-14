@@ -47,12 +47,28 @@ symmetric glyphs) mirrors to itself.")
   "Return LINE reversed with every character mirrored via MIRROR-CHAR."
   (map 'string #'mirror-char (reverse line)))
 
+(defun %padded-sprite-lines (text)
+  "Split TEXT into lines, padding each short line on the right with spaces to
+the longest line's width. The padding is transparent, so it draws nothing; it
+only fixes each line's columns before a mirror reverses them."
+  (let* ((lines (split-sprite-lines text))
+         (width (reduce #'max lines :key #'length :initial-value 0)))
+    (mapcar (lambda (line)
+              (if (= (length line) width)
+                  line
+                  (concatenate 'string line
+                               (make-string (- width (length line))
+                                            :initial-element #\Space))))
+            lines)))
+
 (defun mirror-sprite-text (text)
-  "Return multi-line sprite TEXT flipped left-to-right: each line is reversed
-and its directional glyphs swapped via MIRROR-CHAR, so a creature authored
-facing right can reuse the same art facing left instead of a second hand-drawn
-copy."
-  (format nil "~{~A~^~%~}" (mapcar #'mirror-line (split-sprite-lines text))))
+  "Return multi-line sprite TEXT flipped left-to-right about its full width:
+each line is first padded to the longest line's width (see
+%PADDED-SPRITE-LINES), then reversed with its directional glyphs swapped via
+MIRROR-CHAR, so a short line keeps its place over the body (a dart's dorsal
+fin stays above its middle) and a creature authored facing right can reuse
+the same art facing left instead of a second hand-drawn copy."
+  (format nil "~{~A~^~%~}" (mapcar #'mirror-line (%padded-sprite-lines text))))
 
 (defun sprite-width (text)
   "Return only the WIDTH of SPRITE-DIMENSIONS, for the common case of an
@@ -89,3 +105,10 @@ WORLD-WIDTH moving left."
   (if (eq facing :right)
       (values (- art-width) speed)
       (values world-width (- speed))))
+
+(defun mirror-sprite-mask (mask)
+  "Return multi-line sprite MASK flipped left-to-right by the same rule as
+MIRROR-SPRITE-TEXT (pad every line to the longest, then reverse), so it stays
+aligned with the mirrored art. No character is swapped, since a mask
+character names a color role rather than a directional glyph."
+  (format nil "~{~A~^~%~}" (mapcar #'reverse (%padded-sprite-lines mask))))
