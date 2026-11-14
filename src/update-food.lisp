@@ -68,8 +68,8 @@ with the fewest empty cells between them, or NIL."
                 (setf best fish best-gap (+ gap-x gap-y))))))))))
 
 (defun food-pull (world food fish)
-  "Move FISH at most one column and a quarter row so its middle nears FOOD,
-keeping it inside its swim limits. Its velocity and facing are untouched."
+  "Move FISH at most one column and, unless its species drifts, a quarter row
+so its middle nears FOOD, keeping it inside its swim limits. Its velocity and facing are untouched."
   (multiple-value-bind (width height) (creature-dimensions fish)
     (multiple-value-bind (top bottom) (fish-swim-limits world height)
       (let ((entity (creature-entity fish))
@@ -77,7 +77,9 @@ keeping it inside its swim limits. Its velocity and facing are untouched."
             (gap-y (- (clamp (- (+ (creature-y food) 0.5f0) (* 0.5f0 height)) top bottom)
                       (creature-y fish))))
         (incf (entity-x entity) (clamp gap-x -1.0f0 1.0f0))
-        (incf (entity-y entity) (clamp gap-y -0.25f0 0.25f0))))))
+        ;; FISH-DRIFT-TICK resets a drifting species' row every tick.
+        (unless (fish-species-entry-drifts-p (fish-species (getf (creature-data fish) :species)))
+          (incf (entity-y entity) (clamp gap-y -0.25f0 0.25f0)))))))
 
 (defun food-tick (world food)
   "Keep FOOD sinking until the bottom of the swim band and resting there, then,

@@ -225,6 +225,26 @@ catch fish (the octopus, the gulls): swim band rows 7..19."
                (- (creature-x fish) before))))
       (expect (fish-step 1) :to-be 0.25f0)
       (expect (fish-step 2) :to-be 1.25f0)))
+  ;; Whichever ticks last decides the jelly's row for the collision pass and
+  ;; the frame: FISH-DRIFT-TICK when the grain is newer, the pull when older.
+  (it-each ((:grain-after-jelly) (:grain-before-jelly))
+      "pulls a drifting jelly only sideways (~S)"
+      (order)
+    (flet ((jelly-world (fed)
+             (with-seeded-random-state (17)
+               (let ((world (food-world)))
+                 (when (and fed (eq order :grain-before-jelly)) (add-food world 40 10))
+                 (let ((jelly (make-fish world :species :jelly :x 20 :y 10 :dx 0.05f0 :facing :right)))
+                   (cl-asciiquarium::%add-world-creature world jelly)
+                   (when (and fed (eq order :grain-after-jelly)) (add-food world 40 10))
+                   (values world jelly))))))
+      (multiple-value-bind (fed-world fed-jelly) (jelly-world t)
+        (multiple-value-bind (control-world control-jelly) (jelly-world nil)
+          (dotimes (i 40)
+            (world-advance fed-world)
+            (world-advance control-world)
+            (expect (creature-y fed-jelly) :to-equal (creature-y control-jelly)))
+          (expect (> (creature-x fed-jelly) (+ (creature-x control-jelly) 10)) :to-be-truthy)))))
   (it "pulls only the nearest of two lured fish"
     (let* ((world (food-world))
            (food (add-food world 40 8))
