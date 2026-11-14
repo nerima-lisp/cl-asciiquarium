@@ -69,8 +69,8 @@ tick before the boat, so they also clamp after a resize themselves."
         ;; Placed now: creatures added during a tick first tick on the next.
         (fishing-line-tick world line)
         (fishing-hook-tick world hook)
-        (%add-world-creature world line)
-        (%add-world-creature world hook)))))
+        (%add-fisher-part world line)
+        (%add-fisher-part world hook)))))
 
 (defun start-reeling (boat prey)
   (let ((data (creature-data boat)))
@@ -114,7 +114,7 @@ tick before the boat, so they also clamp after a resize themselves."
           (entity-y entity) (boat-sway-row world (1+ +fisher-boat-rise+))
           (getf data :phase) :cheer
           (getf data :wait-until) (+ (world-tick world) +fisher-cheer-ticks+))
-    (%add-world-creature world cheer)))
+    (%add-fisher-part world cheer)))
 
 (defun fisher-reel-tick (world boat)
   (let* ((data (creature-data boat))

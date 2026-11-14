@@ -261,6 +261,45 @@
               (expect (equalp role-styles (cl-asciiquarium::creature-%role-styles boat))
                       :to-be nil))))))))
 
+(describe "fisher parts and a theme change before they show"
+  (it "draws the line, hook, and cheer in the theme current when each appears"
+    (let ((*color-mode* :truecolor))
+      (with-seeded-random-state (5)
+        (let* ((world (gull-world))
+               (boat (cl-asciiquarium::spawn-fisher-now world))
+               (hook (boat-data boat :hook))
+               (cheer (boat-data boat :cheer)))
+          (world-advance world)
+          (world-set-theme world :abyss)
+          (advance-until-phase world boat :lower 400)
+          (let ((fresh (cl-asciiquarium::make-fisher world)))
+            (flet ((runs-match-p (key)
+                     (eq (cl-asciiquarium::creature-%frame-runs (boat-data boat key))
+                         (cl-asciiquarium::creature-%frame-runs (boat-data fresh key)))))
+              (expect (list (runs-match-p :line) (runs-match-p :hook)) :to-equal '(t t))
+              ;; The cheer was built at spawn under :coral and joins later.
+              (parked-dart world (- (creature-x hook) 2) (+ (creature-y hook) 4))
+              (world-set-theme world :moonlight)
+              (loop repeat 200
+                    until (present-p world cheer)
+                    do (world-advance world))
+              (expect (present-p world cheer) :to-be t)
+              (let ((night (cl-asciiquarium::make-fisher world)))
+                (expect (eq (cl-asciiquarium::creature-%frame-runs cheer)
+                            (cl-asciiquarium::creature-%frame-runs (boat-data night :cheer)))
+                        :to-be t)))))))))
+
+(describe "fishing line sprite cache"
+  (it "keeps only the line built for the latest screen height"
+    (with-seeded-random-state (5)
+      (let ((world (gull-world)))
+        (dolist (height '(24 30 40))
+          (world-resize world 80 height)
+          (cl-asciiquarium::make-fisher world))
+        (let ((boat (cl-asciiquarium::make-fisher world)))
+          (expect (hash-table-count cl-asciiquarium::*fishing-line-prototypes*) :to-be 1)
+          (expect cl-asciiquarium::*fishing-line-depth* :to-be (boat-data boat :max-depth)))))))
+
 (describe "fisher part sprites"
   (it "shares one set of line, hook, and cheer runs between fishers of the same screen"
     (with-seeded-random-state (5)

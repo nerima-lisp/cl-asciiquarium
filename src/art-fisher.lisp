@@ -21,14 +21,27 @@
   "The theme color role each fisher part is drawn in.")
 
 (defvar *fisher-part-prototypes* (make-hash-table :test #'equal)
-  "Line, hook, and cheer sprite prototypes keyed by (KIND MAX-DEPTH THEME
-COLOR-MODE ASCII); MAX-DEPTH is NIL except for the line, whose frames it
-sets, so the key already covers the screen size.")
+  "Hook and cheer sprite prototypes keyed by (KIND THEME COLOR-MODE ASCII).")
+
+(defvar *fishing-line-prototypes* (make-hash-table :test #'equal)
+  "Line sprite prototypes of *FISHING-LINE-DEPTH* frames only, keyed by (THEME
+COLOR-MODE ASCII). A line of another length empties it first, so the lines of
+earlier screen heights are not kept.")
+
+(defvar *fishing-line-depth* nil
+  "The MAX-DEPTH every prototype in *FISHING-LINE-PROTOTYPES* was built for.")
+
+(defun %fisher-part-table (kind max-depth)
+  (cond ((not (eq kind :line)) *fisher-part-prototypes*)
+        ((eql max-depth *fishing-line-depth*) *fishing-line-prototypes*)
+        (t (setf *fishing-line-depth* max-depth)
+           (clrhash *fishing-line-prototypes*))))
 
 (defun %fisher-part-prototype (kind max-depth theme)
-  (let ((key (list kind max-depth theme (effective-color-mode) *ascii*)))
-    (or (gethash key *fisher-part-prototypes*)
-        (setf (gethash key *fisher-part-prototypes*)
+  (let ((table (%fisher-part-table kind max-depth))
+        (key (list kind theme (effective-color-mode) *ascii*)))
+    (or (gethash key table)
+        (setf (gethash key table)
               (make-creature :kind :fisher-part-prototype
                              :frames (ecase kind
                                        (:line (fishing-line-frames max-depth))
@@ -101,6 +114,12 @@ the waterline, for the storm sway), and the fishing state :PHASE and
 (defun restyle-fisher (world boat)
   (multiple-value-bind (role-styles style) (%fisher-boat-colors (world-theme world))
     (%set-creature-colors boat :style style :role-styles role-styles)))
+
+(defun %add-fisher-part (world part)
+  "Add PART to WORLD in WORLD's current theme: it was built with its boat, and
+the theme may have changed since while it was not in WORLD to be restyled."
+  (restyle-fisher-part world part)
+  (%add-world-creature world part))
 
 (defun restyle-fisher-part (world part)
   (let ((kind (creature-kind part)))
