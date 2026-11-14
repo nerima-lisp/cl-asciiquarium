@@ -5,6 +5,11 @@
 ;;;; All stored art faces right; masks reverse without swapping glyphs.
 (in-package #:cl-asciiquarium)
 
+(defparameter +puffer-big-art+ (format nil " .----.~%(( O  O ))=>~% `----'"))
+(defparameter +puffer-big-mask+ (format nil " ffffff~%bbbebbebbbtt~% ffffff"))
+(defparameter +lantern-dim-art+ (format nil "      .~%  .--.|~%=(( o  >~%  `--'"))
+(defparameter +lantern-glow-art+ (format nil "· · ·~%·   ·~%· · ·"))
+
 (defstruct (fish-species-entry
             (:constructor make-fish-species-entry
                 (name art &key mask color-sets speed-range small-p drifts-p spawn-probability)))
