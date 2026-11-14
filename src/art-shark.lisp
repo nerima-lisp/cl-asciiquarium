@@ -1,8 +1,7 @@
 ;;;; src/art-shark.lisp -- the predator: original shark art and its factory.
 ;;;;
-;;;; Per the project's interaction rule, the shark is the only creature (other
-;;;; than a dropped anchor) that removes a fish; see collision.lisp for the
-;;;; single collision pass that enforces that rule.
+;;;; The shark is a threat from the moment it is created: its data carries
+;;;; +SHARK-THREAT+ (art-shark-data.lisp), which collision.lisp applies.
 (in-package #:cl-asciiquarium)
 
 (defparameter +shark-art+
@@ -34,6 +33,6 @@ what lets a test exercise one crossing direction deterministically."
                      :x x
                      :y (random-between lane-top lane-bottom)
                      :dx dx
-                     :data nil))))
+                     :data (list :threat +shark-threat+ :tick 'shark-tick :eaten 0)))))
 
 (register-named-color-restyler :shark :white)
