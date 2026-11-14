@@ -27,12 +27,16 @@ plist.
 Every sprite type in this repository -- the sky, the waterline and ripple row,
 the castle and seabed ornaments, seaweed, the sand, the ambient current, the
 status bar (HUD), the help panel, each fish species, the shark, bubbles, the ship,
-its anchor, the duck line, the dolphin, and the sea monster's head and body
-segments -- is a `CREATURE`. None of them has its own struct.
+its anchor and chain, the duck line, the dolphin, the sea monster's head and body
+segments, the submarine and its sonar rings, the treasure chest and its coins,
+the diver's dinghy, rope, and diver, the vent's plume, the crab, and the
+octopus with its tentacle and ink -- is a `CREATURE`. None of them has its own struct.
 `WORLD-ADVANCE` (`src/update.lisp`) ticks every creature the same way:
 `ENTITY-TICK`, then `CREATURE-TICK-ANIMATION`, then a `TTL` countdown. A
 creature with extra per-tick behaviour (a fish's bubble timer, a ship's anchor
-drop, an anchor's fall-then-settle, a bubble's waterline removal, a dolphin's
+drop, an anchor's fall, rest on the seabed, and rise, a submarine's sonar
+timer, the chest's opening schedule, the dinghy's dive phases, the crab's turn
+at an edge, the octopus's reach and ink, a bubble's waterline removal, a dolphin's
 leap arc, a sea-monster segment following its leader, the shark steering
 toward the nearest fish ahead) carries a `:TICK` function in its `:DATA` plist, set by the
 factory that builds it, and `TICK-CREATURE` calls it last.
@@ -43,8 +47,9 @@ declares where the threat grips (its whole body or its leading N columns), the
 function applied to a fish it grips, which species it may take, and whether
 creatures carrying a `:SENSE` entry react when it comes within their range.
 Today the threats are the shark's mouth, a landed anchor, a lantern fish's
-light (its leading column, small species only), and one courting fish at a
-time. The pass loops over threats (a handful at most) and, for each, over every
+light (its leading column, small species only), one courting fish at a
+time, the submarine (it only alarms), its sonar rings (they stun), the vent's
+plume (it lifts fish), and an octopus tentacle's tip. The pass loops over threats (a handful at most) and, for each, over every
 creature once, so its cost is threats × creatures. There is no all-pairs
 matrix: no creature is tested against every other one. Fish do interact with
 fish, but only through threats. A lantern fish picks the nearest small fish in

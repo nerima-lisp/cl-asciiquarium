@@ -224,8 +224,9 @@ A creature already on screen keeps the styles resolved for it until then.
 
 ## Collision
 
-- `APPLY-COLLISIONS (world)` -- the single collision pass: shark-vs-fish and
-  dropped-anchor-vs-fish.
+- `APPLY-COLLISIONS (world)` -- the single collision pass: every creature
+  carrying a `:THREAT` row (for example the shark, a landed anchor, sonar
+  rings, the vent plume, an octopus tentacle) against the live fish.
 
 ## Constants
 
@@ -235,9 +236,9 @@ A creature already on screen keeps the styles resolved for it until then.
   back to the first.
 - `+DEATH-ANIMATION-TICKS+` -- how many ticks a caught fish's death frame
   stays visible before removal.
-- `+ANCHOR-DROPPED-TICKS+` -- how many ticks a dropped anchor stays in place,
-  and interactive, before it is winched back up and despawns. It is the `TTL`
-  assigned to the anchor at the moment it drops.
+- `+ANCHOR-REST-TICKS+` -- how many ticks a landed anchor rests on the seabed,
+  killing the fish it touches, before it is hauled back up to the surface and
+  removed with its chain.
 - `+WATERLINE-ROW+` -- the waterline row on a screen at least 24 rows tall;
   the rows above it are sky. Shorter screens put the waterline higher, so read
   the current row from `WORLD-WATERLINE-ROW`. Bubbles are removed once they
@@ -253,8 +254,9 @@ A creature already on screen keeps the styles resolved for it until then.
   events)` -- apply decoded `cl-tty-kit:KEY-EVENT`s: `q`/`Q`/Ctrl-C quit,
   `r`/`R` redraw, space pauses/resumes, `+`/`=`/`-`/`_` adjust the live fish
   count, `t`/`T` cycles the theme, `u`/`U` toggles the status bar, `s`/`S`
-  force-spawns a shark, `g`/`G` force-spawns a guest, and `h`/`H` toggles the
-  help panel.
+  force-spawns a shark, `g`/`G` force-spawns a guest, `c`/`C` spawns a
+  school, `a`/`A` a ship, `m`/`M` a submarine, `d`/`D` a diver, and `h`/`H`
+  toggles the help panel.
 - `WORLD-TOGGLE-HELP-OVERLAY (world)` -- add or remove the `:HELP-OVERLAY`
   creature (bound to `h`); excluded from `WORLD-REDRAW`, since it is UI state,
   not aquarium population.
