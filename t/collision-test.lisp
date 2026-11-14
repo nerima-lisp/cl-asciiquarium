@@ -938,6 +938,28 @@
       (apply-collisions world)
       (expect (dying-p lure) :to-be nil))))
 
+(describe "apply-collisions: creatures leaving the tank"
+  (it "lets a threat marked removep take no fish"
+    (let* ((world (tiny-world :width 40 :height 20))
+           (catcher (threat-fixture world *body-catch-threat*))
+           (eater (threat-fixture world *body-eat-threat* :y 8))
+           (caught (one-cell-fish world 12 5))
+           (eaten (one-cell-fish world 12 8)))
+      (cl-asciiquarium::%set-world-creatures world (list catcher eater caught eaten))
+      (setf (cl-asciiquarium::creature-removep catcher) t
+            (cl-asciiquarium::creature-removep eater) t)
+      (apply-collisions world)
+      (expect (list (cl-asciiquarium::creature-kind caught) (dying-p eaten))
+              :to-equal '(:fish nil))))
+  (it "lets a live threat leave a fish marked removep alone"
+    (let* ((world (tiny-world :width 40 :height 20))
+           (catcher (threat-fixture world *body-catch-threat*))
+           (fish (one-cell-fish world 12 5)))
+      (cl-asciiquarium::%set-world-creatures world (list catcher fish))
+      (setf (cl-asciiquarium::creature-removep fish) t)
+      (apply-collisions world)
+      (expect (cl-asciiquarium::creature-kind fish) :to-be :fish))))
+
 (describe "arm-threat"
   (it "opens the collision gate for a creature that becomes a threat after it was added"
     (let* ((world (tiny-world :width 40 :height 20))

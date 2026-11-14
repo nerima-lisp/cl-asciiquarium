@@ -181,6 +181,22 @@ guest, so each test adds exactly the gulls and fish it watches."
         (expect (< (creature-y gull) (world-waterline-row world)) :to-be t)))))
 
 (describe "gulls at night"
+  (it "leave when night falls while the aquarium is paused"
+    (let ((world (gull-world)))
+      (cl-asciiquarium::populate-gulls world)
+      (setf (world-paused-p world) t)
+      (cl-asciiquarium::world-change-daypart world :moonlight)
+      (world-advance world)
+      (expect (length (world-kind-creatures world :gull)) :to-be 0)))
+  (it "catch nothing on the tick they leave for the night"
+    (let* ((world (gull-world))
+           (y (+ (world-waterline-row world) 3))
+           (fish (parked-dart world 29 y)))
+      (diving-gull world 30 y fish)
+      (world-set-theme world :moonlight)
+      (world-advance world)
+      (expect (cl-asciiquarium::creature-kind fish) :to-be :fish)
+      (expect (length (world-kind-creatures world :gull)) :to-be 0)))
   (it "leave when night falls, and populate-gulls adds none at night"
     (let ((world (gull-world)))
       (cl-asciiquarium::populate-gulls world)

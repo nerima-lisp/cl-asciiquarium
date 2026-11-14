@@ -38,14 +38,18 @@ WORLD. Draws no random number."
                                  :target nil :prey nil :threat nil :tick 'gull-tick)))))
 
 (defun populate-gulls (world)
-  "Add gulls to WORLD until +GULL-COUNT+ fly, unless it is night (the
-:MOONLIGHT theme) or WORLD has fewer than +GULL-MIN-SKY-ROWS+ sky rows.
+  "Add gulls to WORLD until +GULL-COUNT+ fly. At night (the :MOONLIGHT theme)
+or with fewer than +GULL-MIN-SKY-ROWS+ sky rows, mark every gull REMOVEP
+instead, so they leave even while WORLD is paused and GULL-TICK does not run.
 Returns WORLD."
-  (unless (or (eq (world-theme world) :moonlight)
-              (< (world-waterline-row world) +gull-min-sky-rows+))
-    (loop for slot from (count :gull (world-%creatures world) :key #'creature-kind)
-            below +gull-count+
-          do (%add-world-creature world (make-gull world slot))))
+  (if (or (eq (world-theme world) :moonlight)
+          (< (world-waterline-row world) +gull-min-sky-rows+))
+      (dolist (creature (world-%creatures world))
+        (when (eq (creature-kind creature) :gull)
+          (setf (creature-removep creature) t)))
+      (loop for slot from (count :gull (world-%creatures world) :key #'creature-kind)
+              below +gull-count+
+            do (%add-world-creature world (make-gull world slot))))
   world)
 
 (defun restyle-gull (world gull)
