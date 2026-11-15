@@ -33,6 +33,7 @@ repository. SBCL only."
                (:file "creature-cache")
                (:file "palette")
                (:file "world")
+               (:file "vertical-line")
                (:file "art-fish-data")
                (:file "art-fish")
                (:file "art-school")

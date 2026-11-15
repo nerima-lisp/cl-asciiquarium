@@ -565,6 +565,7 @@ alone."
                    :x 1 :y (1+ (world-waterline-row world)) :dx 0 :dy 0)))
 
 (defun restyle-panel (sprite-function)
+  "Return a panel restyler that rebuilds its sprite while preserving its position."
   (lambda (world creature)
     (multiple-value-bind (art mask role-styles) (funcall sprite-function world)
       (%set-creature-frames creature (list art) :masks (list mask)

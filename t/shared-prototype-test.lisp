@@ -69,7 +69,8 @@
     (let ((*color-mode* :truecolor))
       (let ((empty (%theme-cycle-allocation 0))
             (bubbles (%theme-cycle-allocation 100)))
-        ;; GET-BYTES-CONSED reports allocation regions, not individual objects.
+        ;; Repeated calls make per-bubble allocation accumulate above the
+        ;; small counter fluctuations seen between otherwise identical runs.
         (expect (< (abs (- bubbles empty)) 65536) :to-be t))))
   (it "never rebuilds warmed sonar runs"
     (with-seeded-random-state (97)
@@ -92,9 +93,11 @@
              (data (cl-asciiquarium::creature-data boat))
              (line (getf data :line))
              (runs (cl-asciiquarium::creature-%frame-runs line)))
-        (dolist (depth '(38 39 40 39 38))
-          (setf (getf data :max-depth) depth)
+        (dolist (depth '(3 7 12 7 3))
+          (setf (getf data :depth) (float depth 1.0f0))
+          (cl-asciiquarium::fishing-line-tick world line)
           (cl-asciiquarium::restyle-fisher-part world line)
+          (expect (cl-asciiquarium::creature-frame-index line) :to-be (1- depth))
           (expect (cl-asciiquarium::creature-%frame-runs line) :to-be runs))))))
 
 (describe "shared vertical line prototypes"
@@ -104,18 +107,19 @@
         (let ((anchor (cl-asciiquarium::make-anchor world ship))
               (runs nil))
           (dolist (length '(0 1 8 20 40 1 20))
-            (pushnew (cl-asciiquarium::creature-%frame-runs
-                      (cl-asciiquarium::make-chain world anchor 5 length))
-                     runs :test #'eq))
+            (let ((chain (cl-asciiquarium::make-chain world anchor 5)))
+              (cl-asciiquarium::%set-chain-length world chain length 40)
+              (expect (cl-asciiquarium::creature-frame-index chain) :to-be length)
+              (pushnew (cl-asciiquarium::creature-%frame-runs chain) runs :test #'eq)))
           (expect (length runs) :to-be 1)))))
   (it "allocates only the chain instance after warming the screen prototype"
     (with-seeded-random-state (91)
       (multiple-value-bind (world ship) (%anchor-ship-world :height 48)
         (let ((anchor (cl-asciiquarium::make-anchor world ship)))
-          (dotimes (i 10) (cl-asciiquarium::make-chain world anchor 5 40))
+          (dotimes (i 10) (cl-asciiquarium::make-chain world anchor 5))
           (sb-ext:gc :full t)
           (let ((before (sb-ext:get-bytes-consed)))
-            (dotimes (i 200) (cl-asciiquarium::make-chain world anchor 5 40))
+            (dotimes (i 200) (cl-asciiquarium::make-chain world anchor 5))
             (expect (< (- (sb-ext:get-bytes-consed) before) (* 200 1024))
                     :to-be t))))))
   (it "retains a long active rope through shrinking and recoloring"
@@ -140,8 +144,10 @@
             (expect (cell-char (screen-cell screen 76 6)) :to-be #\|)
             (expect (cell-char (screen-cell screen 76 7)) :to-be #\|)))
         (expect (<= (hash-table-count cl-asciiquarium::*vertical-line-prototypes*) 3) :to-be t))))
-  (it "bounds cached variants by glyph, theme, color mode and ASCII mode"
-    (let ((cl-asciiquarium::*vertical-line-prototypes* (make-hash-table :test #'equal)))
+  (it "bounds cached variants by spec, theme, color mode and ASCII mode"
+    (let ((cl-asciiquarium::*vertical-line-prototypes* (make-hash-table :test #'equal))
+          (cl-asciiquarium::*vertical-line-prototype-width* 0)
+          (cl-asciiquarium::*vertical-line-prototype-height* 0))
       (with-seeded-random-state (91)
         (multiple-value-bind (world ship) (%anchor-ship-world :height 48)
           (let ((anchor (cl-asciiquarium::make-anchor world ship)))
@@ -149,8 +155,8 @@
               (dolist (*ascii* '(nil t))
                 (dolist (theme '(:abyss :coral :moonlight))
                   (setf (cl-asciiquarium::world-theme world) theme)
-                  (dotimes (length 8)
-                    (cl-asciiquarium::make-chain world anchor 5 length)))))
+                  (dotimes (i 8)
+                    (cl-asciiquarium::make-chain world anchor 5)))))
             (expect (hash-table-count cl-asciiquarium::*vertical-line-prototypes*) :to-be 24)))))))
 
 (describe "bounded recoloring prototypes"
@@ -185,3 +191,25 @@
               (world-set-theme world theme))
             (expect (hash-table-count cl-asciiquarium::*recolored-sprite-prototypes*)
                     :to-be 3)))))))
+
+(describe "vertical line spec keys"
+  (it "keeps distinct styles and starting lengths for specs with the same glyph"
+    (let ((cl-asciiquarium::*vertical-line-prototypes* (make-hash-table :test #'equal))
+          (cl-asciiquarium::*vertical-line-prototype-width* 0)
+          (cl-asciiquarium::*vertical-line-prototype-height* 0)
+          (*color-mode* :truecolor))
+      (let* ((world (make-world :width 80 :height 24 :fish-count 0))
+             (first-spec cl-asciiquarium::+chain-line-spec+)
+             (second-spec (list (first first-spec) 0
+                                (lambda (theme)
+                                  (cl-asciiquarium::visual-style theme :white))))
+             (third-spec (list (first first-spec) 1 (third first-spec)))
+             (first (cl-asciiquarium::%vertical-line-prototype world first-spec))
+             (second (cl-asciiquarium::%vertical-line-prototype world second-spec))
+             (third (cl-asciiquarium::%vertical-line-prototype world third-spec)))
+        (expect (eq first second) :to-be nil)
+        (expect (equal (cl-asciiquarium::creature-%style first)
+                       (cl-asciiquarium::creature-%style second)) :to-be nil)
+        (expect (length (cl-asciiquarium::creature-%frames third)) :to-be 24)
+        (expect (cl-asciiquarium::%vertical-line-prototype world first-spec) :to-be first)
+        (expect (hash-table-count cl-asciiquarium::*vertical-line-prototypes*) :to-be 3)))))

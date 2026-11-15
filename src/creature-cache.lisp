@@ -217,7 +217,10 @@ unmasked in the creature's STYLE (KILL-FISH's death frame relies on this)."
 (defvar *recolored-sprite-prototypes* (make-hash-table :test #'equal))
 
 (defun %recolored-sprite-prototype (frames masks style role-styles)
-  (let ((key (list (coerce frames 'list) (coerce masks 'list) style role-styles)))
+  (let* ((frame-key (coerce frames 'list))
+         (mask-key (coerce masks 'list))
+         (key (list frame-key mask-key style role-styles)))
+    (declare (dynamic-extent frame-key mask-key key))
     (or (gethash key *recolored-sprite-prototypes*)
         (let ((prototype
                 (make-creature :kind :recolored-sprite-prototype
@@ -228,12 +231,11 @@ unmasked in the creature's STYLE (KILL-FISH's death frame relies on this)."
                                :x 0 :y 0 :policy :none)))
           ;; Keys own their strings and styles: a public frames/style alias
           ;; must never mutate a key already stored in the table.
-          (setf (gethash (list (coerce (creature-%frames prototype) 'list)
-                              (coerce (creature-%masks prototype) 'list)
-                              (creature-%style prototype)
-                              (creature-%role-styles prototype))
-                        *recolored-sprite-prototypes*)
-                prototype)))))
+          (setf (first key) (coerce (creature-%frames prototype) 'list)
+                (second key) (coerce (creature-%masks prototype) 'list)
+                (third key) (creature-%style prototype)
+                (fourth key) (creature-%role-styles prototype)
+                (gethash (copy-list key) *recolored-sprite-prototypes*) prototype)))))
 
 (defun %set-creature-colors (creature &key style role-styles)
   (let ((frames (creature-%frames creature))

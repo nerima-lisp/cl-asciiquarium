@@ -292,10 +292,16 @@
 (describe "fishing line sprite cache"
   (it "keeps only prototypes for the latest screen size"
     (with-seeded-random-state (5)
-      (let ((world (gull-world)))
-        (dolist (height '(24 30 40))
+      (let* ((world (gull-world))
+             (previous (cl-asciiquarium::%vertical-line-prototype
+                        world cl-asciiquarium::+fishing-line-spec+)))
+        (dolist (height '(30 24 40))
           (world-resize world 80 height)
-          (cl-asciiquarium::make-fisher world))
+          (cl-asciiquarium::make-fisher world)
+          (let ((current (cl-asciiquarium::%vertical-line-prototype
+                          world cl-asciiquarium::+fishing-line-spec+)))
+            (expect (eq previous current) :to-be nil)
+            (setf previous current)))
         (expect (hash-table-count cl-asciiquarium::*vertical-line-prototypes*) :to-be 1)
         (expect cl-asciiquarium::*vertical-line-prototype-height* :to-be 40)))))
 
