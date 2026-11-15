@@ -1,6 +1,6 @@
 ;;;; src/app-snapshot.lisp -- the `p' key's photo: the renderer's screen saved
-;;;; as a plain-text file. The world only raises a request; the poller in
-;;;; app.lisp calls SAVE-SNAPSHOT, so all file I/O stays out of WORLD-ADVANCE.
+;;;; as a plain-text file. The world only raises a request; MAKE-FRAME-DRAWER
+;;;; in app.lisp calls SAVE-SNAPSHOT, so file I/O stays out of WORLD-ADVANCE.
 (in-package #:cl-asciiquarium)
 
 (defun screen-text (screen)

@@ -95,9 +95,9 @@ with the tip by its caught-fish offset."
   "The tentacle's :TICK: grow one column a tick until it holds a fish or is
 +TENTACLE-MAX-LENGTH+ long, then retract one column a tick, and leave once
 fully back under the rock. Leaving marks it REMOVEP, which takes the fish it
-holds (attached by CATCH-EFFECT) with it and keeps this tick's collision pass from
-running its threat (APPLY-COLLISIONS skips REMOVEP threats); its :THREAT is
-dropped as well."
+holds (attached by CATCH-EFFECT) with it and keeps this tick's collision pass
+from running its threat (APPLY-COLLISIONS skips REMOVEP threats); its :THREAT
+is dropped as well."
   (declare (ignore world))
   (let* ((data (creature-data tentacle))
          (length (getf data :length)))

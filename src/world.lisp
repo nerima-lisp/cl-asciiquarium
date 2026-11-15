@@ -266,9 +266,9 @@ marked REMOVEP, %FLUSH-REMOVED-CREATURES calls RELEASE-ATTACHED on it."
     (%add-world-creature world child))
   (defun attach-existing-creature (owner child)
     "Make CHILD, already in the world, leave with OWNER as ATTACH-CREATURE's
-children do (a fish CATCH-EFFECT hands to its captor). Children that already left on their own
-are dropped from OWNER's :ATTACHED here, so a long-lived owner's list holds
-only its current children."
+children do (a fish CATCH-EFFECT hands to its captor). Children that already
+left on their own are dropped from OWNER's :ATTACHED here, so a long-lived
+owner's list holds only its current children."
     (let ((data (creature-data owner)))
       (setf (getf data :attached)
             (cons child (delete-if #'creature-removep (getf data :attached))))
