@@ -112,7 +112,7 @@ for its death animation while its children must go. The tentacle and the ink
 are transient kinds, so a redraw clears them while the octopus stays; the
 octopus finds them `REMOVEP`, peeks again, and forgets them.
 
-Four of those factories -- `MAKE-SHIP`, `MAKE-DUCK-LINE`, `MAKE-DOLPHIN`, and
+Four guest factories -- `MAKE-SHIP`, `MAKE-DUCK-LINE`, `MAKE-DOLPHIN`, and
 `MAKE-SEA-MONSTER` (`src/art-guests.lisp`) -- share a further, more specific
 shape on top of `CREATURE` itself: each enters `WORLD` fully off-screen on one
 edge, crosses it via `OFF-SCREEN-ENTRY`, and despawns past the other, differing
@@ -280,35 +280,26 @@ previous call:
 
 ## Pure simulation, thin real I/O
 
-Following the split `cl-tty-kit`'s `examples/renderer-loop.lisp` and
-`examples/event-loop.lisp` establish: `WORLD-ADVANCE` (`src/update.lisp`) is
-a pure state transition -- no I/O, no wall clock -- so
-`cl-tty-kit:TICK-LOOP-RUN` can call it a fixed number of times and produce an
-exactly reproducible result. Every test in `t/` drives the simulation this
-way. `src/app.lisp` is the thin real-I/O side: `src/app-zukan.lisp` reads and
-writes the dex, and `src/app-snapshot.lisp` writes screen snapshots outside
-`WORLD-ADVANCE`. The terminal session enables mouse reporting, and
-`WORLD-APPLY-KEY-EVENTS` passes mouse events to `WORLD-APPLY-MOUSE-EVENT`,
-which handles left-button presses for food. `MAKE-WORLD-POLLER` composes
-`cl-tty-kit:MAKE-TERMINAL-SIZE-POLLER` and `cl-tty-kit:MAKE-STREAM-INPUT-POLLER`
-(provided by `cl-tty-kit` 1.5.0) into the terminal-size/stdin poll
-`TICK-LOOP-RUN-REALTIME` runs once per tick, ahead of `WORLD-ADVANCE` itself.
+`WORLD-ADVANCE` (`src/update.lisp`) is a pure state transition with no I/O or
+wall-clock reads. `cl-tty-kit:TICK-LOOP-RUN` can call it a fixed number of
+times and produce an exactly reproducible result; every test in `t/` drives
+the simulation this way. The `cl-tty-kit` examples
+`examples/renderer-loop.lisp` and `examples/event-loop.lisp` show this split.
 
-`RUN` (`src/app.lisp`) uses continuation-passing style here. It does not call
-the tick loop's poll/advance/render/quit steps directly; it hands
-`TICK-LOOP-RUN-REALTIME` four closures: the poller `MAKE-WORLD-POLLER`
-returns, an advancer from `MAKE-ZUKAN-ADVANCER` (or `#'WORLD-ADVANCE` when the
-dex is not writable), a frame drawer from `MAKE-FRAME-DRAWER`, and
-`#'WORLD-QUITP`. Control never
-returns to `RUN` until the loop itself decides to quit -- `RUN` is inverted,
-and the loop is what drives the continuations forward each tick, polling for
-new terminal state before every pure advance. `cl-tty-kit`'s loop owns when
-the next tick happens, so this is the effectful boundary where CPS is useful.
-`WORLD-ADVANCE` and everything it calls stay direct-style on purpose;
-rewriting a pure, already-total state transition into continuation-passing
-form would add an
-indirection with no boundary to justify it, at the direct cost of the
-readability this project otherwise prioritizes.
+`src/app.lisp` owns real I/O. `src/app-zukan.lisp` reads and writes the dex,
+and `src/app-snapshot.lisp` saves screen snapshots outside `WORLD-ADVANCE`.
+`MAKE-WORLD-POLLER` composes `cl-tty-kit:MAKE-TERMINAL-SIZE-POLLER` and
+`cl-tty-kit:MAKE-STREAM-INPUT-POLLER` (from `cl-tty-kit` 1.5.0). The realtime
+loop calls this poller once per tick before it advances the world.
+`WORLD-APPLY-KEY-EVENTS` passes mouse events to `WORLD-APPLY-MOUSE-EVENT`,
+which handles left-button presses for food.
+
+`RUN` passes four callbacks to `TICK-LOOP-RUN-REALTIME`: the poller returned
+by `MAKE-WORLD-POLLER`, an advancer from `MAKE-ZUKAN-ADVANCER` (or
+`#'WORLD-ADVANCE` when the dex is not writable), a frame drawer from
+`MAKE-FRAME-DRAWER`, and `#'WORLD-QUITP`. The loop drives these callbacks each
+tick and returns to `RUN` when the quit predicate is true. `WORLD-ADVANCE`
+and its callees stay direct-style because they perform no terminal I/O.
 
 `WORLD-QUITP` is also how `RUN` quits cleanly when nothing inside the tick
 loop asked it to. `INSTALL-QUIT-SIGNAL-HANDLER` (`src/app.lisp`) wires

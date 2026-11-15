@@ -1,5 +1,7 @@
 # Roadmap
 
+This page lists implemented features and explicit out-of-scope designs.
+
 ## Current scope
 
 - Sixteen original fish species (`+FISH-SPECIES+`, `src/art-fish-data.lisp`)
@@ -14,10 +16,11 @@
 - The seabed has seaweed, a castle, coral, a rock, a starfish, a vent, a crab,
   an octopus, and a treasure chest. A ship lowers an anchor; a diver visits
   the chest in a dinghy.
-- Visitors include ships, divers, fishers, gulls, a line
-  of ducks, a leaping dolphin, and a segmented sea monster. Automatic big
-  events share a limit of two; `g`, `a`, `m`, `d`, and `f` can spawn visitors
-  on demand.
+- Visitors include ships, divers, fishers, gulls, a line of ducks, a leaping
+  dolphin, and a segmented sea monster. Automatic guest events count ships,
+  submarines, divers' dinghies, and fishers; at most two such events can be
+  on screen at once. The `g`, `a`, `m`, `d`, and `f` keys can spawn guests on
+  demand regardless of that limit.
 - Weather cycles through clear, rain, and storm. Time of day cycles through
   day, dusk, and night; night has denser glowing plankton. `w` and `n` advance
   those cycles, and `--calm` stops the storm's lightning flash.
@@ -51,13 +54,4 @@
   dolphin, sea monster, and duck line are decorative.
 - A generic ECS or config-driven guest-definition DSL. Creatures are plain
   `CREATURE` structs built by plain Lisp functions.
-
-## Renderer
-
-- mirrored frames reuse prepared sprite data;
-- order caches are invalidated when the world changes;
-- `RENDER-FRAME` tracks renderer-owned snapshots and redraws only dirty regions
-  when that is cheaper than a full repaint;
-- cache preparation is bounded and can run in parallel while retaining a serial
-  path with equivalent output.
 
