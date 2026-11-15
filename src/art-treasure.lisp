@@ -52,8 +52,7 @@ row. Its side and spread come from INDEX; COIN-TICK pulls it back down."
 (register-creature-restyler
  :coin
  (lambda (world coin)
-   (%set-creature-colors coin
-                         :style (creature-%style (%coin-sprite-prototype (world-theme world))))))
+   (%adopt-sprite-prototype coin (%coin-sprite-prototype (world-theme world)))))
 
 ;;; -- Diver ---------------------------------------------------------------
 
@@ -62,6 +61,9 @@ row. Its side and spread come from INDEX; COIN-TICK pulls it back down."
 
 (defparameter +diver-rope-column+ 3
   "The dinghy column the rope hangs from, under the boatman.")
+
+(defparameter +rope-line-spec+
+  (list "|" 0 (lambda (theme) (visual-style theme :white))))
 
 (defun spawn-diver-now (world &key facing)
   "Add the diver event to WORLD and return its dinghy: the dinghy (kind
@@ -108,11 +110,9 @@ screens leave out, or when a dinghy is already out for it."
                                                   :carrying nil
                                                   :tick 'dinghy-tick))))
              (rope (make-creature :world world :kind :rope
-                                  :frames (vertical-line-frames "|" max-depth)
-                                  :style (world-style world :white)
-                                  :%trusted-frames-p t :%trusted-style-p t
+                                  :%sprite-prototype (%vertical-line-prototype world +rope-line-spec+)
                                   :z 6 :policy :none :x 0 :y 0
-                                  :data (list :leader dinghy :tick 'rope-tick))))
+                                  :data (list :line-spec +rope-line-spec+ :leader dinghy :tick 'rope-tick))))
         (setf (getf (creature-data diver) :leader) dinghy)
         ;; The dinghy goes in last so it is first in the creature list and
         ;; ticks before the rope and the diver that read its position.
@@ -122,4 +122,4 @@ screens leave out, or when a dinghy is already out for it."
 
 (register-creature-restyler :dinghy #'restyle-decor)
 (register-creature-restyler :diver #'restyle-decor)
-(register-named-color-restyler :rope :white)
+(register-creature-restyler :rope #'restyle-vertical-line)

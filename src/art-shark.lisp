@@ -35,4 +35,4 @@ what lets a test exercise one crossing direction deterministically."
                      :dx dx
                      :data (list :threat +shark-threat+ :tick 'shark-tick :eaten 0)))))
 
-(register-named-color-restyler :shark :white)
+(%register-fixed-color-restyler :shark :white)

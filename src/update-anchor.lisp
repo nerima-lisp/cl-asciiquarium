@@ -67,12 +67,11 @@ ship resumes its :SAVED-DX."
                (entity-dx (creature-entity (getf data :ship)))
                (getf (creature-data (getf data :ship)) :saved-dx)))))))
 
-(defun %set-chain-length (chain length reach)
-  "Show LENGTH links of CHAIN. Its frames go up to the longest length it has
-been able to reach; REACH, the length at the anchor's seabed, outgrows them
-only when a resize has moved the ship up, so they are rebuilt then."
+(defun %set-chain-length (world chain length reach)
+  "If WORLD grows before REFRESH-VERTICAL-LINES runs, reacquire a prototype
+when REACH exceeds its maximum supported length before selecting LENGTH."
   (when (>= reach (length (creature-%frames chain)))
-    (%set-creature-frames chain (vertical-line-frames +chain-glyph+ reach)))
+    (restyle-vertical-line world chain))
   (setf (creature-frame-index chain) length))
 
 (defun chain-top-row (world ship ship-height)
@@ -93,7 +92,7 @@ already been placed."
                              (getf data :ship-height))))
     (setf (entity-x entity) (+ (creature-x anchor) (getf data :shaft-x))
           (entity-y entity) top)
-    (%set-chain-length chain
+    (%set-chain-length world chain
                        (max 0 (- (creature-y anchor) top))
                        (max 0 (- (max (creature-y anchor) (anchor-seabed world anchor)) top)))))
 

@@ -67,7 +67,7 @@ vertical center up with FISH's, staying inside the swim band."
   "Swap SHARK to +SHARK-BIG-ART+, keeping its center where it was. Both arts
 are three rows tall, so only the column moves."
   (let ((old-width (creature-dimensions shark)))
-    (%set-creature-frames shark (vector +shark-big-art+))
+    (%set-creature-frames shark (vector +shark-big-art+) :escaped-p nil)
     (decf (entity-x (creature-entity shark))
           (* 0.5f0 (- (creature-dimensions shark) old-width)))))
 

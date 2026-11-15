@@ -112,7 +112,8 @@ every non-space mask character has a ROLE-STYLES entry."
     frames))
 
 (defun %materialize-creature-frames (creature)
-  (when (creature-%frames-shared-p creature)
+  (when (or (creature-%frames-shared-p creature)
+            (not (creature-%frames-escaped-p creature)))
     (setf (creature-%frames creature) (%copy-creature-frames (creature-%frames creature))
           (creature-%frames-shared-p creature) nil))
   creature)
@@ -214,16 +215,40 @@ unmasked in the creature's STYLE (KILL-FISH's death frame relies on this)."
     (%rebuild-creature-frame-caches creature)
     frames))
 
+(defvar *recolored-sprite-prototypes* (make-hash-table :test #'equal)
+  "Recolored prototypes for private fixed art only. Variable art and public
+frame aliases are rebuilt in place. %DECOR-PROTOTYPE clears this table when
+screen dimensions change, alongside the background prototypes.")
+
+(defun %recolored-sprite-prototype (frames masks style role-styles)
+  (let* ((frame-key (coerce frames 'list))
+         (mask-key (coerce masks 'list))
+         (key (list frame-key mask-key style role-styles)))
+    (declare (dynamic-extent key))
+    (or (gethash key *recolored-sprite-prototypes*)
+        (let ((prototype
+                (make-creature :kind :recolored-sprite-prototype
+                               :frames (%copy-creature-frames frames)
+                               :masks (and masks (%copy-creature-frames masks))
+                               :style (copy-tree style) :role-styles (copy-tree role-styles)
+                               :%trusted-frames-p t :%trusted-style-p t
+                               :x 0 :y 0 :policy :none)))
+          ;; Keys own their strings and styles: a public frames/style alias
+          ;; must never mutate a key already stored in the table.
+          (setf (first key) (coerce (creature-%frames prototype) 'list)
+                (second key) (coerce (creature-%masks prototype) 'list)
+                (third key) (creature-%style prototype)
+                (fourth key) (creature-%role-styles prototype)
+                (gethash (copy-list key) *recolored-sprite-prototypes*) prototype)))))
+
 (defun %set-creature-colors (creature &key style role-styles)
-  "Recolor CREATURE in place: replace its STYLE and, when it is masked, its
-ROLE-STYLES, then rebuild its prepared runs once. Frames, masks, position, and
-animation state are untouched, which is what lets a theme change keep every
-creature where it is."
+  (%ensure-creature-caches-current creature)
   (setf (creature-%style creature) style
         (creature-%style-shared-p creature) nil
         (creature-%role-styles creature) (and (creature-%masks creature) role-styles))
   (%rebuild-creature-blit-runs creature)
   creature)
+
 
 (defun %set-creature-style (creature style &key (escaped-p nil escaped-p-supplied-p))
   (setf (creature-%style creature) style
@@ -246,3 +271,18 @@ creature where it is."
       (round (creature-y creature))
       width
       height)))
+
+(defun %set-fixed-creature-colors (creature &key style role-styles)
+  ;; Only fixed internal art may enter the shared table. Public frame aliases
+  ;; can change indefinitely, even after a previous successful recoloring.
+  (when (creature-%frames-escaped-p creature)
+    (return-from %set-fixed-creature-colors
+      (%set-creature-colors creature :style style :role-styles role-styles)))
+  (let ((frames (creature-%frames creature))
+        (shared-p (creature-%frames-shared-p creature)))
+    (%adopt-sprite-prototype
+     creature (%recolored-sprite-prototype frames (creature-%masks creature)
+                                           style (and (creature-%masks creature) role-styles)))
+    (setf (creature-%frames creature) frames
+          (creature-%frames-shared-p creature) shared-p))
+  creature)

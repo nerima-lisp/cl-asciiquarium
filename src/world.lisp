@@ -447,6 +447,7 @@ row."
                                                    (max
                                                     0
                                                     (- height creature-height))))))
+  (refresh-vertical-lines world)
   (sway-boats world)
   (dolist (creature (world-%creatures world))
     (let ((place (getf (creature-data creature) :place)))
@@ -625,3 +626,9 @@ blinking frame goes through this function. It draws no random number, so a
 calm run moves every creature exactly as the same seed without --calm."
   (unless (world-calm-p world)
     period))
+
+(defun %register-fixed-color-restyler (kind color)
+  (register-creature-restyler
+   kind
+   (lambda (world creature)
+     (%set-fixed-creature-colors creature :style (world-style world color)))))

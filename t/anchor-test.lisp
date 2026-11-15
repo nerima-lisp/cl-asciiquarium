@@ -153,8 +153,8 @@ its anchor on the next tick. Returns (VALUES WORLD SHIP)."
       (let ((world (%anchor-ship-world)))
         (world-advance world)
         (let ((frames (cl-asciiquarium::creature-frames (%anchor-kind world :chain))))
-          ;; Row under the ship (4 + 5) down to the resting anchor's top (17).
-          (expect (length frames) :to-be 9)
+          ;; The shared prototype covers the screen; frame N still draws N links.
+          (expect (length frames) :to-be (1+ (world-height world)))
           (expect (aref frames 0) :to-equal " ")
           (expect (aref frames 3) :to-equal (format nil "¦~%¦~%¦"))))))
   (it "spans the rows between the ship and the anchor while falling and rising"
@@ -313,3 +313,24 @@ anchor drops. Returns (VALUES WORLD SHIP ANCHOR CHAIN)."
           (expect (%anchor-kind world :ship) :to-be-null)
           (expect (%anchor-kind world :anchor) :to-be-null)
           (expect (%anchor-kind world :chain) :to-be-null))))))
+
+(describe "anchor chain capacity guard"
+  (it "grows for the reachable depth when placed before resize refresh"
+    (with-seeded-random-state (1)
+      (multiple-value-bind (world ship anchor chain) (%anchor-rig-world)
+        (declare (ignore ship))
+        (world-resize world 40 8)
+        (let ((frames (cl-asciiquarium::creature-%frames chain)))
+          (expect (length frames) :to-be 9)
+          (setf (cl-asciiquarium::world-height world) 40)
+          (let* ((data (cl-asciiquarium::creature-data chain))
+                 (top (cl-asciiquarium::chain-top-row
+                       world (%anchor-data anchor :ship) (getf data :ship-height)))
+                 (reach (- (cl-asciiquarium::anchor-seabed world anchor) top)))
+            (expect (>= reach (length frames)) :to-be t)
+            (cl-asciiquarium::place-chain world chain)
+            (expect (eq frames (cl-asciiquarium::creature-%frames chain)) :to-be nil)
+            (expect (> (length (cl-asciiquarium::creature-%frames chain)) reach) :to-be t)
+            (let ((grown-frames (cl-asciiquarium::creature-%frames chain)))
+              (cl-asciiquarium::place-chain world chain)
+              (expect (cl-asciiquarium::creature-%frames chain) :to-be grown-frames))))))))

@@ -106,7 +106,7 @@ lantern through ATTACH-CREATURE."
            (glow (getf data :glow)))
       (unless glow
         (setf glow (make-creature :world world :kind :lantern-glow
-                                 :frames +lantern-glow-art+
+                                 :frames +lantern-glow-art+ :%trusted-frames-p t
                                  :style (color-style :rare-glow :theme (world-theme world))
                                  :z 4 :policy :none :x 0 :y 0
                                  :data (list :lantern lantern :tick 'lantern-glow-tick))
@@ -135,4 +135,4 @@ lantern through ATTACH-CREATURE."
 (register-creature-restyler
  :lantern-glow
  (lambda (world glow)
-   (%set-creature-colors glow :style (color-style :rare-glow :theme (world-theme world)))))
+   (%set-fixed-creature-colors glow :style (color-style :rare-glow :theme (world-theme world)))))

@@ -49,13 +49,23 @@ from the edge opposite FACING (default random). Its first sonar ring is due
         (- (getf (creature-data ring) :centre-x)
            (* 0.5f0 (creature-dimensions ring)))))
 
+(defvar *sonar-sprite-prototypes* (make-hash-table :test #'equal))
+
+(defun %sonar-sprite-prototype (theme)
+  (let ((key (list theme (effective-color-mode) *ascii*)))
+    (declare (dynamic-extent key))
+    (or (gethash key *sonar-sprite-prototypes*)
+        (setf (gethash (copy-list key) *sonar-sprite-prototypes*)
+              (make-creature :kind :sonar-sprite-prototype :frames +sonar-frames+
+                             :style (color-style :sonar :theme theme)
+                             :%trusted-frames-p t :%trusted-style-p t
+                             :x 0 :y 0 :policy :none)))))
+
 (defun make-sonar-ring (world sub)
   "Create a sonar ring centred on SUB as it is now, on SUB's rows. It widens
 through +SONAR-FRAMES+ and is removed after the last one."
   (let ((ring (make-creature :world world :kind :sonar
-                             :frames +sonar-frames+
-                             :style (color-style :sonar :theme (world-theme world))
-                             :%trusted-frames-p t
+                             :%sprite-prototype (%sonar-sprite-prototype (world-theme world))
                              :frame-period +sonar-frame-period+
                              :ttl (* (length +sonar-frames+) +sonar-frame-period+)
                              :z 3 :policy :none
@@ -79,5 +89,5 @@ through +SONAR-FRAMES+ and is removed after the last one."
 (register-creature-restyler :sub #'restyle-decor)
 (register-creature-restyler
  :sonar (lambda (world ring)
-          (%set-creature-colors ring :style (color-style :sonar :theme (world-theme world)))))
-(register-named-color-restyler :stun-mark :yellow)
+          (%adopt-sprite-prototype ring (%sonar-sprite-prototype (world-theme world)))))
+(%register-fixed-color-restyler :stun-mark :yellow)

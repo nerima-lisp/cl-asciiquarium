@@ -14,6 +14,6 @@
                  :%sprite-prototype (%brood-sprite-prototype :heart (world-theme world))
                  :x x :y y :z 6 :ttl 20 :policy :none))
 
-(register-named-color-restyler :egg :bright-white)
-(register-named-color-restyler :fry :bright-white)
-(register-named-color-restyler :heart :bright-red)
+(%register-fixed-color-restyler :egg :bright-white)
+(%register-fixed-color-restyler :fry :bright-white)
+(%register-fixed-color-restyler :heart :bright-red)

@@ -44,7 +44,7 @@ and an OFF-SCREEN-GUEST-SPEC already validated by
 %PARSE-OFF-SCREEN-GUEST-CLAUSES: the DEFUN, preceded by the registration of a
 restyler that repaints the guest in its :COLOR for a new theme."
     `(progn
-      (register-named-color-restyler ,(off-screen-guest-spec-kind spec)
+      (%register-fixed-color-restyler ,(off-screen-guest-spec-kind spec)
                                      ,(off-screen-guest-spec-color spec))
       (defun ,name (world &key facing)
        ,docstring
@@ -136,38 +136,28 @@ sand, its :TARGET-DEPTH; only then does it carry +ANCHOR-THREAT+."
                                             :offset-x offset-x
                                             :tick 'anchor-tick :place 'place-anchor))))
     (setf (getf (creature-data anchor) :chain)
-          (make-chain world anchor (- chain-top (creature-y ship))
-                      (max 0 (- target-depth chain-top))))
+          (make-chain world anchor (- chain-top (creature-y ship))))
     anchor))
 
-(defun vertical-line-frames (glyph max-length)
-  "Frames for a line hanging down: frame N is N lines of GLYPH, for N from 0
-(a single space) to MAX-LENGTH, built up front so a tick only picks a frame
-index and never builds a string."
-  (loop for length from 0 to max-length
-        collect (if (zerop length)
-                    " "
-                    (format nil "~{~A~^~%~}" (make-list length :initial-element glyph)))))
+(defparameter +chain-line-spec+
+  (list +chain-glyph+ 0 (lambda (theme) (visual-style theme :bright-black))))
 
-(defun make-chain (world anchor ship-height max-length)
+(defun make-chain (world anchor ship-height)
   "Create the :CHAIN CREATURE hanging from the row under ANCHOR's ship
 (SHIP-HEIGHT rows below the ship's top) in the anchor's shaft column, with
-VERTICAL-LINE-FRAMES up to MAX-LENGTH links for PLACE-CHAIN (update-anchor.lisp)
-to pick from."
+shared frames covering the screen and active lines for PLACE-CHAIN
+(update-anchor.lisp) to pick from."
   (let ((shaft-x (position #\| +anchor-art+))
         (top (chain-top-row world (getf (creature-data anchor) :ship) ship-height)))
     (make-creature :world world
                    :kind :chain
-                   :frames (vertical-line-frames +chain-glyph+ max-length)
-                   :style (world-style world :bright-black)
-                   :%trusted-frames-p t
-                   :%trusted-style-p t
+                   :%sprite-prototype (%vertical-line-prototype world +chain-line-spec+)
                    :z 3
                    :policy :none
                    :x (+ (creature-x anchor) shaft-x)
                    :y top
                    :dx 0 :dy 0
-                   :data (list :anchor anchor :shaft-x shaft-x :ship-height ship-height
+                   :data (list :line-spec +chain-line-spec+ :anchor anchor :shaft-x shaft-x :ship-height ship-height
                                :tick 'chain-tick :place 'place-chain))))
 
 (define-off-screen-guest make-duck-line
@@ -247,6 +237,6 @@ CREATUREs trailing LEADER, indices 1 through +SEA-MONSTER-SEGMENT-COUNT+."
   (loop for index from 1 to +sea-monster-segment-count+
         collect (make-monster-segment world leader index)))
 
-(register-named-color-restyler :anchor :bright-black)
-(register-named-color-restyler :chain :bright-black)
-(register-named-color-restyler :monster-segment :green)
+(%register-fixed-color-restyler :anchor :bright-black)
+(register-creature-restyler :chain #'restyle-vertical-line)
+(%register-fixed-color-restyler :monster-segment :green)
