@@ -53,12 +53,13 @@ lifts fish), and an octopus tentacle's tip.
 The pass loops over active threats and, for each, over every creature once, so
 its cost is threats × creatures. Food is capped at 18 grains. The pass returns at once
 while the world has held no threat since its creature list was last recounted.
-A vent always holds the plume's threat row; screens without one can still have
-threats from the shark, food, and other creatures. Fish do interact with fish,
-but only through threats. A lantern fish picks the nearest small fish in range
-as its lure target on its own tick and eats it with its leading column. For
-spawning, one courting fish at a time becomes a temporary threat whose whole
-body is its grip.
+A vent always holds the plume's threat row, so a screen with a vent does not
+take the early return. Screens without one can still have threats from the
+shark, food, and other creatures. Fish do interact with fish, but only through
+threats. A lantern fish picks the nearest small fish in range as its lure
+target on its own tick and eats it with its leading column. For spawning, one
+courting fish at a time becomes a temporary threat whose whole body is its
+grip.
 
 Three motion patterns beyond simple constant-velocity travel now live inside
 this same contract, all still expressed as ordinary `CREATURE`s rather than
