@@ -16,6 +16,7 @@
   fish)
 
 (defun initialize-lantern (world fish)
+  ;; Give short-lived lanterns at 80x24 a chance to hunt before leaving play.
   (setf (creature-data fish)
         (list* :threat +lantern-threat+ :lure-next (+ (world-tick world) 60)
                :lure-target nil :glow nil

@@ -8,6 +8,7 @@
 (in-package #:cl-asciiquarium)
 
 (defun school-visitor-p (fish)
+  "True for a living fish still in, or departing from, a passing school."
   (and (alive-fish-p fish)
        (or (getf (creature-data fish) :leader)
            (getf (creature-data fish) :school-departed))))
@@ -105,7 +106,10 @@ facing right, or flush with the right edge facing left."
     fish))
 
 (defun maybe-refill-fish (world)
-  "Refill missing resident fish one at a time, subject to the total fish cap."
+  "Recount living residents when a refill is due and add at most one missing
+resident, subject to the total live-fish cap. Schedule the next refill only
+while residents remain below the current target, including when the cap
+temporarily prevents an addition."
   (let ((due (world-refill-at world))
         (tick (world-tick world)))
     (when (and (plusp due) (>= tick due))

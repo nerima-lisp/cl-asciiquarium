@@ -32,6 +32,7 @@
         (setf (entity-dx entity) (getf data :school-dx)
               (entity-dy entity) 0))
     ;; A crossing ends at the far edge; a lost leader leaves ordinary fish.
+    ;; SPAWN-SCHOOL-NOW preallocates :SCHOOL-DEPARTED, so GETF mutates DATA in place.
     (if departing
         (setf (getf data :school-departed) t)
         (setf (entity-on-exit entity) (getf data :school-on-exit)))))

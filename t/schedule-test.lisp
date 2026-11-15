@@ -104,8 +104,8 @@
                 (/ (- ended advanced-at) (float internal-time-units-per-second)))))))
 
 (defun missing-schedule-events (seed)
-  (loop for (event first-tick count) in (observe-schedule seed)
-        unless (and first-tick (plusp count)) collect event))
+  (loop for (event first-tick) in (observe-schedule seed)
+        unless first-tick collect event))
 
 (describe "plume event observation"
   (it "sees the natural eel lift on seed 777 at tick one"

@@ -74,10 +74,9 @@
             (expect stale-followers :to-be 0)
             (expect forgotten-refills :to-be 0)
             (expect (<= most (cl-asciiquarium::world-max-fish world)) :to-be-truthy)
-            ;; With no new sharks, and once every passing school has left (its
-            ;; fish count as live while it crosses, then leave), the tank is
-            ;; one fish short per missing fish, refilled one per
-            ;; +REFILL-DELAY-TICKS+ from the pending REFILL-AT.
+            ;; Passing schools use total capacity but do not satisfy the resident
+            ;; target. Once they leave and sharks stop arriving, each missing
+            ;; resident is replaced per +REFILL-DELAY-TICKS+ from REFILL-AT.
             (setf (cl-asciiquarium::world-shark-enabled-p world) nil)
             (labels ((visitors-p ()
                        (find-if (lambda (creature)
