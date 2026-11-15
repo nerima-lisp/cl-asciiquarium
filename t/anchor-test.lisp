@@ -153,8 +153,8 @@ its anchor on the next tick. Returns (VALUES WORLD SHIP)."
       (let ((world (%anchor-ship-world)))
         (world-advance world)
         (let ((frames (cl-asciiquarium::creature-frames (%anchor-kind world :chain))))
-          ;; Row under the ship (4 + 5) down to the resting anchor's top (17).
-          (expect (length frames) :to-be 9)
+          ;; The shared prototype covers the screen; frame N still draws N links.
+          (expect (length frames) :to-be (1+ (world-height world)))
           (expect (aref frames 0) :to-equal " ")
           (expect (aref frames 3) :to-equal (format nil "¦~%¦~%¦"))))))
   (it "spans the rows between the ship and the anchor while falling and rising"

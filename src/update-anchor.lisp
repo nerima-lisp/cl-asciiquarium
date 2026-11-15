@@ -68,11 +68,7 @@ ship resumes its :SAVED-DX."
                (getf (creature-data (getf data :ship)) :saved-dx)))))))
 
 (defun %set-chain-length (chain length reach)
-  "Show LENGTH links of CHAIN. Its frames go up to the longest length it has
-been able to reach; REACH, the length at the anchor's seabed, outgrows them
-only when a resize has moved the ship up, so they are rebuilt then."
-  (when (>= reach (length (creature-%frames chain)))
-    (%set-creature-frames chain (vertical-line-frames +chain-glyph+ reach)))
+  (declare (ignore reach))
   (setf (creature-frame-index chain) length))
 
 (defun chain-top-row (world ship ship-height)

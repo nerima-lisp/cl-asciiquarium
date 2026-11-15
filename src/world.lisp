@@ -447,6 +447,7 @@ row."
                                                    (max
                                                     0
                                                     (- height creature-height))))))
+  (refresh-vertical-lines world)
   (sway-boats world)
   (dolist (creature (world-%creatures world))
     (let ((place (getf (creature-data creature) :place)))
