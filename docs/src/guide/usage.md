@@ -72,8 +72,9 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
 - `z` or `Z` -- toggle the fish dex panel, which lists every species in two
   columns: the name of each one discovered so far, with `✦` after a rare one,
   and `???` for the rest. The help and dex panels take the same place, so
-  opening one closes the other. The panel is drawn when it opens; a species
-  discovered while it is open shows the next time it is opened. See
+  opening one closes the other. The panel is drawn when it opens and again
+  when the theme changes; a species discovered while it is open shows after
+  either. See
   [Fish dex](#fish-dex).
 - `p` or `P` -- save the screen as a text file. See [Snapshots](#snapshots).
 

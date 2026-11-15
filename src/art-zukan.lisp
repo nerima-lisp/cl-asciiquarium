@@ -61,8 +61,9 @@ even species count."
 
 (defun make-zukan-overlay (world)
   "Create the :ZUKAN-OVERLAY CREATURE toggled by the `z' key: an opaque panel
-placed like the help panel (MAKE-HELP-OVERLAY). It is drawn once when opened,
-so a species discovered while it is open shows after it is reopened."
+placed like the help panel (MAKE-HELP-OVERLAY). It is drawn when opened and
+again when the theme changes (its restyler rebuilds it), so a species
+discovered while it is open shows after either."
   (multiple-value-bind (art mask role-styles) (zukan-sprite world)
     (make-creature :world world :kind :zukan-overlay :frames (list art) :masks (list mask)
                    :role-styles role-styles :z 99 :policy :none
