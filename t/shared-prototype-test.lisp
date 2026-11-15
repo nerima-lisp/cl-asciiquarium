@@ -27,6 +27,63 @@
               (expect (length (cl-asciiquarium::creature-%frames prototype)) :to-be 9)
               (expect (aref (cl-asciiquarium::creature-%frame-runs prototype) 8) :to-be runs))))))))
 
+(describe "recoloring preserves mutable frame aliases"
+  (it "invalidates only the mutated creature after adopting shared colors"
+    (let* ((first (make-creature :kind :test :frames (string #\X) :x 0 :y 0))
+           (second (make-creature :kind :test :frames (string #\X) :x 0 :y 0))
+           (frames (creature-frames first))
+           (style (make-style :bold)))
+      (cl-asciiquarium::%set-creature-colors first :style style)
+      (cl-asciiquarium::%set-creature-colors second :style style)
+      (expect (cl-asciiquarium::creature-%frames first) :to-be frames)
+      (expect (cl-asciiquarium::creature-%frame-runs first)
+              :to-be (cl-asciiquarium::creature-%frame-runs second))
+      (setf (char (aref frames 0) 0) #\x)
+      (let ((screen (make-screen 1 1)))
+        (cl-asciiquarium::creature-blit screen first)
+        (expect (cell-char (screen-cell screen 0 0)) :to-be #\x)
+        (cl-asciiquarium::creature-blit screen second)
+        (expect (cell-char (screen-cell screen 0 0)) :to-be #\X))
+      (let ((third (make-creature :kind :test :frames (string #\X) :x 0 :y 0)))
+        (cl-asciiquarium::%set-creature-colors third :style style)
+        (expect (cl-asciiquarium::creature-%frame-runs third)
+                :to-be (cl-asciiquarium::creature-%frame-runs second))))))
+
+(defun %theme-cycle-allocation (bubble-count)
+  (with-seeded-random-state (96)
+    (let* ((world (make-world :width 80 :height 24 :fish-count 0))
+           (fish (make-creature :kind :fish :frames ">o>" :x 10 :y 12)))
+      (cl-asciiquarium::%set-world-creatures world nil)
+      (dotimes (i bubble-count)
+        (cl-asciiquarium::%add-world-creature world (cl-asciiquarium::make-bubble world fish)))
+      (dotimes (i 3)
+        (dolist (theme '(:abyss :coral :moonlight)) (world-set-theme world theme)))
+      (sb-ext:gc :full t)
+      (let ((before (sb-ext:get-bytes-consed)))
+        (dotimes (i 100)
+          (dolist (theme '(:abyss :coral :moonlight)) (world-set-theme world theme)))
+        (- (sb-ext:get-bytes-consed) before)))))
+
+(describe "shared recoloring and sonar prototypes"
+  (it "does not add theme-cycle allocation for one hundred warmed bubbles"
+    (let ((*color-mode* :truecolor))
+      (let ((empty (%theme-cycle-allocation 0))
+            (bubbles (%theme-cycle-allocation 100)))
+        ;; GET-BYTES-CONSED reports allocation regions, not individual objects.
+        (expect (< (abs (- bubbles empty)) 65536) :to-be t))))
+  (it "never rebuilds warmed sonar runs"
+    (with-seeded-random-state (97)
+      (let* ((world (make-world :width 80 :height 24 :fish-count 0))
+             (sub (cl-asciiquarium::make-submarine world :facing :right))
+             (first (cl-asciiquarium::make-sonar-ring world sub))
+             (second (cl-asciiquarium::make-sonar-ring world sub)))
+        (expect (cl-asciiquarium::creature-%frame-runs first)
+                :to-be (cl-asciiquarium::creature-%frame-runs second))
+        (sb-ext:gc :full t)
+        (let ((before (sb-ext:get-bytes-consed)))
+          (dotimes (i 200) (cl-asciiquarium::make-sonar-ring world sub))
+          (expect (< (- (sb-ext:get-bytes-consed) before) (* 200 1024)) :to-be t))))))
+
 (describe "shared fishing line prototypes"
   (it "reuses fishing line runs when boat depths alternate"
     (with-seeded-random-state (93)

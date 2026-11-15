@@ -45,5 +45,4 @@ per bubble."
 (register-creature-restyler
  :bubble
  (lambda (world bubble)
-   (%set-creature-colors bubble
-                         :style (creature-%style (%bubble-sprite-prototype (world-theme world))))))
+   (%adopt-sprite-prototype bubble (%bubble-sprite-prototype (world-theme world)))))

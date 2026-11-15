@@ -53,8 +53,9 @@ itself and paint the theme's :BUBBLE color."
                             (:mono :monochrome)
                             (:ansi16 :colored)
                             (t mode)))))
+    (declare (dynamic-extent key))
     (or (gethash key *bubble-sprite-prototypes*)
-        (setf (gethash key *bubble-sprite-prototypes*)
+        (setf (gethash (copy-list key) *bubble-sprite-prototypes*)
               (%make-bubble-sprite-prototype
                (case mode
                  (:mono nil)

@@ -564,11 +564,12 @@ alone."
                    :x 1 :y (1+ (world-waterline-row world)) :dx 0 :dy 0)))
 
 (defun restyle-panel (sprite-function)
-  "Return a restyler that rebuilds a panel from SPRITE-FUNCTION for the
-world's current theme, keeping its position."
   (lambda (world creature)
     (multiple-value-bind (art mask role-styles) (funcall sprite-function world)
-      (%set-creature-frames creature (list art) :masks (list mask) :role-styles role-styles))))
+      (%adopt-sprite-prototype
+       creature (%recolored-sprite-prototype
+                 (vector (if *ascii* (ascii-text art) art)) (vector mask)
+                 (creature-%style creature) role-styles)))))
 
 (dolist (kind '(:waterline :ripple :ambient-current :sand :castle :seaweed
                 :coral :rock :starfish :vent :chest :sky))

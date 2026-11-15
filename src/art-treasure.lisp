@@ -52,8 +52,7 @@ row. Its side and spread come from INDEX; COIN-TICK pulls it back down."
 (register-creature-restyler
  :coin
  (lambda (world coin)
-   (%set-creature-colors coin
-                         :style (creature-%style (%coin-sprite-prototype (world-theme world))))))
+   (%adopt-sprite-prototype coin (%coin-sprite-prototype (world-theme world)))))
 
 ;;; -- Diver ---------------------------------------------------------------
 

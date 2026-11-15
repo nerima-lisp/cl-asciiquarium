@@ -214,16 +214,41 @@ unmasked in the creature's STYLE (KILL-FISH's death frame relies on this)."
     (%rebuild-creature-frame-caches creature)
     frames))
 
+(defvar *recolored-sprite-prototypes* (make-hash-table :test #'equal))
+
+(defun %recolored-sprite-prototype (frames masks style role-styles)
+  (let ((key (list (coerce frames 'list) (coerce masks 'list) style role-styles)))
+    (or (gethash key *recolored-sprite-prototypes*)
+        (let ((prototype
+                (make-creature :kind :recolored-sprite-prototype
+                               :frames (%copy-creature-frames frames)
+                               :masks (and masks (%copy-creature-frames masks))
+                               :style (copy-tree style) :role-styles (copy-tree role-styles)
+                               :%trusted-frames-p t :%trusted-style-p t
+                               :x 0 :y 0 :policy :none)))
+          ;; Keys own their strings and styles: a public frames/style alias
+          ;; must never mutate a key already stored in the table.
+          (setf (gethash (list (coerce (creature-%frames prototype) 'list)
+                              (coerce (creature-%masks prototype) 'list)
+                              (creature-%style prototype)
+                              (creature-%role-styles prototype))
+                        *recolored-sprite-prototypes*)
+                prototype)))))
+
 (defun %set-creature-colors (creature &key style role-styles)
-  "Recolor CREATURE in place: replace its STYLE and, when it is masked, its
-ROLE-STYLES, then rebuild its prepared runs once. Frames, masks, position, and
-animation state are untouched, which is what lets a theme change keep every
-creature where it is."
-  (setf (creature-%style creature) style
-        (creature-%style-shared-p creature) nil
-        (creature-%role-styles creature) (and (creature-%masks creature) role-styles))
-  (%rebuild-creature-blit-runs creature)
+  (let ((frames (creature-%frames creature))
+        (shared-p (creature-%frames-shared-p creature))
+        (escaped-p (creature-%frames-escaped-p creature)))
+    (%adopt-sprite-prototype
+     creature (%recolored-sprite-prototype frames (creature-%masks creature)
+                                           style (and (creature-%masks creature) role-styles)))
+    ;; Recoloring preserves aliases returned by CREATURE-FRAMES. Their next
+    ;; mutation must still invalidate this creature's newly shared runs.
+    (setf (creature-%frames creature) frames
+          (creature-%frames-shared-p creature) shared-p
+          (creature-%frames-escaped-p creature) escaped-p))
   creature)
+
 
 (defun %set-creature-style (creature style &key (escaped-p nil escaped-p-supplied-p))
   (setf (creature-%style creature) style
