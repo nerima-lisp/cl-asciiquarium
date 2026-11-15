@@ -253,7 +253,7 @@ when that name is taken. Trailing spaces are removed from each row. The file
 goes to the directory in the `XDG_PICTURES_DIR` environment variable when it
 is an absolute path, and otherwise to the current directory; the
 `~/.config/user-dirs.dirs` file is not read. A missing directory is not
-created. The status bar then shows `Saved <path>` or `Snapshot failed`.
+created. The status bar then shows `Saved <file name>` or `Snapshot failed`.
 
 ## Color modes
 
@@ -305,7 +305,8 @@ the time of day (`day` for `coral`, `dusk` for `abyss`, `night` for
 `moonlight`), the weather (`clear`, `rain`, or `storm`), the fish count, how many
 of the known fish species have appeared so far (`dex`), and whether the
 simulation is swimming or paused. Key hints fill the right-hand side. A
-message passed to `WORLD-NOTIFY` replaces the key hints for four seconds.
+message passed to `WORLD-NOTIFY` replaces the key hints for four seconds, and
+the summary drops groups (in the order below) to make room for it.
 
 When the screen is too narrow, the key hints are dropped first, then the
 summary groups in this order: time of day and weather, the species count,

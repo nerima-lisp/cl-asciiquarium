@@ -455,11 +455,17 @@ groups from the highest DROP-RANK down, then truncating what is left."
   "Return (VALUES ART MASK ROLE-STYLES) for WORLD's one-row status bar,
 spanning the full width: the summary on the left and the key hints (or the
 current notification) on the right. The hints go first when the screen is
-too narrow, then the summary's least important groups (see %STATUS-GROUPS)."
+too narrow, then the summary's least important groups (see %STATUS-GROUPS).
+A notification instead keeps its place: the summary shrinks to the columns
+it leaves, unless the notification alone is wider than the screen."
   (let ((width (world-width world)))
     (multiple-value-bind (right-art right-mask) (%segments-text (%status-hints world))
       (multiple-value-bind (left-art left-mask)
-          (%fitting-status-summary (%status-groups world) width)
+          (%fitting-status-summary
+           (%status-groups world)
+           (if (and (world-notification world) (< (length right-art) width))
+               (- width 1 (length right-art))
+               width))
         (let* ((right-p (<= (+ (length left-art) 1 (length right-art)) width))
                (right-art (if right-p right-art ""))
                (right-mask (if right-p right-mask ""))

@@ -309,3 +309,31 @@ exist, so no test reads or writes the real dex file."
         (funcall poll world)
         (expect (uiop:directory-files dir) :to-be nil)
         (expect (cl-asciiquarium::world-notification world) :to-be nil))))))
+
+(defun %hud-art (world)
+  (creature-art (find :hud (cl-asciiquarium::world-%creatures world)
+                      :key #'cl-asciiquarium::creature-kind)))
+
+(describe
+ "notifications on an 80-column status bar"
+ (it
+  "shows the saved snapshot's file name"
+  (with-temporary-directory (dir "aq-poller-snapshot-")
+    (with-input-from-string (stream "p")
+      (let* ((world (tiny-world :width 80 :height 24))
+             (poll (cl-asciiquarium::make-world-poller
+                    (make-renderer 80 24 :initial-cell (world-background-cell world))
+                    stream (make-input-decoder) :snapshot-directory dir)))
+        (funcall poll world)
+        (let ((name (file-namestring (first (uiop:directory-files dir)))))
+          (expect (search (concatenate 'string "Saved " name) (%hud-art world)) :to-be-truthy))))))
+ (it
+  "shows that the dex file is unreadable"
+  (with-temporary-directory (dir "aq-run-dex-")
+    (let ((path (merge-pathnames "zukan.sexp" dir))
+          (art nil))
+      (with-open-file (stream path :direction :output)
+        (write-string "(:zukan" stream))
+      (%run-under-stubbed-terminal (lambda (world) (setf art (%hud-art world)) world)
+                                   :dex-path path :width 80 :height 24)
+      (expect (search "dex file unreadable; not saving" art) :to-be-truthy)))))

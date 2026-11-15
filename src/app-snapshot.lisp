@@ -52,11 +52,9 @@ created). A file that fails mid-write is left behind, partial."
 
 (defun snapshot-notification (pathname)
   "Return the status-bar message for SAVE-SNAPSHOT's result PATHNAME:
-\"Saved <path>\", or \"Snapshot failed\" for NIL. Characters outside printable
-ASCII in the path are shown as `?' because notifications are ASCII only."
+\"Saved <file name>\", or \"Snapshot failed\" for NIL. Only the file name is
+shown, so the message fits an 80-column status bar beside the summary; the
+name comes from SNAPSHOT-FILE-NAME, so it is ASCII, as notifications must be."
   (if pathname
-      (concatenate 'string "Saved "
-                   (map 'string (lambda (character)
-                                  (if (char<= #\Space character #\~) character #\?))
-                        (uiop:native-namestring pathname)))
+      (concatenate 'string "Saved " (file-namestring pathname))
       "Snapshot failed"))

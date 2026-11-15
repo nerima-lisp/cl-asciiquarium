@@ -50,13 +50,10 @@ incrementally 30 times, so fish have moved since the first full paint."
     (expect (cl-asciiquarium::snapshot-directory value #p"/cwd/") :to-equal #p"/cwd/")))
 
 (describe "snapshot-notification"
-  (it "reports the saved path"
-    (expect (cl-asciiquarium::snapshot-notification #p"/tmp/aquarium-1.txt")
-            :to-equal "Saved /tmp/aquarium-1.txt"))
-  (it "shows characters outside printable ASCII as ?"
+  (it "reports the saved file's name, without its directory"
     (expect (cl-asciiquarium::snapshot-notification
-             (uiop:parse-native-namestring "/tmp/写真/a.txt"))
-            :to-equal "Saved /tmp/??/a.txt"))
+             (uiop:parse-native-namestring "/tmp/写真/aquarium-20260102-030405.txt"))
+            :to-equal "Saved aquarium-20260102-030405.txt"))
   (it "reports a failure"
     (expect (cl-asciiquarium::snapshot-notification nil) :to-equal "Snapshot failed")))
 
