@@ -96,7 +96,7 @@
 
 (describe "push-effect"
   (it "lifts an overlapping fish every tick until it reaches the swim band's top, keeping it alive"
-    (let* ((world (%vent-world))
+    (let* ((world (remove-gulls (%vent-world)))
            (plume (%plume world))
            (top (world-swim-band world))
            (fish (%add-dart world (+ (creature-x plume) 3) 15))
