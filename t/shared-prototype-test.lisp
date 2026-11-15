@@ -152,3 +152,36 @@
                   (dotimes (length 8)
                     (cl-asciiquarium::make-chain world anchor 5 length)))))
             (expect (hash-table-count cl-asciiquarium::*vertical-line-prototypes*) :to-be 24)))))))
+
+(describe "bounded recoloring prototypes"
+  (it "does not retain changing panel contents across notifications and themes"
+    (let ((cl-asciiquarium::*recolored-sprite-prototypes* (make-hash-table :test #'equal)))
+      (with-seeded-random-state (130)
+        (let ((world (make-world :width 80 :height 24 :fish-count 0)))
+          (cl-asciiquarium::%set-world-creatures
+           world (list (cl-asciiquarium::make-hud world)
+                       (cl-asciiquarium::make-help-overlay world)
+                       (cl-asciiquarium::make-zukan-overlay world)))
+          (dotimes (i 60)
+            (cl-asciiquarium::world-notify world (format nil "Notification ~D" i))
+            (dolist (theme '(:abyss :coral :moonlight))
+              (world-set-theme world theme)))
+          (expect (hash-table-count cl-asciiquarium::*recolored-sprite-prototypes*)
+                  :to-be 0)))))
+  (it "discards old geometry recoloring prototypes after repeated resizes"
+    (let ((*color-mode* :truecolor)
+          (cl-asciiquarium::*recolored-sprite-prototypes* (make-hash-table :test #'equal))
+          (cl-asciiquarium::*decor-prototypes* (make-hash-table :test #'equal))
+          (cl-asciiquarium::*decor-prototype-width* 0)
+          (cl-asciiquarium::*decor-prototype-height* 0))
+      (with-seeded-random-state (131)
+        (let ((world (make-world :width 80 :height 24 :fish-count 0)))
+          (dotimes (i 60)
+            (cl-asciiquarium::%set-world-creatures world nil)
+            (world-resize world (+ 81 i) (+ 24 (mod i 2)))
+            (cl-asciiquarium::%set-world-creatures
+             world (list (cl-asciiquarium::make-flash world 10)))
+            (dolist (theme '(:abyss :coral :moonlight))
+              (world-set-theme world theme))
+            (expect (hash-table-count cl-asciiquarium::*recolored-sprite-prototypes*)
+                    :to-be 3)))))))
