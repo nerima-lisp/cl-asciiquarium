@@ -478,7 +478,7 @@ too narrow, then the summary's least important groups (see %STATUS-GROUPS)."
     ("f" . "spawn fisher") ("e" . "sprinkle food")
     ("t" . "cycle theme")
     ("w" . "next weather") ("n" . "next time of day")
-    ("u" . "status bar") ("h" . "this help"))
+    ("u" . "status bar") ("h" . "this help") ("z" . "fish dex"))
   "Every key binding the application implements (input.lisp), in help order.")
 
 (defparameter +help-roles+

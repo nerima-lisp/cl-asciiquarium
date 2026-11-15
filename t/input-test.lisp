@@ -203,3 +203,29 @@
     (expect (count :food (cl-asciiquarium::world-%creatures world)
                    :key #'cl-asciiquarium::creature-kind)
             :to-be 0))))
+
+(defun %open-overlays (world)
+  "The kinds of the panels open in WORLD."
+  (loop for creature in (cl-asciiquarium::world-%creatures world)
+        for kind = (cl-asciiquarium::creature-kind creature)
+        when (member kind '(:help-overlay :zukan-overlay))
+          collect kind))
+
+(describe
+ "z toggles the dex panel, one panel open at a time"
+ (it-each
+  (("z" (:zukan-overlay)) ("Z" (:zukan-overlay)) ("zz" nil)
+   ("hz" (:zukan-overlay)) ("zh" (:help-overlay)) ("hh" nil) ("hzh" (:help-overlay)))
+  "keys ~S leave the panels ~S open"
+  (keys open)
+  (let ((world (tiny-world :width 80 :height 24)))
+    (world-apply-key-events world (decode-input keys))
+    (expect (%open-overlays world) :to-equal open)))
+ (it
+  "opens and closes while paused"
+  (let ((world (tiny-world :width 80 :height 24)))
+    (world-apply-key-events world (decode-input " z"))
+    (expect (%open-overlays world) :to-equal '(:zukan-overlay))
+    (world-advance world)
+    (world-apply-key-events world (decode-input "z"))
+    (expect (%open-overlays world) :to-be nil))))

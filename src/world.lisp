@@ -478,7 +478,7 @@ row."
   "Every CREATURE-KIND that WORLD-REDRAW clears: predators, prey, their
 by-products, every special guest, and food. Deliberately excludes the background
 (+BACKGROUND-CREATURE-KINDS+) and the UI creatures
-(:HUD, :HELP-OVERLAY), none of which a redraw should touch -- the background
+(:HUD, :HELP-OVERLAY, :ZUKAN-OVERLAY), none of which a redraw should touch -- the background
 is not what a player watching the aquarium expects a redraw to change, and
 the UI state is independent of aquarium population.")
 
