@@ -229,3 +229,14 @@
     (world-advance world)
     (world-apply-key-events world (decode-input "z"))
     (expect (%open-overlays world) :to-be nil))))
+
+(describe
+ "p asks for a snapshot"
+ (it-each
+  (("p") ("P"))
+  "key ~S sets the request the poller saves"
+  (key)
+  (let ((world (tiny-world)))
+    (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be nil)
+    (world-apply-key-events world (decode-input key))
+    (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be t))))

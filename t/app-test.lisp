@@ -266,3 +266,46 @@ exist, so no test reads or writes the real dex file."
       (expect notification :to-equal "dex file unreadable; not saving")
       (expect (uiop:read-file-string path) :to-equal "(:zukan 1 :species (:dart")
       (expect (uiop:directory-files dir) :to-equal (list path))))))
+
+(describe
+ "make-world-poller and the p key"
+ (it
+  "saves the renderer's screen, clears the request, and reports the file"
+  (with-temporary-directory (dir "aq-poller-snapshot-")
+    (with-input-from-string (stream "p")
+      (let* ((world (tiny-world :width 20 :height 10))
+             (renderer (make-renderer 20 10 :initial-cell (world-background-cell world)))
+             (poll (cl-asciiquarium::make-world-poller
+                    renderer stream (make-input-decoder) :snapshot-directory dir)))
+        (render-frame renderer world :stream (make-broadcast-stream))
+        (expect (funcall poll world) :to-be world)
+        (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be nil)
+        (expect (uiop:string-prefix-p "Saved " (cl-asciiquarium::world-notification world))
+                :to-be-truthy)
+        (let ((files (uiop:directory-files dir)))
+          (expect (length files) :to-be 1)
+          (expect (uiop:read-file-string (first files) :external-format :utf-8)
+                  :to-equal (format nil "~A~%" (cl-asciiquarium::screen-text
+                                                 (cl-asciiquarium::renderer-screen renderer)))))))))
+ (it
+  "reports a failure when the directory does not exist"
+  (with-temporary-directory (dir "aq-poller-snapshot-")
+    (with-input-from-string (stream "P")
+      (let* ((world (tiny-world :width 20 :height 10))
+             (poll (cl-asciiquarium::make-world-poller
+                    (make-renderer 20 10) stream (make-input-decoder)
+                    :snapshot-directory (merge-pathnames "missing/" dir))))
+        (funcall poll world)
+        (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be nil)
+        (expect (cl-asciiquarium::world-notification world) :to-equal "Snapshot failed")
+        (expect (uiop:directory-files dir) :to-be nil)))))
+ (it
+  "saves nothing when no key asked for it"
+  (with-temporary-directory (dir "aq-poller-snapshot-")
+    (with-input-from-string (stream "x")
+      (let* ((world (tiny-world :width 20 :height 10))
+             (poll (cl-asciiquarium::make-world-poller
+                    (make-renderer 20 10) stream (make-input-decoder) :snapshot-directory dir)))
+        (funcall poll world)
+        (expect (uiop:directory-files dir) :to-be nil)
+        (expect (cl-asciiquarium::world-notification world) :to-be nil))))))

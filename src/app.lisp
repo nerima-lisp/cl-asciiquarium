@@ -6,7 +6,13 @@
 ;;;; spawn.lisp does.
 (in-package #:cl-asciiquarium)
 
-(defun make-world-poller (renderer stream decoder)
+(defun default-snapshot-directory ()
+  "The directory the `p' key saves snapshots in: XDG_PICTURES_DIR from the
+environment when it is absolute, otherwise the current directory."
+  (snapshot-directory (uiop:getenv "XDG_PICTURES_DIR") (uiop:getcwd)))
+
+(defun make-world-poller (renderer stream decoder
+                          &key (snapshot-directory (default-snapshot-directory)))
   "Return a TICK-LOOP-RUN-REALTIME :POLL callback that keeps a WORLD state
 in sync with the controlling terminal before every tick's pure advance step:
 resize WORLD and RENDERER via cl-tty-kit:MAKE-TERMINAL-SIZE-POLLER when the
@@ -14,7 +20,11 @@ terminal's size has changed since the last poll, then apply any key events
 cl-tty-kit:MAKE-STREAM-INPUT-POLLER decodes from STREAM through DECODER.
 Both pollers keep their own state across ticks (the last-seen terminal size,
 and any escape sequence split across reads), so this closure only needs to
-compose them once per RUN rather than reimplementing either."
+compose them once per RUN rather than reimplementing either. When a key
+asked for a snapshot (WORLD-REQUEST-SNAPSHOT), the renderer's screen, still
+the frame drawn just before the key was read, is saved in SNAPSHOT-DIRECTORY
+and the status bar reports the file or the failure; the report comes after
+the picture, so it is not in it."
   (let ((size-poller (make-terminal-size-poller))
         (input-poller (make-stream-input-poller stream :decoder decoder)))
     (lambda (state)
@@ -23,7 +33,13 @@ compose them once per RUN rather than reimplementing either."
           (world-resize state columns rows)
           (renderer-resize renderer columns rows
                            :initial-cell (world-background-cell state))))
-      (world-apply-key-events state (funcall input-poller state 0)))))
+      (world-apply-key-events state (funcall input-poller state 0))
+      (when (world-snapshot-requested-p state)
+        (setf (world-snapshot-requested-p state) nil)
+        (world-notify state (snapshot-notification
+                             (save-snapshot (renderer-screen renderer) snapshot-directory
+                                            (get-universal-time)))))
+      state)))
 
 (defun quit-on-signal (world)
   "The action RUN's SIGTERM/SIGHUP handler performs: set WORLD-QUITP, so the

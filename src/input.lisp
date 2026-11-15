@@ -4,8 +4,8 @@
 ;;;; an immediate shark/guest/school/ship/submarine/diver/fisher spawn, `e' (or a
 ;;;; left click, see WORLD-APPLY-KEY-EVENTS) to sprinkle food, `t' to
 ;;;; cycle the visual theme, `w'/`n' to move on to the next weather/time of day,
-;;;; `u' to toggle the HUD, and `h'/`z' to toggle the help panel and the fish
-;;;; dex panel.
+;;;; `u' to toggle the HUD, `h'/`z' to toggle the help panel and the fish dex
+;;;; panel, and `p' to ask for a snapshot of the screen.
 (in-package #:cl-asciiquarium)
 
 (defparameter +quit-characters+ (list #\q #\Q)
@@ -115,6 +115,13 @@ to the `d' key."
   (spawn-fisher-now world)
   world)
 
+(defun world-request-snapshot (world)
+  "Ask for a snapshot of the screen, returning WORLD. Bound to the `p' key.
+The world does no file I/O: the poller in app.lisp, which holds the
+renderer, saves the file right after the keys are applied."
+  (setf (world-snapshot-requested-p world) t)
+  world)
+
 (defparameter +key-bindings+
   (list (cons (list #\r #\R) #'world-redraw)
         (cons (list #\Space) #'world-toggle-pause)
@@ -132,7 +139,8 @@ to the `d' key."
         (cons (list #\n #\N) #'world-advance-daypart)
         (cons (list #\u #\U) #'world-toggle-hud)
         (cons (list #\h #\H) #'world-toggle-help-overlay)
-        (cons (list #\z #\Z) #'world-toggle-zukan))
+        (cons (list #\z #\Z) #'world-toggle-zukan)
+        (cons (list #\p #\P) #'world-request-snapshot))
   "Every ordinary key binding as data: each entry maps the CHARACTERs that
 trigger it to the one-argument (WORLD) action WORLD-APPLY-KEY-EVENT below
 runs for it. Quit (q/Q/Ctrl-C) and shark-spawn (s/S, gated on
