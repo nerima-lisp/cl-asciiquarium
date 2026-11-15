@@ -86,7 +86,10 @@ CALM-P (--calm), and DAYCYCLE-P (NIL under --no-daycycle) go to MAKE-WORLD."
                                   :initial-cell (world-background-cell world)))
          (decoder (make-input-decoder)))
     (with-raw-mode ()
-      (with-terminal-session (session-stream :stream stream :hide-cursor t :alternate-screen t)
+      ;; :NORMAL reports button presses and releases only, which is all the
+      ;; left-click food needs; the session turns reporting off again on exit.
+      (with-terminal-session (session-stream :stream stream :hide-cursor t :alternate-screen t
+                                             :mouse :normal)
         (install-quit-signal-handler world)
         (unwind-protect
              (tick-loop-run-realtime

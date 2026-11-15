@@ -475,7 +475,7 @@ too narrow, then the summary's least important groups (see %STATUS-GROUPS)."
   '(("q" . "quit") ("r" . "redraw") ("space" . "pause") ("+ / -" . "fish count")
     ("s" . "spawn shark") ("g" . "spawn guest") ("c" . "spawn school")
     ("a" . "ship and anchor") ("m" . "submarine") ("d" . "diver")
-    ("f" . "spawn fisher")
+    ("f" . "spawn fisher") ("e" . "sprinkle food")
     ("t" . "cycle theme")
     ("w" . "next weather") ("n" . "next time of day")
     ("u" . "status bar") ("h" . "this help"))

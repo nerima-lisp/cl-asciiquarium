@@ -199,3 +199,17 @@ or signal."
               :to-be 0)
       (expect (search (format nil "~C[?25l" (code-char 27)) output)
               :to-be-truthy)))))
+
+(describe
+ "run mouse reporting"
+ (it
+  "turns on press-and-release reporting for the session and off before restoring the terminal"
+  (multiple-value-bind (outcome output)
+      (%run-under-stubbed-terminal (lambda (world) world))
+    (expect outcome :to-be :returned-normally)
+    (let ((on (search (cl-tty-kit:ansi-enable-mouse :normal) output))
+          (off (search (cl-tty-kit:ansi-disable-mouse :normal) output :from-end t)))
+      (expect on :to-be-truthy)
+      (expect off :to-be-truthy)
+      (expect (< on off) :to-be-truthy))
+    (expect (%terminal-restored-p output) :to-be-truthy))))

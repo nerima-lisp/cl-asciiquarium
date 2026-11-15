@@ -1,7 +1,8 @@
 ;;;; src/input.lisp -- turning decoded cl-tty-kit KEY-EVENTs into WORLD state
 ;;;; changes: `q' to quit, `r' to redraw/reshuffle, space to pause/resume,
 ;;;; `+'/`-' to adjust the live fish count, `s'/`g'/`c'/`a'/`m'/`d'/`f' to force
-;;;; an immediate shark/guest/school/ship/submarine/diver/fisher spawn, `t' to
+;;;; an immediate shark/guest/school/ship/submarine/diver/fisher spawn, `e' (or a
+;;;; left click, see WORLD-APPLY-KEY-EVENTS) to sprinkle food, `t' to
 ;;;; cycle the visual theme, `w'/`n' to move on to the next weather/time of day,
 ;;;; `u' to toggle the HUD, and `h' to toggle the on-screen help panel.
 (in-package #:cl-asciiquarium)
@@ -107,6 +108,7 @@ to the `d' key."
         (cons (list #\m #\M) #'world-spawn-submarine)
         (cons (list #\d #\D) #'world-spawn-diver)
         (cons (list #\f #\F) #'world-spawn-fisher)
+        (cons (list #\e #\E) #'world-scatter-food)
         (cons (list #\t #\T) #'world-cycle-theme)
         (cons (list #\w #\W) #'world-advance-weather)
         (cons (list #\n #\N) #'world-advance-daypart)

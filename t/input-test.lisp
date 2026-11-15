@@ -184,3 +184,22 @@
     (world-apply-key-events world (decode-input keys))
     (expect (world-theme world) :to-be theme)
     (expect (cl-asciiquarium::world-daypart-at world) :to-be (+ 10 cl-asciiquarium::+daypart-ticks+)))))
+
+(describe
+ "e sprinkles food"
+ (it-each
+  (("e") ("E"))
+  "key ~S adds six grains"
+  (key)
+  (let ((world (tiny-world :width 80 :height 24)))
+    (world-apply-key-events world (decode-input key))
+    (expect (count :food (cl-asciiquarium::world-%creatures world)
+                   :key #'cl-asciiquarium::creature-kind)
+            :to-be 6)))
+ (it
+  "leaves no grain after r redraws the tank"
+  (let ((world (tiny-world :width 80 :height 24)))
+    (world-apply-key-events world (decode-input "er"))
+    (expect (count :food (cl-asciiquarium::world-%creatures world)
+                   :key #'cl-asciiquarium::creature-kind)
+            :to-be 0))))
