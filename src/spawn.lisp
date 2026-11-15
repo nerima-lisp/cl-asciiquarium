@@ -13,6 +13,9 @@
        (or (getf (creature-data fish) :leader)
            (getf (creature-data fish) :school-departed))))
 
+(defun resident-fish-p (fish)
+  (and (alive-fish-p fish) (not (school-visitor-p fish))))
+
 (defparameter +bubble-interval-range+ '(20 60))
 
 (defparameter +refill-delay-ticks+ 90
@@ -119,7 +122,7 @@ temporarily prevents an addition."
         (dolist (fish (world-%creatures world))
           (when (alive-fish-p fish)
             (incf live)
-            (unless (school-visitor-p fish) (incf residents))))
+            (when (resident-fish-p fish) (incf residents))))
         (when (and (< residents target) (< live (world-max-fish world)))
           (%add-world-creature world (make-edge-fish world))
           (incf residents))

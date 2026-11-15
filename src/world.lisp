@@ -605,12 +605,10 @@ REMOVEP immediately; WORLD-ADVANCE deletes it and its attached creatures
 at the end of the next call, paused or not. Bound to the '-' key."
   (when (plusp (world-fish-count world))
     (decf (world-fish-count world))
-    (flet ((resident-p (fish)
-             (and (alive-fish-p fish) (not (school-visitor-p fish)))))
-      (when (> (count-if #'resident-p (world-%creatures world)) (world-fish-count world))
-        (let ((fish (find-if #'resident-p (world-%creatures world))))
-          (fish-stop-behaviour fish)
-          (setf (creature-removep fish) t)))))
+    (when (> (count-if #'resident-fish-p (world-%creatures world)) (world-fish-count world))
+      (let ((fish (find-if #'resident-fish-p (world-%creatures world))))
+        (fish-stop-behaviour fish)
+        (setf (creature-removep fish) t))))
   (world-refresh-hud world)
   world)
 
