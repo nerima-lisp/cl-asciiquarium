@@ -139,25 +139,27 @@
         (expect (count-if (lambda (fish)
                             (getf (cl-asciiquarium::creature-data fish) :leader))
                           (cl-asciiquarium::world-%creatures world)) :to-be 6))))
-  (it "dissolves the school after the minus key removes its leader"
+  (it "keeps the school intact when minus lowers the resident target"
     (with-seeded-random-state (42)
       (let ((world (school-test-world)))
         (multiple-value-bind (leader members) (cl-asciiquarium::spawn-school-now world)
           (setf (cl-asciiquarium::world-fish-count world) 6)
           (world-apply-key-events world (decode-input "-"))
-          (expect (cl-asciiquarium::creature-removep leader) :to-be-truthy)
+          (expect (world-fish-count world) :to-be 5)
+          (expect (cl-asciiquarium::creature-removep leader) :to-be nil)
           (world-advance world)
-          (expect (null (member leader (cl-asciiquarium::world-%creatures world))) :to-be-truthy)
+          (expect (member leader (cl-asciiquarium::world-%creatures world)) :to-be-truthy)
           (expect (count-if #'cl-asciiquarium::alive-fish-p
-                            (cl-asciiquarium::world-%creatures world)) :to-be 5)
+                            (cl-asciiquarium::world-%creatures world)) :to-be 6)
           (loop for index from 1 below 6
                 for fish = (aref members index)
                 for data = (cl-asciiquarium::creature-data fish)
-                do (expect (null (getf data :leader)) :to-be-truthy)
-                   (expect (getf data :tick) :to-be (getf data :school-tick))
-                   (expect (cl-tty-kit:entity-on-exit
-                            (cl-asciiquarium::creature-entity fish))
-                           :to-be (getf data :school-on-exit)))))))
+                do (expect (eq (getf data :leader) leader) :to-be-truthy)
+                   (expect (getf data :tick) :to-be 'cl-asciiquarium::school-tick)
+                   (expect (eq (cl-tty-kit:entity-on-exit
+                                (cl-asciiquarium::creature-entity fish))
+                               (getf data :school-on-exit))
+                           :to-be nil))))))
   (it "does not translate the school by a wrap distance after a resize"
     (with-seeded-random-state (42)
       (let ((world (school-test-world)))
@@ -188,7 +190,7 @@
           (expect (count-if #'cl-asciiquarium::alive-fish-p
                             (cl-asciiquarium::world-%creatures world)) :to-be 1)
           (expect (cl-asciiquarium::world-refill-at world) :to-be 0)))))
-  (it "keeps entering from the same side after c then minus removes the leader"
+  (it "keeps entering as a school after c then minus lowers the resident target"
     (with-seeded-random-state (5)
       (let ((world (school-test-world :width 40 :height 12)))
         (world-apply-key-events world (decode-input "c"))
@@ -201,6 +203,7 @@
                   :to-be-truthy)
           (setf (cl-asciiquarium::world-fish-count world) 6)
           (world-apply-key-events world (decode-input "-"))
+          (expect (world-fish-count world) :to-be 5)
           (loop repeat 120
                 until (every (lambda (fish) (< (creature-x fish) 40)) followers)
                 do (let ((before (map 'vector #'creature-x followers)))
@@ -214,7 +217,7 @@
                   :to-be-truthy)
           (expect (every #'cl-asciiquarium::alive-fish-p followers) :to-be-truthy)
           (expect (every (lambda (fish)
-                           (null (getf (cl-asciiquarium::creature-data fish) :leader)))
+                           (eq (getf (cl-asciiquarium::creature-data fish) :leader) leader))
                          followers) :to-be-truthy)))))
 
   (it "never slides backward while scattering and rejoining in either direction"

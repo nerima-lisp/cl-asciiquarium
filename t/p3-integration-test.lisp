@@ -14,16 +14,6 @@
 (defun p3-in-world-p (world creature)
   (and (member creature (cl-asciiquarium::world-%creatures world) :test #'eq) t))
 
-(defun p3-crossing-p (creature)
-  "True for a live fish of a school that will leave at the far edge: a school
-member, or a follower still carrying the school's exit after its leader left."
-  (let ((data (cl-asciiquarium::creature-data creature)))
-    (and (cl-asciiquarium::alive-fish-p creature)
-         (or (getf data :school-members)
-             (and (getf data :school-dx)
-                  (not (eq (cl-tty-kit:entity-on-exit (cl-asciiquarium::creature-entity creature))
-                           (getf data :school-on-exit))))))))
-
 (describe "P3 integration"
   (it "keeps live fish at or below max-fish when the automatic school arrives"
     ;; The :school row of *AUTO-EVENTS* fires at tick 600 and adds six fish
@@ -84,15 +74,14 @@ member, or a follower still carrying the school's exit after its leader left."
             (expect stale-followers :to-be 0)
             (expect forgotten-refills :to-be 0)
             (expect (<= most (cl-asciiquarium::world-max-fish world)) :to-be-truthy)
-            ;; With no new sharks, and once every passing school has left (its
-            ;; fish count as live while it crosses, then leave), the tank is
-            ;; one fish short per missing fish, refilled one per
-            ;; +REFILL-DELAY-TICKS+ from the pending REFILL-AT.
+            ;; Passing schools use total capacity but do not satisfy the resident
+            ;; target. Once they leave and sharks stop arriving, each missing
+            ;; resident is replaced per +REFILL-DELAY-TICKS+ from REFILL-AT.
             (setf (cl-asciiquarium::world-shark-enabled-p world) nil)
             (labels ((visitors-p ()
                        (find-if (lambda (creature)
                                   (or (eq (cl-asciiquarium::creature-kind creature) :shark)
-                                      (p3-crossing-p creature)))
+                                      (cl-asciiquarium::school-visitor-p creature)))
                                 (cl-asciiquarium::world-%creatures world)))
                      (deadline ()
                        (+ (cl-asciiquarium::world-refill-at world)
@@ -125,39 +114,121 @@ member, or a follower still carrying the school's exit after its leader left."
             (expect stale-followers :to-be 0)
             (expect forgotten-refills :to-be 0))))))
 
-  (it "refills 90 ticks after a school crosses out of a short tank"
+  (it "refills a resident after 90 ticks while a school is still present"
     (with-seeded-random-state (7)
-      (let ((world (p3-quiet-guests
-                    (make-world :width 120 :height 30 :fish-count 6 :max-fish 30
-                                :shark-enabled-p nil :hud-visible-p nil))))
+      (let* ((world (p3-quiet-guests
+                     (make-world :width 120 :height 30 :fish-count 6 :max-fish 30
+                                 :shark-enabled-p nil :hud-visible-p nil)))
+             (resident (first (live-fish world))))
         (cl-asciiquarium::spawn-school-now world)
-        ;; Two fish are eaten while the school is in the tank, so when the
-        ;; refill comes due the school's six keep live above the target and
-        ;; the refill is cancelled.
-        (let ((residents (remove-if (lambda (creature)
-                                      (getf (cl-asciiquarium::creature-data creature)
-                                            :school-members))
-                                    (cl-asciiquarium::world-%creatures world))))
-          (dolist (fish (subseq (remove-if-not #'cl-asciiquarium::alive-fish-p residents) 0 2))
-            (cl-asciiquarium::eat-effect world nil fish)))
-        (dotimes (tick cl-asciiquarium::+refill-delay-ticks+) (world-advance world))
-        (expect (cl-asciiquarium::world-refill-at world) :to-be 0)
-        (loop repeat 2000
-              until (notany #'p3-crossing-p (cl-asciiquarium::world-%creatures world))
-              do (world-advance world))
-        (let ((left-at (world-tick world))
-              (live (p3-live-fish-count world))
-              (due (cl-asciiquarium::world-refill-at world)))
-          ;; The school is gone and the tank is short, so a refill is pending,
-          ;; scheduled when the first crossing fish left.
-          (expect (< live 6) :to-be-truthy)
-          (expect (< left-at due (+ left-at cl-asciiquarium::+refill-delay-ticks+ 1))
-                  :to-be-truthy)
-          (loop while (< (world-tick world) due)
-                do (world-advance world))
-          (expect (p3-live-fish-count world) :to-be (1+ live))))))
+        (cl-asciiquarium::eat-effect world nil resident)
+        (dotimes (tick 89) (world-advance world))
+        (expect (school-fish-count world) :to-be 6)
+        (expect (p3-live-fish-count world) :to-be 11)
+        (world-advance world)
+        (expect (school-fish-count world) :to-be 6)
+        (expect (p3-live-fish-count world) :to-be 12)
+        (expect (cl-asciiquarium::world-refill-at world) :to-be 0))))
 
-  (it "never leaves a school follower or lantern glow tracking a fish the - key removed"
+  (it "restores 18 residents within 180 ticks alongside a school of six"
+    (with-seeded-random-state (7)
+      (let* ((world (p3-quiet-guests
+                     (make-world :width 120 :height 30 :fish-count 18 :max-fish 30
+                                 :shark-enabled-p nil :hud-visible-p nil)))
+             (residents (live-fish world)))
+        (dolist (fish residents)
+          ;; This refill fixture accounts only for the two explicit losses.
+          (when (eq (getf (cl-asciiquarium::creature-data fish) :species) :lantern)
+            (setf (getf (cl-asciiquarium::creature-data fish) :lure-next)
+                  most-positive-fixnum)))
+        (cl-asciiquarium::spawn-school-now world)
+        (dolist (fish (subseq residents 0 2))
+          (cl-asciiquarium::eat-effect world nil fish))
+        (dotimes (tick 180)
+          (world-advance world)
+          (expect (<= (p3-live-fish-count world) 30) :to-be-truthy))
+        (expect (school-fish-count world) :to-be 6)
+        (expect (count-if-not #'cl-asciiquarium::school-visitor-p (live-fish world))
+                :to-be 18))))
+
+  (it "keeps a refill pending while departing followers leave a short tank"
+    (with-seeded-random-state (1)
+      (let* ((world (p3-quiet-guests
+                     (make-world :width 120 :height 30 :fish-count 26 :max-fish 30
+                                 :shark-enabled-p nil :hud-visible-p nil)))
+             (residents (live-fish world)))
+        (dolist (fish (subseq residents 0 2))
+          (cl-asciiquarium::eat-effect world nil fish))
+        (expect (cl-asciiquarium::spawn-school-if-room world) :to-be t)
+        (dotimes (tick 270)
+          (world-advance world)
+          (expect (<= (p3-live-fish-count world) 30) :to-be-truthy))
+        (expect (school-fish-count world) :to-be 0)
+        (expect (count-if #'cl-asciiquarium::school-visitor-p (live-fish world))
+                :to-be 5)
+        (expect (count-if-not #'cl-asciiquarium::school-visitor-p (live-fish world))
+                :to-be 25)
+        (expect (cl-asciiquarium::world-refill-at world) :to-be 360)
+        (loop repeat 180
+              until (and (notany #'cl-asciiquarium::school-visitor-p (live-fish world))
+                         (= (p3-live-fish-count world) 26))
+              do (world-advance world)
+                 (expect (<= (p3-live-fish-count world) 30) :to-be-truthy))
+        (expect (notany #'cl-asciiquarium::school-visitor-p (live-fish world))
+                :to-be-truthy)
+        (expect (p3-live-fish-count world) :to-be 26)
+        (expect (cl-asciiquarium::world-refill-at world) :to-be 0))))
+
+  (it "counts surviving followers as residents when their leader is eaten"
+    (with-seeded-random-state (1)
+      (let* ((world (p3-quiet-guests
+                     (make-world :width 120 :height 30 :fish-count 18 :max-fish 30
+                                 :shark-enabled-p nil :hud-visible-p nil)))
+             (residents (live-fish world)))
+        (multiple-value-bind (leader members) (cl-asciiquarium::spawn-school-now world)
+          (dolist (fish (subseq residents 0 6))
+            (cl-asciiquarium::eat-effect world nil fish))
+          (cl-asciiquarium::eat-effect world nil leader)
+          (world-advance world)
+          (loop for fish across members
+                unless (eq fish leader)
+                  do (expect (cl-asciiquarium::school-visitor-p fish) :to-be-falsy)
+                     (expect (getf (cl-asciiquarium::creature-data fish) :school-departed)
+                             :to-be-falsy))
+          (expect (p3-live-fish-count world) :to-be 17)
+          (dotimes (tick 89) (world-advance world))
+          (expect (p3-live-fish-count world) :to-be 18)
+          (expect (cl-asciiquarium::world-refill-at world) :to-be 0)))))
+
+  (it "lets departing followers leave the opposite edge without scheduling a refill"
+    (with-seeded-random-state (1)
+      (let ((world (p3-quiet-guests
+                    (make-world :width 120 :height 30 :fish-count 0 :max-fish 30
+                                :shark-enabled-p nil :hud-visible-p nil))))
+        (multiple-value-bind (leader members) (cl-asciiquarium::spawn-school-now world)
+          (let ((direction (signum (entity-dx (cl-asciiquarium::creature-entity leader))))
+                (saw-departing nil))
+            (loop repeat 500
+                  until (every #'cl-asciiquarium::creature-removep members)
+                  do (world-advance world)
+                     (expect (cl-asciiquarium::world-refill-at world) :to-be 0)
+                     (loop for fish across members
+                           for data = (cl-asciiquarium::creature-data fish)
+                           when (and (cl-asciiquarium::alive-fish-p fish)
+                                     (getf data :school-departed))
+                             do (setf saw-departing t)
+                                (expect (getf data :leader) :to-be nil)
+                                (expect (cl-asciiquarium::school-visitor-p fish) :to-be-truthy)))
+            (expect saw-departing :to-be-truthy)
+            (expect (every #'cl-asciiquarium::creature-removep members) :to-be-truthy)
+            (loop for fish across members
+                  do (expect (cl-asciiquarium::school-visitor-p fish) :to-be-falsy)
+                     (expect (if (plusp direction)
+                                 (>= (creature-x fish) (world-width world))
+                                 (<= (+ (creature-x fish) (creature-dimensions fish)) 0))
+                             :to-be-truthy)))))))
+
+  (it "preserves a passing school and clears the glow of a resident removed by minus"
     (with-soft-assertions
       (with-seeded-random-state (7)
         (let ((world (p3-quiet-guests
@@ -166,17 +237,13 @@ member, or a follower still carrying the school's exit after its leader left."
           (setf (cl-asciiquarium::world-fish-count world) 6)
           (multiple-value-bind (leader members) (cl-asciiquarium::spawn-school-now world)
             (cl-asciiquarium::world-decrease-fish-count world)
-            ;; Precondition: `-' took the leader, the most recently added fish.
-            ;; It is marked at once and deleted at the end of the next tick.
-            (expect (cl-asciiquarium::creature-removep leader) :to-be t)
+            ;; A school-only tank has no resident to remove.
+            (expect (cl-asciiquarium::alive-fish-p leader) :to-be-truthy)
             (dotimes (tick 5) (world-advance world))
-            (expect (p3-in-world-p world leader) :to-be nil)
-            ;; Guards removal by `-': were the leader deleted without REMOVEP,
-            ;; all five followers would still name it and hover, frozen, at its
-            ;; last position.
+            (expect (p3-in-world-p world leader) :to-be t)
             (expect (loop for index from 1 below (length members)
                           for data = (cl-asciiquarium::creature-data (aref members index))
-                          never (getf data :leader))
+                          always (eq (getf data :leader) leader))
                     :to-be-truthy)))
         (let ((world (p3-quiet-guests
                       (make-world :width 160 :height 30 :fish-count 0 :theme :moonlight
@@ -225,6 +292,32 @@ member, or a follower still carrying the school's exit after its leader left."
                     world (nth-value 1 (creature-dimensions fish)))
                  (<= top (creature-y fish) bottom))))
          members))
+
+(describe "resident decrease with a passing school"
+  (it-each ((0) (2)) "preserves the school after minus with ~D missing residents" (losses)
+    (with-seeded-random-state (7)
+      (let* ((world (p3-quiet-guests
+                    (make-world :width 120 :height 30 :fish-count 18 :max-fish 30
+                                :shark-enabled-p nil :hud-visible-p nil)))
+             (residents (live-fish world)))
+        (multiple-value-bind (leader members) (cl-asciiquarium::spawn-school-now world)
+          (dolist (fish (subseq residents 0 losses))
+            (cl-asciiquarium::eat-effect world nil fish))
+          (world-decrease-fish-count world)
+          (expect (world-fish-count world) :to-be 17)
+          (expect (cl-asciiquarium::alive-fish-p leader) :to-be-truthy)
+          (expect (count-if-not #'cl-asciiquarium::school-visitor-p (live-fish world))
+                  :to-be (min 17 (- 18 losses)))
+          (world-advance world)
+          (expect (every #'cl-asciiquarium::school-visitor-p members) :to-be-truthy)
+          (loop repeat 200
+                do (world-advance world)
+                   (expect (<= (count-if-not #'cl-asciiquarium::school-visitor-p
+                                            (live-fish world))
+                               (world-fish-count world))
+                           :to-be-truthy))
+          (expect (count-if-not #'cl-asciiquarium::school-visitor-p (live-fish world))
+                  :to-be 17))))))
 
 (describe "P3 integration: lantern and school"
   (it "a school follower is pulled out of formation by a lantern and eaten"
