@@ -239,9 +239,9 @@ only when both write within the same instant. The run whose discovery was
 lost still remembers it and writes it again at its own next discovery.
 
 A file this build cannot read (not one `(:zukan 1 :species (:dart :golden))`
-form of distinct keywords, or not valid UTF-8) is left untouched: the status
-bar says `dex file unreadable; not saving`, and that run starts with nothing
-discovered and never writes the file.
+form of distinct keywords, longer than 65,536 characters, or not valid UTF-8)
+is left untouched: the status bar says `dex file unreadable; not saving`, and
+that run starts with nothing discovered and never writes the file.
 Species a newer build added are kept and written back, but they are not
 counted in the status bar or the dex panel.
 

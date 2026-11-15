@@ -92,7 +92,16 @@ t/snapshot-test.lisp, loaded after this file, uses it too."
             ("a dotted species list" ("(:zukan 1 :species (:dart . :eel))"))
             ("a circular species list" ("(:zukan 1 :species #1=(:dart . #1#))"))
             ("a missing :species key" ("(:zukan 1)"))
-            ("a bare atom" ("42")))
+            ("a bare atom" ("42"))
+            ;; Read as is, 50,000 open parentheses exhaust SBCL's control
+            ;; stack, which kills the process rather than signal an error.
+            ("lists nested 50,000 deep"
+             ("(:zukan 1 :species " #.(make-string 50000 :initial-element #\()))
+            ("species nested one list deeper" ("(:zukan 1 :species ((:dart)))"))
+            ("50,000 quote marks"
+             ("(:zukan 1 :species (" #.(make-string 50000 :initial-element #\') ":dart))"))
+            ("more than 65,536 characters"
+             ("(:zukan 1 :species (:dart" #.(make-string 70000 :initial-element #\Space) "))")))
       "rejects a file with ~A without changing it, even on a save attempt"
       (description parts)
     (declare (ignore description))
@@ -105,6 +114,13 @@ t/snapshot-test.lisp, loaded after this file, uses it too."
         (expect (equalp (%zukan-bytes path) bytes) :to-be-truthy)
         (expect (%directory-file-names dir) :to-equal '("zukan.sexp"))
         (expect *zukan-read-eval-probe* :to-be nil))))
+  (it "reads parentheses inside escaped species names as part of the name"
+    (with-zukan-directory (dir)
+      (let ((path (%write-zukan-text (%zukan-file dir)
+                                     "(:zukan 1 :species (:|((kraken| :a\\(b :dart))")))
+        (expect (multiple-value-list (cl-asciiquarium::load-zukan path))
+                :to-equal (list (list (intern "((kraken" :keyword) (intern "A(B" :keyword) :dart)
+                                t)))))
   (it "keeps species this build does not know and writes them back"
     (with-zukan-directory (dir)
       (let ((path (%write-zukan-text (%zukan-file dir) "(:zukan 1 :species (:kraken :dart))")))
