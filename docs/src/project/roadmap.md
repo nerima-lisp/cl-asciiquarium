@@ -8,13 +8,13 @@
   threats, puffers inflate, and fish emit bubbles. `e` or a left click adds
   food that nearby fish can eat.
 - Threat interactions include the shark, lantern fish, courting fish, food,
-  fisher's hook, landed anchor, submarine sonar, vent plume, octopus tentacle,
-  and a diving gull's beak. Eaten or caught fish are later replaced by newly
-  spawned fish that enter from a screen edge.
+  fisher's hook, landed anchor, submarine hull and sonar, vent plume, octopus
+  tentacle, and a diving gull's body. Eaten or caught fish are later replaced
+  by newly spawned fish that enter from a screen edge.
 - The seabed has seaweed, a castle, coral, a rock, a starfish, a vent, a crab,
   an octopus, and a treasure chest. A ship lowers an anchor; a diver visits
   the chest in a dinghy.
-- Surface visitors include ships, submarines, divers, fishers, gulls, a line
+- Visitors include ships, divers, fishers, gulls, a line
   of ducks, a leaping dolphin, and a segmented sea monster. Automatic big
   events share a limit of two; `g`, `a`, `m`, `d`, and `f` can spawn visitors
   on demand.
@@ -26,7 +26,7 @@
   the status bar.
 - `q`/Ctrl-C quits, `r` redraws the fish, space pauses or resumes, `+`/`-`
   changes the target fish count, `s` spawns a shark, `c` spawns a school, `h`
-  opens help, and `z` opens the fish dex. Terminal resizing is polled while
+  toggles help, and `z` toggles the fish dex. Terminal resizing is polled while
   the aquarium runs.
 - The fish dex remembers discovered species between runs in
   `$XDG_STATE_HOME/cl-asciiquarium/zukan.sexp`, or
@@ -37,14 +37,16 @@
 - `--color auto|truecolor|256|16|mono` chooses color depth
   (`--monochrome` is the same as `--color mono`), and `--ascii` draws only
   ASCII symbols. `--theme abyss|coral|moonlight` selects the starting theme;
-  `--no-daycycle` disables automatic time-of-day changes.
+  `--no-daycycle` disables automatic time-of-day changes, and `--no-shark`
+  disables the shark.
 
 ## Out of scope
 
 - A general NxN interaction matrix. Each threat kind declares its interaction
   in a `:THREAT` row (the shark's mouth, a landed anchor, a lantern fish's
-  light, a courting fish, food, the fisher's hook, submarine sonar, the vent's
-  plume, or the octopus tentacle), and `src/collision.lisp` checks them in one
+  light, a courting fish, food, the fisher's hook, a diving gull's body, the
+  submarine hull or sonar rings, the vent's plume, or the octopus tentacle),
+  and `src/collision.lisp` checks them in one
   threats × creatures pass; no creature is tested against every other one. The
   dolphin, sea monster, and duck line are decorative.
 - A generic ECS or config-driven guest-definition DSL. Creatures are plain

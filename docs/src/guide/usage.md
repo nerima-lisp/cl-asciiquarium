@@ -26,8 +26,9 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
 - `t` or `T` -- cycle the visual theme through `abyss`, `coral`, and
   `moonlight` (`WORLD-CYCLE-THEME`). The scene is recolored in place
   (`WORLD-SET-THEME`): no creature is removed, added, or moved, and no random
-  number is drawn, so a seeded run is not reshuffled. Everything but the fish
-  takes the new theme's colors; fish keep the colors they were created with.
+  number is drawn, so a seeded run is not reshuffled. Fish also use their
+  species palette for the selected theme; changing themes does not change the
+  fish's palette index.
   The chosen theme also becomes the time of day, and the automatic
   time-of-day cycle restarts from it (`WORLD-CHANGE-DAYPART`; see
   [Weather and time of day](#weather-and-time-of-day)). The gulls are the one

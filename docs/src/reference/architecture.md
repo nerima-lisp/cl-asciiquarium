@@ -47,7 +47,7 @@ function applied to a fish it grips, which species it may take, and whether
 creatures carrying a `:SENSE` entry react when it comes within their range.
 Today the threats are the shark's mouth, a landed anchor, a lantern fish's
 light (its leading column, small species only), one courting fish at a time,
-food grains, the fisher's hook, a diving gull's beak (one fish per dive), the
+food grains, the fisher's hook, a diving gull's body (one fish per dive), the
 submarine (it only alarms), its sonar rings (they stun), the vent's plume (it
 lifts fish), and an octopus tentacle's tip.
 The pass loops over active threats and, for each, over every creature once, so
@@ -288,8 +288,8 @@ exactly reproducible result. Every test in `t/` drives the simulation this
 way. `src/app.lisp` is the thin real-I/O side: `src/app-zukan.lisp` reads and
 writes the dex, and `src/app-snapshot.lisp` writes screen snapshots outside
 `WORLD-ADVANCE`. The terminal session enables mouse reporting, and
-`WORLD-APPLY-KEY-EVENTS` routes left-button presses to
-`WORLD-APPLY-MOUSE-EVENT` for food. `MAKE-WORLD-POLLER` composes
+`WORLD-APPLY-KEY-EVENTS` passes mouse events to `WORLD-APPLY-MOUSE-EVENT`,
+which handles left-button presses for food. `MAKE-WORLD-POLLER` composes
 `cl-tty-kit:MAKE-TERMINAL-SIZE-POLLER` and `cl-tty-kit:MAKE-STREAM-INPUT-POLLER`
 (provided by `cl-tty-kit` 1.5.0) into the terminal-size/stdin poll
 `TICK-LOOP-RUN-REALTIME` runs once per tick, ahead of `WORLD-ADVANCE` itself.
