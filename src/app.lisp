@@ -11,8 +11,7 @@
 environment when it is absolute, otherwise the current directory."
   (snapshot-directory (uiop:getenv "XDG_PICTURES_DIR") (uiop:getcwd)))
 
-(defun make-world-poller (renderer stream decoder
-                          &key (snapshot-directory (default-snapshot-directory)))
+(defun make-world-poller (renderer stream decoder)
   "Return a TICK-LOOP-RUN-REALTIME :POLL callback that keeps a WORLD state
 in sync with the controlling terminal before every tick's pure advance step:
 resize WORLD and RENDERER via cl-tty-kit:MAKE-TERMINAL-SIZE-POLLER when the
@@ -20,29 +19,36 @@ terminal's size has changed since the last poll, then apply any key events
 cl-tty-kit:MAKE-STREAM-INPUT-POLLER decodes from STREAM through DECODER.
 Both pollers keep their own state across ticks (the last-seen terminal size,
 and any escape sequence split across reads), so this closure only needs to
-compose them once per RUN rather than reimplementing either. When a key
-asked for a snapshot (WORLD-REQUEST-SNAPSHOT), the renderer's screen, still
-the frame drawn just before the key was read, is saved in SNAPSHOT-DIRECTORY
-and the status bar reports the file or the failure; the report comes after
-the picture, so it is not in it. On a poll that resized the renderer, its
-screen holds no frame yet, so the request waits for the next poll."
+compose them once per RUN rather than reimplementing either. A snapshot a key
+asks for is taken by MAKE-FRAME-DRAWER's callback, after the next frame."
   (let ((size-poller (make-terminal-size-poller))
         (input-poller (make-stream-input-poller stream :decoder decoder)))
     (lambda (state)
-      (let ((resized-p nil))
-        (multiple-value-bind (columns rows) (funcall size-poller state 0)
-          (when (and columns rows)
-            (setf resized-p t)
-            (world-resize state columns rows)
-            (renderer-resize renderer columns rows
-                             :initial-cell (world-background-cell state))))
-        (world-apply-key-events state (funcall input-poller state 0))
-        (when (and (world-snapshot-requested-p state) (not resized-p))
-          (setf (world-snapshot-requested-p state) nil)
-          (world-notify state (snapshot-notification
-                               (save-snapshot (renderer-screen renderer) snapshot-directory
-                                              (get-universal-time))))))
+      (multiple-value-bind (columns rows) (funcall size-poller state 0)
+        (when (and columns rows)
+          (world-resize state columns rows)
+          (renderer-resize renderer columns rows
+                           :initial-cell (world-background-cell state))))
+      (world-apply-key-events state (funcall input-poller state 0))
       state)))
+
+(defun make-frame-drawer (renderer stream
+                          &key (snapshot-directory (default-snapshot-directory)))
+  "Return a TICK-LOOP-RUN-REALTIME render callback that draws a WORLD state on
+RENDERER, writing the frame to STREAM, and returns RENDER-FRAME's values. When
+a key asked for a snapshot (WORLD-REQUEST-SNAPSHOT), the frame just drawn is
+then saved in SNAPSHOT-DIRECTORY and the status bar reports the file or the
+failure; the report comes after the picture, so it is not in it. The loop
+draws after every poll, a resize included, and draws the frame that made it
+stop before it returns, so this is the one place a request is taken and none
+is left behind when a key quits."
+  (lambda (state)
+    (multiple-value-prog1 (render-frame renderer state :stream stream)
+      (when (world-snapshot-requested-p state)
+        (setf (world-snapshot-requested-p state) nil)
+        (world-notify state (snapshot-notification
+                             (save-snapshot (renderer-screen renderer) snapshot-directory
+                                            (get-universal-time))))))))
 
 (defun quit-on-signal (world)
   "The action RUN's SIGTERM/SIGHUP handler performs: set WORLD-QUITP, so the
@@ -139,7 +145,7 @@ status bar says so and this run never writes it."
                 (if dex-writable-p
                     (make-zukan-advancer dex-path (length known-species))
                     #'world-advance)
-                (lambda (state) (render-frame renderer state :stream session-stream))
+                (make-frame-drawer renderer session-stream)
                 #'world-quitp
                 :stream session-stream
                 :interval interval
