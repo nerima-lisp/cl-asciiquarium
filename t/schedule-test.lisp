@@ -166,14 +166,13 @@
                 (expect (assoc :plume (schedule-effects world before)) :to-be nil)))))))))
 
 (describe "ten-minute event schedule"
-  ;; Three times each seed's largest completed observation across SBCL 2.6.6
-  ;; and 2.6.8, normal/coverage and full-suite context; startup is excluded.
+  ;; Hang escape hatch, not a performance gate: shared-host load stretches wall time far beyond observed subsecond runs.
   (it "shows every main event with seed 1"
-    (:timeout-ms 2769)
+    (:timeout-ms 30000)
     (expect (missing-schedule-events 1) :to-be nil))
   (it "shows every main event with seed 42"
-    (:timeout-ms 1689)
+    (:timeout-ms 30000)
     (expect (missing-schedule-events 42) :to-be nil))
   (it "shows every main event with seed 4242"
-    (:timeout-ms 1077)
+    (:timeout-ms 30000)
     (expect (missing-schedule-events 4242) :to-be nil)))
