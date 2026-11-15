@@ -48,13 +48,20 @@ The tank starts with 18 fish, or `--max-fish N` (1-40, default 30) if that is
 lower, and `+` grows it up to `N`. `--calm` stops blinking animations and the
 storm's lightning flash.
 
-Press `e`, or click in the water, to sprinkle food: nearby fish swim over and
-eat it. `z` opens the fish dex, the list of species seen so far, which is kept
-across runs in `cl-asciiquarium/zukan.sexp` under `$XDG_STATE_HOME`
-(`~/.local/state` by default). `p` saves the
-screen as a text file in `$XDG_PICTURES_DIR` or the current directory. The
-aquarium reads mouse clicks, so most terminals select text only with Shift
-held while it runs.
+Press `e`, or left-click in the water, to sprinkle food: nearby fish swim over
+and eat it. `z` opens the fish dex, the list of species seen so far, which is
+kept across runs in `$XDG_STATE_HOME/cl-asciiquarium/zukan.sexp`, or in
+`~/.local/state/cl-asciiquarium/zukan.sexp` when that variable is unset, empty,
+or relative. If the dex file is malformed or cannot be read, the run starts
+with an empty dex and does not save discoveries during that run. The status
+bar reports the error, and the file remains untouched.
+Each save rereads and merges the file. If two aquariums read it before either
+replaces it, the later save can omit the other run's latest discovery. The run
+whose discovery was omitted keeps it in memory and saves it on its next
+discovery. `p` saves a text snapshot of the screen in `$XDG_PICTURES_DIR` when
+that variable is an absolute path, otherwise in the current directory. To
+select the terminal's text with the mouse while the aquarium runs, hold Shift
+on most terminals.
 
 Above the water, two gulls dive now and then for a fish near the surface and
 leave at night, and a fisher sails in from time to time to lower a hook for
@@ -88,9 +95,7 @@ symbols.
 
 The `u` key toggles the status bar on the bottom row, which reports the theme,
 time of day, weather, fish count, discovered species, and paused/swimming state,
-with key hints on the right. The status bar, sky, and ambient current are regular
-creatures in the scene, so they are clipped, ordered, cached, and redrawn by
-the same incremental renderer as every fish and guest. See
+with key hints on the right. See
 [Keybindings and CLI](https://nerima-lisp.github.io/cl-asciiquarium/guide/usage/)
 for the screen layout and color-mode detection rules.
 
@@ -110,7 +115,7 @@ As a library, from another flake:
 ```nix
 # flake.nix
 inputs.cl-asciiquarium = {
-  url = "github:nerima-lisp/cl-asciiquarium/v0.1.0";
+  url = "github:nerima-lisp/cl-asciiquarium/v0.3.0";
   inputs.nixpkgs.follows = "nixpkgs";
 };
 ```

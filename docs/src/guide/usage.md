@@ -234,10 +234,10 @@ species in it count as already discovered, so a rare species is announced in
 the status bar only the first time it ever appears. The file is written
 right after each new discovery, not at exit; when a write fails, the status
 bar says `dex save failed` and the next discovery tries again. Before each
-write the file is read again and merged with this run's species, so with two
-aquariums running at once, one can overwrite the other's latest discovery
-only when both write within the same instant. The run whose discovery was
-lost still remembers it and writes it again at its own next discovery.
+write, the file is read again and merged with this run's species. If two
+aquariums read the file before either replaces it, the later replacement can
+omit the other run's latest discovery. That run keeps the discovery in memory
+and writes it again after its next discovery.
 
 A file this build cannot read (not one `(:zukan 1 :species (:dart :golden))`
 form of distinct keywords, longer than 65,536 characters, or not valid UTF-8)
