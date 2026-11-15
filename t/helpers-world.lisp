@@ -12,6 +12,19 @@ in `(lambda () ...)'."
   `(let ((*random-state* (sb-ext:seed-random-state ,seed)))
      ,@body))
 
+(defmacro with-temporary-directory ((var prefix) &body body)
+  "Bind VAR to a new empty directory, named PREFIX and a random suffix, under
+the system temporary directory for BODY, deleting it and its contents
+afterwards. Tests that write files use one, never the home, XDG, or current
+directory."
+  `(let ((,var (uiop:ensure-directory-pathname
+                (merge-pathnames (format nil "~A~36R" ,prefix
+                                         (random most-positive-fixnum (make-random-state t)))
+                                 (uiop:temporary-directory)))))
+     (ensure-directories-exist ,var)
+     (unwind-protect (progn ,@body)
+       (uiop:delete-directory-tree ,var :validate t :if-does-not-exist :ignore))))
+
 (defun tiny-world (&key (width 20) (height 10) (fish-count 0))
   "A small, mostly-empty WORLD for tests that want to control exactly which
 creatures are present. FISH-COUNT defaults to 0 so a test can add its own

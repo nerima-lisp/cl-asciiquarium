@@ -40,8 +40,10 @@ at an edge, the octopus's reach and ink, a bubble's waterline removal, a dolphin
 leap arc, a sea-monster segment following its leader, the shark steering
 toward the nearest fish ahead) carries a `:TICK` function in its `:DATA` plist, set by the
 factory that builds it, and `TICK-CREATURE` calls it last. The anchor and
-its chain, which hang from the ship, also carry a `:PLACE` function that puts
-them back where they belong. Their `:TICK` calls it, and `WORLD-RESIZE` calls
+its chain, which hang from the ship, and the fisher's line and hook, which
+hang from the boat, also carry a `:PLACE` function that puts them back where
+they belong. Their `:TICK` calls it (for the line and hook, it is the
+`:TICK` itself), and `WORLD-RESIZE` calls
 it for every creature that has one, so a paused world shows them in place at
 the new size. The calls follow creature-list order, so a `:PLACE` that reads
 another creature's position (the chain reads the anchor's) needs that creature
@@ -89,10 +91,14 @@ as new struct types:
   observes the head already `REMOVEP`, one tick after the head itself exits.
 
 A creature leaves the world by being marked `REMOVEP`; `WORLD-ADVANCE` deletes
-marked creatures at the end of each call, even while paused. Only two
-functions delete by kind: `WORLD-REDRAW` drops every kind in
+marked creatures at the end of each call, even while paused. Four functions
+delete by kind instead. `WORLD-REDRAW` drops every kind in
 `+TRANSIENT-CREATURE-KINDS+`, and `WORLD-RESIZE` drops every kind in
-`+BACKGROUND-CREATURE-KINDS+` and rebuilds the background. Some creatures exist
+`+BACKGROUND-CREATURE-KINDS+` and rebuilds the background. The other two take
+UI creatures, which have no children, straight out of the list so that a key
+pressed while paused shows at once: `WORLD-TOGGLE-HUD` removes the status
+bar, and `WORLD-TOGGLE-OVERLAY` (the `h` and `z` keys) removes the help and
+dex panels. Some creatures exist
 only for another one: a lantern fish's night glow, the `!` over a stunned
 fish, the octopus's tentacle and ink cloud, and a fish a gull has caught.
 Their factories add them with `ATTACH-CREATURE` (`src/world.lisp`), which
@@ -102,8 +108,8 @@ already in the world, so `GULL-CATCH-EFFECT` records it with
 `RELEASE-ATTACHED`, which marks those children `REMOVEP`. For a fish, these
 paths are `FISH-STOP-BEHAVIOUR` (the `-` key, being eaten, being caught, and a
 school leaving the screen). For a gull, it is `GULL-LEAVE` (night, or a sky
-too short after a resize). For any creature, they are the two kind-wide
-deletions. The tentacle and the ink are transient kinds, so a redraw clears
+too short after a resize). For any creature, they are `WORLD-REDRAW` and
+`WORLD-RESIZE`. The tentacle and the ink are transient kinds, so a redraw clears
 them while the octopus stays; the octopus sees them gone and peeks again.
 
 Four of those factories -- `MAKE-SHIP`, `MAKE-DUCK-LINE`, `MAKE-DOLPHIN`, and

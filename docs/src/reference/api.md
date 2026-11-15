@@ -10,7 +10,9 @@
   `+VISUAL-THEMES+` -- `:ABYSS`, `:CORAL`, or `:MOONLIGHT`. `COLOR-MODE`, one
   of `+COLOR-MODES+`, and `ASCII-P` bind `*COLOR-MODE*` and `*ASCII*` for the
   run. `COLOR-MODE` defaults to `:ANSI16`; only the CLI detects a mode from the
-  environment (`--color auto`).
+  environment (`--color auto`). `DEX-PATH` (default: the XDG state file, see
+  the Fish dex section of the usage guide) is the dex file the run reads at
+  startup and writes after each new discovery.
 - `*APP*` -- the `cl-cli` application spec backing the `asciiquarium` binary.
 - `MAIN` / `IMAGE-ENTRY-POINT` -- entry points for a script invocation and for
   the delivered executable, respectively; `IMAGE-ENTRY-POINT` delegates to
@@ -22,7 +24,10 @@
   hud-visible-p ticks-per-second)` -- create a populated `WORLD`. `THEME`
   selects the `:ABYSS`, `:CORAL`, or `:MOONLIGHT` palette, and `HUD-VISIBLE-P`
   controls the initial status bar. `TICKS-PER-SECOND` (default 20) converts
-  `WORLD-NOTIFY`'s four seconds into ticks; `RUN` passes its frame rate. Signals `ASCIIQUARIUM-INVALID-DIMENSIONS` for a non-positive
+  `WORLD-NOTIFY`'s four seconds into ticks; `RUN` passes its frame rate.
+  `DISCOVERED-SPECIES`, a list of species keywords such as the dex file
+  holds, counts as already discovered, so only other species are announced
+  when they first appear. Signals `ASCIIQUARIUM-INVALID-DIMENSIONS` for a non-positive
   width or height.
 - `WORLD-P (object)` -- true when OBJECT is a `WORLD`.
 - `WORLD-WIDTH`, `WORLD-HEIGHT`, `WORLD-TICK`,
@@ -38,9 +43,12 @@
 - `WORLD-RESIZE (world width height)` -- resize in place, clamping any
   creature the new bounds left outside, calling the `:PLACE` data function of
   each creature that has one (an anchor and its chain go back under their
-  ship), rebuilding the scenery for the new size, and moving the status bar to
+  ship, a fishing line and hook under their boat), rebuilding the scenery for the new size, and moving the status bar to
   the new bottom row.
-- `WORLD-REDRAW (world)` -- remove and repopulate fish/shark/bubbles/guests.
+- `WORLD-REDRAW (world)` -- remove every creature of a kind in
+  `+TRANSIENT-CREATURE-KINDS+` (fish, the shark, bubbles, guests and what
+  they brought, food), then repopulate only the fish, `WORLD-FISH-COUNT` of
+  them.
 - `WORLD-SET-THEME (world theme)` -- switch to THEME by recoloring every
   creature in place through its kind's registered restyler. No creature is
   removed, added, or moved, and no random number is drawn. A kind with no
@@ -257,11 +265,15 @@ A creature already on screen keeps the styles resolved for it until then.
   `r`/`R` redraw, space pauses/resumes, `+`/`=`/`-`/`_` adjust the live fish
   count, `t`/`T` cycles the theme, `u`/`U` toggles the status bar, `s`/`S`
   force-spawns a shark, `g`/`G` force-spawns a guest, `c`/`C` spawns a
-  school, `a`/`A` a ship, `m`/`M` a submarine, `d`/`D` a diver, and `h`/`H`
-  toggles the help panel.
+  school, `a`/`A` a ship, `m`/`M` a submarine, `d`/`D` a diver, `f`/`F` a
+  fisher, `e`/`E` sprinkles food, `w`/`W` and `n`/`N` move on to the next
+  weather and time of day, `p`/`P` asks for a snapshot, `h`/`H` toggles the
+  help panel, and `z`/`Z` the fish dex panel. A `cl-tty-kit:MOUSE-EVENT` in
+  EVENTS goes to `WORLD-APPLY-MOUSE-EVENT` instead: a left-button press
+  sprinkles three grains of food at that cell.
 - `WORLD-TOGGLE-HELP-OVERLAY (world)` -- add or remove the `:HELP-OVERLAY`
-  creature (bound to `h`); excluded from `WORLD-REDRAW`, since it is UI state,
-  not aquarium population.
+  creature (bound to `h`), closing the dex panel; excluded from
+  `WORLD-REDRAW`, since it is UI state, not aquarium population.
 - `DRAW-WORLD (screen world)` -- clear a `cl-tty-kit:SCREEN` to
   `WORLD-BACKGROUND-CELL` and paint every creature onto it.
 - `RENDER-FRAME (renderer world &key stream)` -- draw and return the diffed

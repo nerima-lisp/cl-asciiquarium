@@ -47,6 +47,11 @@
                 #:decode-input-chunk
                 #:key-event-type
                 #:key-event-code
+                #:mouse-event
+                #:mouse-event-button
+                #:mouse-event-action
+                #:mouse-event-x
+                #:mouse-event-y
                 #:make-terminal-size-poller
                 #:make-stream-input-poller)
   ;; cl-cli (L1): the --width/--height/--seed/--fps command-line surface.

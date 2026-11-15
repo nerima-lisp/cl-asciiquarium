@@ -5,7 +5,8 @@
 ;;;; :REEL (pull the hook back up), :CHEER (after a catch, until :WAIT-UNTIL),
 ;;;; and :LEAVE (sail on until the :DESPAWN policy removes the boat). :DEPTH is
 ;;;; the line's length in rows. The line and hook place themselves on their
-;;;; own ticks from the boat's sway row (FISHER-BOAT-ROW), not its entity Y:
+;;;; own ticks, and on a resize through their :PLACE, from the boat's sway row
+;;;; (FISHER-BOAT-ROW), not its entity Y:
 ;;;; the storm sway (SWAY-BOATS) moves the boat, from its :BOAT-RISE, only
 ;;;; after every creature has ticked, so its Y would put them one tick behind.
 (in-package #:cl-asciiquarium)
@@ -32,20 +33,22 @@ sand, within the line frames the factory built (:MAX-DEPTH)."
 
 (defun fishing-depth (world boat)
   "The line's drawn length in whole rows: :DEPTH, shortened while the storm
-sway lifts the boat's row so the hook stays out of the sand. The line and hook
-tick before the boat, so they also clamp after a resize themselves."
+sway lifts the boat's row so the hook stays out of the sand. The same clamp
+fits the line to the water after a resize, when WORLD-RESIZE calls the line's
+and hook's :PLACE."
   (min (floor (getf (creature-data boat) :depth))
        (fishing-depth-limit world boat (fisher-boat-row world boat))))
 
 (defun fishing-line-tick (world line)
-  "The :TICK of a fishing line: hang from the rod tip, :DEPTH rows long."
+  "The :TICK and :PLACE of a fishing line: hang from the rod tip, :DEPTH rows
+long (FISHING-DEPTH shortens it to fit the water)."
   (let ((boat (getf (creature-data line) :boat)))
     (setf (entity-x (creature-entity line)) (fishing-line-x boat)
           (entity-y (creature-entity line)) (1+ (fisher-boat-row world boat))
           (creature-frame-index line) (1- (fishing-depth world boat)))))
 
 (defun fishing-hook-tick (world hook)
-  "The :TICK of a hook: hang just below the end of the line."
+  "The :TICK and :PLACE of a hook: hang just below the end of the line."
   (let ((boat (getf (creature-data hook) :boat)))
     (setf (entity-x (creature-entity hook)) (fishing-line-x boat)
           (entity-y (creature-entity hook))

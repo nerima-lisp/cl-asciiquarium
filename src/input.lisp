@@ -1,9 +1,11 @@
 ;;;; src/input.lisp -- turning decoded cl-tty-kit KEY-EVENTs into WORLD state
 ;;;; changes: `q' to quit, `r' to redraw/reshuffle, space to pause/resume,
 ;;;; `+'/`-' to adjust the live fish count, `s'/`g'/`c'/`a'/`m'/`d'/`f' to force
-;;;; an immediate shark/guest/school/ship/submarine/diver/fisher spawn, `t' to
+;;;; an immediate shark/guest/school/ship/submarine/diver/fisher spawn, `e' (or a
+;;;; left click, see WORLD-APPLY-KEY-EVENTS) to sprinkle food, `t' to
 ;;;; cycle the visual theme, `w'/`n' to move on to the next weather/time of day,
-;;;; `u' to toggle the HUD, and `h' to toggle the on-screen help panel.
+;;;; `u' to toggle the HUD, `h'/`z' to toggle the help panel and the fish dex
+;;;; panel, and `p' to ask for a snapshot of the screen.
 (in-package #:cl-asciiquarium)
 
 (defparameter +quit-characters+ (list #\q #\Q)
@@ -24,16 +26,33 @@ byte this file would have to inspect itself.")
       (and (eq (key-event-type event) :special)
            (eq (key-event-code event) :control-c))))
 
-(defun world-toggle-help-overlay (world)
-  "Add WORLD's :HELP-OVERLAY CREATURE (see MAKE-HELP-OVERLAY, art-decor.lisp)
-if none is present, or remove it if one already is, returning WORLD. Bound to
-the `h` key."
-  (if (find :help-overlay (world-%creatures world) :key #'creature-kind)
-      (%set-world-creatures
-       world
-       (remove :help-overlay (world-%creatures world) :key #'creature-kind))
-      (%add-world-creature world (make-help-overlay world)))
+(defparameter +overlay-kinds+ '(:help-overlay :zukan-overlay)
+  "The panels drawn over the water, of which at most one is open.")
+
+(defun world-toggle-overlay (world kind maker)
+  "Close WORLD's panel of KIND if it is open, otherwise open it with MAKER, a
+function of WORLD returning the panel CREATURE, returning WORLD. Either way
+every other panel in +OVERLAY-KINDS+ closes, since they share one place on
+the screen. A panel is UI state, not population, so it leaves the list at
+once rather than through REMOVEP: a key pressed while paused shows at once."
+  (let ((open-p (find kind (world-%creatures world) :key #'creature-kind)))
+    (%set-world-creatures
+     world
+     (remove-if (lambda (creature) (member (creature-kind creature) +overlay-kinds+))
+                (world-%creatures world)))
+    (unless open-p
+      (%add-world-creature world (funcall maker world))))
   world)
+
+(defun world-toggle-help-overlay (world)
+  "Toggle the help panel (MAKE-HELP-OVERLAY, art-decor.lisp) through
+WORLD-TOGGLE-OVERLAY, returning WORLD. Bound to the `h' key."
+  (world-toggle-overlay world :help-overlay #'make-help-overlay))
+
+(defun world-toggle-zukan (world)
+  "Toggle the dex panel (MAKE-ZUKAN-OVERLAY, art-zukan.lisp) through
+WORLD-TOGGLE-OVERLAY, returning WORLD. Bound to the `z' key."
+  (world-toggle-overlay world :zukan-overlay #'make-zukan-overlay))
 
 (defun character-key-event-p (event code)
   "True when decoded cl-tty-kit KEY-EVENT is a :CHARACTER event whose code is
@@ -96,6 +115,13 @@ to the `d' key."
   (spawn-fisher-now world)
   world)
 
+(defun world-request-snapshot (world)
+  "Ask for a snapshot of the screen, returning WORLD. Bound to the `p' key.
+The world does no file I/O: the poller in app.lisp, which holds the
+renderer, saves the file right after the keys are applied."
+  (setf (world-snapshot-requested-p world) t)
+  world)
+
 (defparameter +key-bindings+
   (list (cons (list #\r #\R) #'world-redraw)
         (cons (list #\Space) #'world-toggle-pause)
@@ -107,11 +133,14 @@ to the `d' key."
         (cons (list #\m #\M) #'world-spawn-submarine)
         (cons (list #\d #\D) #'world-spawn-diver)
         (cons (list #\f #\F) #'world-spawn-fisher)
+        (cons (list #\e #\E) #'world-scatter-food)
         (cons (list #\t #\T) #'world-cycle-theme)
         (cons (list #\w #\W) #'world-advance-weather)
         (cons (list #\n #\N) #'world-advance-daypart)
         (cons (list #\u #\U) #'world-toggle-hud)
-        (cons (list #\h #\H) #'world-toggle-help-overlay))
+        (cons (list #\h #\H) #'world-toggle-help-overlay)
+        (cons (list #\z #\Z) #'world-toggle-zukan)
+        (cons (list #\p #\P) #'world-request-snapshot))
   "Every ordinary key binding as data: each entry maps the CHARACTERs that
 trigger it to the one-argument (WORLD) action WORLD-APPLY-KEY-EVENT below
 runs for it. Quit (q/Q/Ctrl-C) and shark-spawn (s/S, gated on
@@ -145,7 +174,11 @@ application does not bind) is ignored."
   world)
 
 (defun world-apply-key-events (world events)
-  "Apply each of EVENTS to WORLD in order via WORLD-APPLY-KEY-EVENT, returning
-WORLD."
-  (dolist (event events) (world-apply-key-event world event))
+  "Apply each of EVENTS to WORLD in order, returning WORLD: a MOUSE-EVENT via
+WORLD-APPLY-MOUSE-EVENT (update-food.lisp), every other event via
+WORLD-APPLY-KEY-EVENT."
+  (dolist (event events)
+    (if (typep event 'mouse-event)
+        (world-apply-mouse-event world event)
+        (world-apply-key-event world event)))
   world)

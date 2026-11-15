@@ -164,6 +164,7 @@ the later ones, so building a world draws no random number for it.")
     (notification nil :type (or null string))
     (notification-ttl 0 :type fixnum)
     (discovered-species nil :type list)
+    (snapshot-requested-p nil :type boolean)
     (%background-cell nil)
     (%background-theme nil)
     (%background-mode nil)))
@@ -320,7 +321,8 @@ that has left (a stun mark restoring a dying fish's speed)."
                    (daycycle-p t)
                    (theme :abyss)
                    (hud-visible-p t)
-                   (ticks-per-second 20))
+                   (ticks-per-second 20)
+                   discovered-species)
   "Create a WORLD of WIDTH by HEIGHT, populated with the background decoration
 and FISH-COUNT fish at random lanes and speeds. The shark and guest cooldowns
 start at a random point in their range so a fresh run does not always wait the
@@ -332,7 +334,9 @@ to it. CALM-P (--calm) stops
 blinking animations; see BLINK-FRAME-PERIOD. DAYCYCLE-P NIL (--no-daycycle)
 keeps the theme from changing on its own; see WORLD-CHANGE-DAYPART. None of
 them draws a random number, and the first weather change is the fixed
-+FIRST-WEATHER-TICK+."
++FIRST-WEATHER-TICK+. DISCOVERED-SPECIES, the species the dex file already
+holds, starts WORLD-DISCOVERED-SPECIES, so only a species missing from it is
+a new discovery (and a rare one is announced) as the fish are populated."
   (assert-dimensions width height)
   (let* ((theme (parse-visual-theme theme))
          (world
@@ -369,6 +373,8 @@ them draws a random number, and the first weather change is the fixed
            shark-enabled-p
            :ticks-per-second
            ticks-per-second
+           :discovered-species
+           (copy-list discovered-species)
            :shark-cooldown
            (apply #'random-between +shark-cooldown-range+)
            :guest-cooldown
@@ -473,11 +479,12 @@ row."
                                            :fisher
                                            :line
                                            :hook
-                                           :cheer)
+                                           :cheer
+                                           :food)
   "Every CREATURE-KIND that WORLD-REDRAW clears: predators, prey, their
-by-products, and every special guest. Deliberately excludes the background
+by-products, every special guest, and food. Deliberately excludes the background
 (+BACKGROUND-CREATURE-KINDS+) and the UI creatures
-(:HUD, :HELP-OVERLAY), none of which a redraw should touch -- the background
+(:HUD, :HELP-OVERLAY, :ZUKAN-OVERLAY), none of which a redraw should touch -- the background
 is not what a player watching the aquarium expects a redraw to change, and
 the UI state is independent of aquarium population.")
 

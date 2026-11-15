@@ -385,6 +385,14 @@ live indicator, k a key name, p the bar's padding.")
 (defparameter +status-bar-keys+
   '(("h" . "help") ("t" . "theme") ("space" . "pause") ("q" . "quit")))
 
+(defun world-discovered-known-count (world)
+  "How many of +FISH-SPECIES+ WORLD has discovered. A dex file written by a
+newer build can name species this one does not know; they are kept but not
+counted."
+  (let ((discovered (world-discovered-species world)))
+    (count-if (lambda (entry) (member (fish-species-entry-name entry) discovered))
+              +fish-species+)))
+
 (defun %status-groups (world)
   "Return the status bar's left summary as a list of (DROP-RANK . SEGMENTS)
 groups in display order, each segment a (TEXT . ROLE). A group with a higher
@@ -399,7 +407,7 @@ badge and the swimming/paused state) is never dropped."
                         (cons (cdr (assoc (world-weather world) +weather-labels+)) #\n)))
           (cons 1 (list (cons (format nil "fish ~D" (world-fish-count world)) #\n)))
           (cons 2 (list (cons (format nil "dex ~D/~D"
-                                      (length (world-discovered-species world))
+                                      (world-discovered-known-count world)
                                       (length +fish-species+))
                               #\n)))
           (cons 0 (list (cons "●" (if paused-p #\m #\l))
@@ -447,11 +455,17 @@ groups from the highest DROP-RANK down, then truncating what is left."
   "Return (VALUES ART MASK ROLE-STYLES) for WORLD's one-row status bar,
 spanning the full width: the summary on the left and the key hints (or the
 current notification) on the right. The hints go first when the screen is
-too narrow, then the summary's least important groups (see %STATUS-GROUPS)."
+too narrow, then the summary's least important groups (see %STATUS-GROUPS).
+A notification instead keeps its place: the summary shrinks to the columns
+it leaves, unless the notification alone is wider than the screen."
   (let ((width (world-width world)))
     (multiple-value-bind (right-art right-mask) (%segments-text (%status-hints world))
       (multiple-value-bind (left-art left-mask)
-          (%fitting-status-summary (%status-groups world) width)
+          (%fitting-status-summary
+           (%status-groups world)
+           (if (and (world-notification world) (< (length right-art) width))
+               (- width 1 (length right-art))
+               width))
         (let* ((right-p (<= (+ (length left-art) 1 (length right-art)) width))
                (right-art (if right-p right-art ""))
                (right-mask (if right-p right-mask ""))
@@ -475,10 +489,11 @@ too narrow, then the summary's least important groups (see %STATUS-GROUPS)."
   '(("q" . "quit") ("r" . "redraw") ("space" . "pause") ("+ / -" . "fish count")
     ("s" . "spawn shark") ("g" . "spawn guest") ("c" . "spawn school")
     ("a" . "ship and anchor") ("m" . "submarine") ("d" . "diver")
-    ("f" . "spawn fisher")
+    ("f" . "spawn fisher") ("e" . "sprinkle food")
     ("t" . "cycle theme")
     ("w" . "next weather") ("n" . "next time of day")
-    ("u" . "status bar") ("h" . "this help"))
+    ("u" . "status bar") ("h" . "this help") ("z" . "fish dex")
+    ("p" . "save snapshot"))
   "Every key binding the application implements (input.lisp), in help order.")
 
 (defparameter +help-roles+

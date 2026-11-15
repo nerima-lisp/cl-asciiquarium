@@ -15,10 +15,10 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
   repopulates a fresh
   set of fish at random lanes and speeds. Ships with their anchor and chain,
   submarines with their sonar rings, divers with their dinghy and rope, and
-  coins from the chest go too, and so do the octopus's tentacle and ink cloud.
-  The background scenery (see [Screen layout](#screen-layout)) is left in
-  place, along with the seabed's residents (vent plume, crab, octopus), as are
-  the status bar and help panel if they are visible. An octopus that was
+  coins from the chest go too, and so do the octopus's tentacle and ink cloud
+  and any food. The background scenery (see [Screen layout](#screen-layout))
+  is left in place, along with the seabed's residents (vent plume, crab,
+  octopus), as are the status bar and the help or dex panel if one is visible. An octopus that was
   reaching or hiding in its ink peeks over its rock again on the next tick.
 - Space -- pause or resume. `WORLD-ADVANCE` becomes a no-op while
   `WORLD-PAUSED-P` is true: the whole simulation freezes, not just the
@@ -59,6 +59,8 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
   diver is already out, nothing spawns and it says "A diver is already out".
 - `f` or `F` -- spawn a fisher immediately (`SPAWN-FISHER-NOW`), even when
   big events already fill their limit of two.
+- `e` or `E` -- sprinkle six grains of food on the top row of the water,
+  somewhere in the middle half of the screen. See [Food](#food).
 - `w` or `W` -- move on to the next weather now (`WORLD-ADVANCE-WEATHER`):
   `clear`, then `rain`, then `storm`, then `clear` again. The next automatic
   change is scheduled from this moment.
@@ -67,9 +69,26 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
   (`moonlight`), then day again. It works under `--no-daycycle` too.
 - `h` or `H` -- toggle the help panel (`WORLD-TOGGLE-HELP-OVERLAY`), a
   rounded box just below the waterline listing every binding above.
+- `z` or `Z` -- toggle the fish dex panel, which lists every species in two
+  columns: the name of each one discovered so far, with `✦` after a rare one,
+  and `???` for the rest. The help and dex panels take the same place, so
+  opening one closes the other. The panel is drawn when it opens and again
+  when the theme changes; a species discovered while it is open shows after
+  either. See
+  [Fish dex](#fish-dex).
+- `p` or `P` -- save the screen as a text file. See [Snapshots](#snapshots).
 
 Any other decoded key (arrows, function keys, ...) is accepted and ignored;
 this application does not bind them.
+
+### Mouse
+
+The aquarium asks the terminal to report mouse button presses, and a left
+click sprinkles three grains of food at the clicked cell (moved into the
+water when the click is above or below it). Other buttons, releases, and the
+wheel do nothing. While the aquarium runs, most terminals stop selecting text
+with a plain drag; hold Shift while dragging to select text as usual. Mouse
+reporting is turned off again when the aquarium exits.
 
 ## Command-line options
 
@@ -138,6 +157,20 @@ Ships, submarines, divers' dinghies, and fishers are big events: they appear
 on their own only while fewer than two of them in total are on screen. The
 `g`, `a`, `m`, `d`, and `f` keys spawn past that limit.
 
+## Food
+
+A grain of food (`•`, `o` under `--ascii`) sinks 0.05 rows per tick and rests
+on the lowest row of the water, just above the sand. Every tick, the nearest
+fish that is swimming toward a grain, is not in a school, and has at most 20
+empty columns and 6 empty rows between itself and the grain moves up to one
+column and a quarter row closer to it; a jelly or seahorse moves only
+sideways. A fish facing away does not
+come until it turns at the screen edge. The first fish to touch a grain eats
+it and swims on; a grain nobody eats is gone after 400 ticks. Up to 18 grains
+can be in the tank at once; `e` and clicks add nothing beyond that. Food can
+be sprinkled while paused, but it sinks and is eaten only after the
+simulation resumes.
+
 ## Seabed life
 
 The chest, rock, and vent are placed only where they fit (see
@@ -191,6 +224,38 @@ that order. This order differs from the `t` key's: from `abyss`, `t` goes to
 1100-tick wait, and `--no-daycycle` turns the automatic change off. Glowing plankton
 dots the water, sparse by day, more at dusk, and densest at night.
 
+## Fish dex
+
+The dex records every species that has appeared in the tank, across runs. It
+is the file `$XDG_STATE_HOME/cl-asciiquarium/zukan.sexp`, or
+`~/.local/state/cl-asciiquarium/zukan.sexp` when `XDG_STATE_HOME` is unset,
+empty, or not an absolute path. The file is read once at startup, and the
+species in it count as already discovered, so a rare species is announced in
+the status bar only the first time it ever appears. The file is written
+right after each new discovery, not at exit; when a write fails, the status
+bar says `dex save failed` and the next discovery tries again. Before each
+write the file is read again and merged with this run's species, so with two
+aquariums running at once, one can overwrite the other's latest discovery
+only when both write within the same instant. The run whose discovery was
+lost still remembers it and writes it again at its own next discovery.
+
+A file this build cannot read (not one `(:zukan 1 :species (:dart :golden))`
+form of distinct keywords, longer than 65,536 characters, or not valid UTF-8)
+is left untouched: the status bar says `dex file unreadable; not saving`, and
+that run starts with nothing discovered and never writes the file.
+Species a newer build added are kept and written back, but they are not
+counted in the status bar or the dex panel.
+
+## Snapshots
+
+`p` saves the characters on screen, without colors, to a new text file named
+`aquarium-YYYYMMDD-HHMMSS.txt` from the local time, with `-1`, `-2`, ... added
+when that name is taken. Trailing spaces are removed from each row. The file
+goes to the directory in the `XDG_PICTURES_DIR` environment variable when it
+is an absolute path, and otherwise to the current directory; the
+`~/.config/user-dirs.dirs` file is not read. A missing directory is not
+created. The status bar then shows `Saved <file name>` or `Snapshot failed`.
+
 ## Color modes
 
 `--color` decides how each theme's 24-bit palette (`src/palette.lisp`) reaches
@@ -211,8 +276,8 @@ wins over `NO_COLOR`, and `--monochrome` forces `mono` whatever `--color` says
 (`RESOLVE-COLOR-MODE`).
 
 `--ascii` replaces every non-ASCII symbol a sprite draws (the waterline crest,
-the help panel's box lines, the status bar's dots, the anchor chain's `¦`, the
-octopus's `▒` ink) with a one-column ASCII stand-in (`ASCII-TEXT`).
+the help and dex panels' box lines, the dex panel's `✦`, the status bar's dots,
+food grains, the anchor chain's `¦`, the octopus's `▒` ink) with a one-column ASCII stand-in (`ASCII-TEXT`).
 
 ## Screen layout
 
@@ -241,7 +306,8 @@ the time of day (`day` for `coral`, `dusk` for `abyss`, `night` for
 `moonlight`), the weather (`clear`, `rain`, or `storm`), the fish count, how many
 of the known fish species have appeared so far (`dex`), and whether the
 simulation is swimming or paused. Key hints fill the right-hand side. A
-message passed to `WORLD-NOTIFY` replaces the key hints for four seconds.
+message passed to `WORLD-NOTIFY` replaces the key hints for four seconds, and
+the summary drops groups (in the order below) to make room for it.
 
 When the screen is too narrow, the key hints are dropped first, then the
 summary groups in this order: time of day and weather, the species count,

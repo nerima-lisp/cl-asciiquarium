@@ -48,6 +48,14 @@ The tank starts with 18 fish, or `--max-fish N` (1-40, default 30) if that is
 lower, and `+` grows it up to `N`. `--calm` stops blinking animations and the
 storm's lightning flash.
 
+Press `e`, or click in the water, to sprinkle food: nearby fish swim over and
+eat it. `z` opens the fish dex, the list of species seen so far, which is kept
+across runs in `cl-asciiquarium/zukan.sexp` under `$XDG_STATE_HOME`
+(`~/.local/state` by default). `p` saves the
+screen as a text file in `$XDG_PICTURES_DIR` or the current directory. The
+aquarium reads mouse clicks, so most terminals select text only with Shift
+held while it runs.
+
 Above the water, two gulls dive now and then for a fish near the surface and
 leave at night, and a fisher sails in from time to time to lower a hook for
 one; `f` calls a fisher at once. The weather moves from clear to rain to storm

@@ -184,3 +184,79 @@
     (world-apply-key-events world (decode-input keys))
     (expect (world-theme world) :to-be theme)
     (expect (cl-asciiquarium::world-daypart-at world) :to-be (+ 10 cl-asciiquarium::+daypart-ticks+)))))
+
+(describe
+ "e sprinkles food"
+ (it-each
+  (("e") ("E"))
+  "key ~S adds six grains"
+  (key)
+  (let ((world (tiny-world :width 80 :height 24)))
+    (world-apply-key-events world (decode-input key))
+    (expect (count :food (cl-asciiquarium::world-%creatures world)
+                   :key #'cl-asciiquarium::creature-kind)
+            :to-be 6)))
+ (it
+  "leaves no grain after r redraws the tank"
+  (let ((world (tiny-world :width 80 :height 24)))
+    (world-apply-key-events world (decode-input "er"))
+    (expect (count :food (cl-asciiquarium::world-%creatures world)
+                   :key #'cl-asciiquarium::creature-kind)
+            :to-be 0))))
+
+(defun %open-overlays (world)
+  "The kinds of the panels open in WORLD."
+  (loop for creature in (cl-asciiquarium::world-%creatures world)
+        for kind = (cl-asciiquarium::creature-kind creature)
+        when (member kind '(:help-overlay :zukan-overlay))
+          collect kind))
+
+(describe
+ "z toggles the dex panel, one panel open at a time"
+ (it-each
+  (("z" (:zukan-overlay)) ("Z" (:zukan-overlay)) ("zz" nil)
+   ("hz" (:zukan-overlay)) ("zh" (:help-overlay)) ("hh" nil) ("hzh" (:help-overlay)))
+  "keys ~S leave the panels ~S open"
+  (keys open)
+  (let ((world (tiny-world :width 80 :height 24)))
+    (world-apply-key-events world (decode-input keys))
+    (expect (%open-overlays world) :to-equal open)))
+ (it
+  "opens and closes while paused"
+  (let ((world (tiny-world :width 80 :height 24)))
+    (world-apply-key-events world (decode-input " z"))
+    (expect (%open-overlays world) :to-equal '(:zukan-overlay))
+    (world-advance world)
+    (world-apply-key-events world (decode-input "z"))
+    (expect (%open-overlays world) :to-be nil))))
+
+(describe
+ "p asks for a snapshot"
+ (it-each
+  (("p") ("P"))
+  "key ~S sets the request the poller saves"
+  (key)
+  (let ((world (tiny-world)))
+    (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be nil)
+    (world-apply-key-events world (decode-input key))
+    (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be t))))
+
+(defun %help-characters ()
+  "The characters the help panel names: each key of +HELP-ENTRIES+, split at
+\" / \", with \"space\" read as the space character."
+  (loop for (key) in cl-asciiquarium::+help-entries+
+        append (loop for start = 0 then (+ end 3)
+                     for end = (or (search " / " key :start2 start) (length key))
+                     for name = (subseq key start end)
+                     collect (if (string= name "space") #\Space (char name 0))
+                     while (< end (length key)))))
+
+(describe
+ "the help panel"
+ (it
+  "names a key of every binding, and the quit and shark keys handled outside the table"
+  (let ((named (%help-characters)))
+    (expect (remove-if (lambda (characters) (intersection characters named))
+                       (mapcar #'car cl-asciiquarium::+key-bindings+))
+            :to-be nil)
+    (expect (subsetp '(#\q #\s) named) :to-be-truthy))))
