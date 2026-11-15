@@ -501,26 +501,47 @@ it leaves, unless the notification alone is wider than the screen."
   "o the box outline, k key names, n descriptions and the title, p padding.")
 
 (defun help-sprite (world)
-  "Return (VALUES ART MASK ROLE-STYLES): the rounded-corner help box listing
-+HELP-ENTRIES+, key names in the accent color."
-  (let* ((key-width (reduce #'max +help-entries+ :key (lambda (entry) (length (car entry)))))
+  "Return (VALUES ART MASK ROLE-STYLES) for the rounded help box, using two
+columns when one column would extend below the available water."
+  (let* ((water-rows (- (world-sand-top world)
+                        (1+ (world-waterline-row world))))
+         (column-count (if (> (+ (length +help-entries+) 2) water-rows) 2 1))
+         (row-count (ceiling (length +help-entries+) column-count))
+         (key-width (reduce #'max +help-entries+ :key (lambda (entry) (length (car entry)))))
          (label-width (reduce #'max +help-entries+ :key (lambda (entry) (length (cdr entry)))))
-         (inner (+ 1 key-width 3 label-width 1))
+         (cell-width (+ 1 key-width 3 label-width 1))
+         (inner (+ (* column-count cell-width)
+                   (if (= column-count 2) 2 0)))
          (title " controls ")
          (art-lines '())
          (mask-lines '()))
-    (flet ((add (art mask) (push art art-lines) (push mask mask-lines)))
+    (flet ((add (art mask)
+             (push art art-lines)
+             (push mask mask-lines))
+           (entry-cell (entry)
+             (let* ((key-text (format nil "~vA" key-width (if entry (car entry) "")))
+                    (label-text (format nil "~vA" label-width (if entry (cdr entry) ""))))
+               (values (format nil " ~A   ~A " key-text label-text)
+                       (format nil "p~App~Ap"
+                               (%glyph-mask-with-padding key-text #\k)
+                               (concatenate 'string
+                                            "p"
+                                            (%glyph-mask-with-padding label-text #\n)))))))
       (add (format nil "╭─~A~A╮" title
                    (make-string (- inner 1 (length title)) :initial-element #\─))
            (format nil "oo~A~Ao" (%glyph-mask-with-padding title #\n)
                    (make-string (- inner 1 (length title)) :initial-element #\o)))
-      (loop for (key . label) in +help-entries+
-            do (let ((key-text (format nil "~vA" key-width key))
-                     (label-text (format nil "~vA" label-width label)))
-                 (add (format nil "│ ~A   ~A │" key-text label-text)
-                      (format nil "op~App~Apo"
-                              (%glyph-mask-with-padding key-text #\k)
-                              (concatenate 'string "p" (%glyph-mask-with-padding label-text #\n))))))
+      (loop for row below row-count
+            for left = (nth row +help-entries+)
+            for right = (when (= column-count 2)
+                          (nth (+ row row-count) +help-entries+))
+            do (multiple-value-bind (left-art left-mask) (entry-cell left)
+                 (if (= column-count 1)
+                     (add (format nil "│~A│" left-art)
+                          (format nil "o~Ao" left-mask))
+                     (multiple-value-bind (right-art right-mask) (entry-cell right)
+                       (add (format nil "│~A  ~A│" left-art right-art)
+                            (format nil "o~App~Ao" left-mask right-mask))))))
       (add (format nil "╰~A╯" (make-string inner :initial-element #\─))
            (format nil "o~Ao" (make-string inner :initial-element #\o))))
     (values (format nil "~{~A~^~%~}" (nreverse art-lines))

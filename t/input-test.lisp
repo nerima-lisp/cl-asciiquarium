@@ -254,6 +254,13 @@
 (describe
  "the help panel"
  (it
+  "fits within the water on an 80x24 screen"
+  (let* ((world (make-world :width 80 :height 24 :fish-count 0))
+         (overlay (cl-asciiquarium::make-help-overlay world))
+         (height (nth-value 1 (creature-dimensions overlay)))
+         (water-rows (- (world-sand-top world) (creature-y overlay))))
+    (expect (<= height water-rows) :to-be-truthy)))
+ (it
   "names a key of every binding, and the quit and shark keys handled outside the table"
   (let ((named (%help-characters)))
     (expect (remove-if (lambda (characters) (intersection characters named))
