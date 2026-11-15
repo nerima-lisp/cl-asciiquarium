@@ -16,10 +16,10 @@ This page lists implemented features and explicit out-of-scope designs.
 - The seabed has seaweed, a castle, coral, a rock, a starfish, a vent, a crab,
   an octopus, and a treasure chest. A ship lowers an anchor; a diver visits
   the chest in a dinghy.
-- Visitors include ships, divers, fishers, gulls, a line of ducks, a leaping
-  dolphin, and a segmented sea monster. Automatic guest events count ships,
-  submarines, divers' dinghies, and fishers; at most two such events can be
-  on screen at once. The `g`, `a`, `m`, `d`, and `f` keys can spawn guests on
+- Visitors include ships, submarines, divers, fishers, gulls, a line of ducks,
+  a leaping dolphin, and a segmented sea monster. Automatic guest events count
+  ships, submarines, divers' dinghies, and fishers; at most two such events
+  can be on screen at once. The `g`, `a`, `m`, `d`, and `f` keys can spawn guests on
   demand regardless of that limit.
 - Weather cycles through clear, rain, and storm. Time of day cycles through
   day, dusk, and night; night has denser glowing plankton. `w` and `n` advance
