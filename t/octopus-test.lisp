@@ -190,7 +190,24 @@ of ticks taken, or NIL."
         (expect (in-world-p world fish) :to-be nil)
         (expect (in-world-p world octopus) :to-be nil)
         (expect (eq (first-of-kind world :octopus) octopus) :to-be nil)
-        (expect (getf (octopus-data world) :rock) :to-be (first-of-kind world :rock))))))
+        (expect (getf (octopus-data world) :rock) :to-be (first-of-kind world :rock)))))
+
+  (it "takes a caught fish off the screen with the octopus when a resize comes while paused"
+    (with-seeded-random-state (9)
+      (let* ((world (octopus-test-world))
+             (rock (first-of-kind world :rock))
+             (octopus (first-of-kind world :octopus))
+             (fish (place-test-fish world (+ (creature-x rock) 10 3) (1- (creature-y rock)))))
+        (expect (advance-until world (lambda () (eq (cl-asciiquarium::creature-kind fish) :caught-fish)) 20)
+                :to-be-truthy)
+        (setf (world-paused-p world) t)
+        (world-resize world 161 30)
+        (with-soft-assertions
+          (expect (and (in-world-p world octopus) t) :to-be nil)
+          (expect (and (in-world-p world fish) t) :to-be nil)
+          (expect (count-of-kind world :caught-fish) :to-be 0))
+        (world-advance world)
+        (expect (and (in-world-p world fish) t) :to-be nil)))))
 
 (describe "the octopus's ink"
   (it "inks and hides when a shark comes near, reaches for nothing for 50 ticks, then peeks"
