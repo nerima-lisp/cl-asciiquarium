@@ -37,11 +37,6 @@ WORLD. Draws no random number."
                      :data (list :phase :cruise :dive-ready-at 0 :cruise-dx dx :slot slot
                                  :target nil :prey nil :threat nil :tick 'gull-tick)))))
 
-(defun gull-leave (gull)
-  "Take GULL out of play with the fish it carries (RELEASE-ATTACHED)."
-  (setf (creature-removep gull) t)
-  (release-attached gull))
-
 (defun populate-gulls (world)
   "Add gulls to WORLD until +GULL-COUNT+ fly. At night (the :MOONLIGHT theme)
 or with fewer than +GULL-MIN-SKY-ROWS+ sky rows, mark every gull REMOVEP
@@ -53,7 +48,7 @@ WORLD."
           (< (world-waterline-row world) +gull-min-sky-rows+))
       (dolist (creature (world-%creatures world))
         (when (eq (creature-kind creature) :gull)
-          (gull-leave creature)))
+          (setf (creature-removep creature) t)))
       (loop for slot from (count-if (lambda (creature)
                                       (and (eq (creature-kind creature) :gull)
                                            (not (creature-removep creature))))

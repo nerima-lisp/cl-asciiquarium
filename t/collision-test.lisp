@@ -920,6 +920,19 @@
       (setf (cl-asciiquarium::creature-removep threat) t)
       (world-advance world)
       (expect (member fish (cl-asciiquarium::world-%creatures world)) :to-be-falsy)))
+  (it "takes a caught fish out with its captor when the captor is marked removep while paused"
+    (let* ((world (tiny-world :width 40 :height 20))
+           (threat (threat-fixture world *body-catch-threat*))
+           (fish (make-fish world :species :dart :x 11 :y 5 :dx 0)))
+      (cl-asciiquarium::%set-world-creatures world (list fish threat))
+      (world-advance world)
+      (expect (cl-asciiquarium::creature-kind fish) :to-be :caught-fish)
+      (setf (world-paused-p world) t
+            (cl-asciiquarium::creature-removep threat) t)
+      (world-advance world)
+      (with-soft-assertions
+        (expect (member threat (cl-asciiquarium::world-%creatures world)) :to-be-falsy)
+        (expect (member fish (cl-asciiquarium::world-%creatures world)) :to-be-falsy))))
   (it "applies only the first removing effect when two threats grip one fish"
     (let* ((world (tiny-world :width 40 :height 20))
            (catcher (threat-fixture world *body-catch-threat*))

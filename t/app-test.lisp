@@ -267,48 +267,69 @@ exist, so no test reads or writes the real dex file."
       (expect (uiop:read-file-string path) :to-equal "(:zukan 1 :species (:dart")
       (expect (uiop:directory-files dir) :to-equal (list path))))))
 
+(defun %request-snapshot (world)
+  (funcall (cl-asciiquarium::make-world-poller
+            (make-renderer (world-width world) (world-height world))
+            (make-string-input-stream "p") (make-input-decoder))
+           world))
+
 (describe
- "make-world-poller and the p key"
+ "make-frame-drawer and the p key"
  (it
-  "saves the renderer's screen, clears the request, and reports the file"
-  (with-temporary-directory (dir "aq-poller-snapshot-")
-    (with-input-from-string (stream "p")
-      (let* ((world (tiny-world :width 20 :height 10))
-             (renderer (make-renderer 20 10 :initial-cell (world-background-cell world)))
-             (poll (cl-asciiquarium::make-world-poller
-                    renderer stream (make-input-decoder) :snapshot-directory dir)))
-        (render-frame renderer world :stream (make-broadcast-stream))
-        (expect (funcall poll world) :to-be world)
-        (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be nil)
-        (expect (uiop:string-prefix-p "Saved " (cl-asciiquarium::world-notification world))
-                :to-be-truthy)
-        (let ((files (uiop:directory-files dir)))
-          (expect (length files) :to-be 1)
-          (expect (uiop:read-file-string (first files) :external-format :utf-8)
-                  :to-equal (format nil "~A~%" (cl-asciiquarium::screen-text
-                                                 (cl-asciiquarium::renderer-screen renderer)))))))))
+  "leaves the request to the drawer, so the poller saves nothing"
+  (with-input-from-string (stream "p")
+    (let ((world (tiny-world :width 20 :height 10)))
+      (funcall (cl-asciiquarium::make-world-poller (make-renderer 20 10) stream
+                                                   (make-input-decoder))
+               world)
+      (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be t)
+      (expect (cl-asciiquarium::world-notification world) :to-be nil))))
+ (it
+  "draws the frame, then saves the renderer's screen, clears the request, and reports the file"
+  (with-temporary-directory (dir "aq-drawer-snapshot-")
+    (let* ((world (tiny-world :width 20 :height 10))
+           (renderer (make-renderer 20 10 :initial-cell (world-background-cell world)))
+           (draw (cl-asciiquarium::make-frame-drawer renderer (make-broadcast-stream)
+                                                     :snapshot-directory dir)))
+      (%request-snapshot world)
+      (funcall draw world)
+      (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be nil)
+      (expect (uiop:string-prefix-p "Saved " (cl-asciiquarium::world-notification world))
+              :to-be-truthy)
+      (let ((files (uiop:directory-files dir)))
+        (expect (length files) :to-be 1)
+        (expect (uiop:read-file-string (first files) :external-format :utf-8)
+                :to-equal (format nil "~A~%" (cl-asciiquarium::screen-text
+                                               (cl-asciiquarium::renderer-screen renderer))))))))
+ (it
+  "returns what render-frame returns"
+  (let* ((world (tiny-world :width 20 :height 10))
+         (stream (make-string-output-stream))
+         (draw (cl-asciiquarium::make-frame-drawer (make-renderer 20 10) stream)))
+    (expect (multiple-value-list (funcall draw world))
+            :to-equal (multiple-value-list
+                       (render-frame (make-renderer 20 10) world :stream stream)))))
  (it
   "reports a failure when the directory does not exist"
-  (with-temporary-directory (dir "aq-poller-snapshot-")
-    (with-input-from-string (stream "P")
-      (let* ((world (tiny-world :width 20 :height 10))
-             (poll (cl-asciiquarium::make-world-poller
-                    (make-renderer 20 10) stream (make-input-decoder)
-                    :snapshot-directory (merge-pathnames "missing/" dir))))
-        (funcall poll world)
-        (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be nil)
-        (expect (cl-asciiquarium::world-notification world) :to-equal "Snapshot failed")
-        (expect (uiop:directory-files dir) :to-be nil)))))
+  (with-temporary-directory (dir "aq-drawer-snapshot-")
+    (let* ((world (tiny-world :width 20 :height 10))
+           (draw (cl-asciiquarium::make-frame-drawer
+                  (make-renderer 20 10) (make-broadcast-stream)
+                  :snapshot-directory (merge-pathnames "missing/" dir))))
+      (%request-snapshot world)
+      (funcall draw world)
+      (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be nil)
+      (expect (cl-asciiquarium::world-notification world) :to-equal "Snapshot failed")
+      (expect (uiop:directory-files dir) :to-be nil))))
  (it
   "saves nothing when no key asked for it"
-  (with-temporary-directory (dir "aq-poller-snapshot-")
-    (with-input-from-string (stream "x")
-      (let* ((world (tiny-world :width 20 :height 10))
-             (poll (cl-asciiquarium::make-world-poller
-                    (make-renderer 20 10) stream (make-input-decoder) :snapshot-directory dir)))
-        (funcall poll world)
-        (expect (uiop:directory-files dir) :to-be nil)
-        (expect (cl-asciiquarium::world-notification world) :to-be nil))))))
+  (with-temporary-directory (dir "aq-drawer-snapshot-")
+    (let ((world (tiny-world :width 20 :height 10)))
+      (funcall (cl-asciiquarium::make-frame-drawer (make-renderer 20 10) (make-broadcast-stream)
+                                                   :snapshot-directory dir)
+               world)
+      (expect (uiop:directory-files dir) :to-be nil)
+      (expect (cl-asciiquarium::world-notification world) :to-be nil)))))
 
 (defun %hud-art (world)
   (creature-art (find :hud (cl-asciiquarium::world-%creatures world)
@@ -318,15 +339,15 @@ exist, so no test reads or writes the real dex file."
  "notifications on an 80-column status bar"
  (it
   "shows the saved snapshot's file name"
-  (with-temporary-directory (dir "aq-poller-snapshot-")
-    (with-input-from-string (stream "p")
-      (let* ((world (tiny-world :width 80 :height 24))
-             (poll (cl-asciiquarium::make-world-poller
-                    (make-renderer 80 24 :initial-cell (world-background-cell world))
-                    stream (make-input-decoder) :snapshot-directory dir)))
-        (funcall poll world)
-        (let ((name (file-namestring (first (uiop:directory-files dir)))))
-          (expect (search (concatenate 'string "Saved " name) (%hud-art world)) :to-be-truthy))))))
+  (with-temporary-directory (dir "aq-drawer-snapshot-")
+    (let ((world (tiny-world :width 80 :height 24)))
+      (%request-snapshot world)
+      (funcall (cl-asciiquarium::make-frame-drawer
+                (make-renderer 80 24 :initial-cell (world-background-cell world))
+                (make-broadcast-stream) :snapshot-directory dir)
+               world)
+      (let ((name (file-namestring (first (uiop:directory-files dir)))))
+        (expect (search (concatenate 'string "Saved " name) (%hud-art world)) :to-be-truthy)))))
  (it
   "shows that the dex file is unreadable"
   (with-temporary-directory (dir "aq-run-dex-")
@@ -341,10 +362,10 @@ exist, so no test reads or writes the real dex file."
 (describe
  "make-world-poller, a resize, and the p key in one poll"
  (it
-  "saves the snapshot on the next poll, after the resized screen has been drawn"
+  "leaves the request to the drawer, which saves the resized frame it draws next"
   (let* ((size-poller-symbol 'cl-asciiquarium::make-terminal-size-poller)
          (original-size-poller (symbol-function size-poller-symbol)))
-    (with-temporary-directory (dir "aq-poller-snapshot-")
+    (with-temporary-directory (dir "aq-drawer-snapshot-")
       (with-input-from-string (stream "p")
         (unwind-protect
              (let ((sizes (list (list 73 31))))
@@ -356,21 +377,77 @@ exist, so no test reads or writes the real dex file."
                (let* ((world (tiny-world :width 20 :height 10))
                       (renderer (make-renderer 20 10 :initial-cell (world-background-cell world)))
                       (poll (cl-asciiquarium::make-world-poller
-                             renderer stream (make-input-decoder) :snapshot-directory dir)))
-                 (render-frame renderer world :stream (make-broadcast-stream))
+                             renderer stream (make-input-decoder)))
+                      (draw (cl-asciiquarium::make-frame-drawer
+                             renderer (make-broadcast-stream) :snapshot-directory dir)))
+                 (funcall draw world)
                  (funcall poll world)
                  (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be t)
                  (expect (uiop:directory-files dir) :to-be nil)
-                 (render-frame renderer world :stream (make-broadcast-stream))
-                 ;; The resized world redrawn from scratch, before the saved
+                 ;; The resized world drawn from scratch, before the saved
                  ;; notice changes the status bar.
                  (let ((expected (format nil "~{~A~^~%~}~%"
                                          (mapcar (lambda (row) (string-right-trim " " row))
                                                  (%drawn-rows world)))))
-                   (funcall poll world)
+                   (funcall draw world)
                    (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be nil)
                    (let ((files (uiop:directory-files dir)))
                      (expect (length files) :to-be 1)
                      (expect (uiop:read-file-string (first files) :external-format :utf-8)
                              :to-equal expected)))))
           (setf (symbol-function size-poller-symbol) original-size-poller)))))))
+
+(defun %snapshots-of-a-real-run (keys sizes)
+  "Run RUN through the real tick loop with KEYS on standard input, the terminal
+reporting the sizes in SIZES (one (COLUMNS ROWS) per poll, then none), and
+snapshots going to a fresh directory, until a key quits. Only raw mode, the
+terminal size poller, and the snapshot directory are stubbed. Returns the
+contents of every snapshot file RUN saved."
+  (let* ((enable-symbol 'cl-tty-kit:enable-raw-mode)
+         (disable-symbol 'cl-tty-kit:disable-raw-mode)
+         (size-poller-symbol 'cl-asciiquarium::make-terminal-size-poller)
+         (directory-symbol 'cl-asciiquarium::default-snapshot-directory)
+         (originals (mapcar #'symbol-function
+                            (list enable-symbol disable-symbol size-poller-symbol
+                                  directory-symbol))))
+    (with-temporary-directory (dir "aq-run-snapshot-")
+      (unwind-protect
+           (progn
+             (setf (symbol-function enable-symbol)
+                   (lambda (&optional (fd 0)) (declare (ignore fd)) t)
+                   (symbol-function disable-symbol)
+                   (lambda (&optional (fd 0)) (declare (ignore fd)) t)
+                   (symbol-function size-poller-symbol)
+                   (lambda ()
+                     (lambda (state timeout)
+                       (declare (ignore state timeout))
+                       (values-list (pop sizes))))
+                   (symbol-function directory-symbol)
+                   (lambda () dir))
+             (with-input-from-string (*standard-input* keys)
+               (cl-asciiquarium::run :width 20 :height 10 :fish-count 0 :interval 1/100
+                                     :stream (make-broadcast-stream)
+                                     :dex-path (merge-pathnames "missing/zukan.sexp" dir)))
+             (mapcar (lambda (file) (uiop:read-file-string file :external-format :utf-8))
+                     (uiop:directory-files dir)))
+        (loop for symbol in (list enable-symbol disable-symbol size-poller-symbol
+                                  directory-symbol)
+              for original in originals
+              do (setf (symbol-function symbol) original))
+        (sb-sys:enable-interrupt sb-unix:sigterm :default)
+        (sb-sys:enable-interrupt sb-unix:sighup :default)))))
+
+(describe
+ "run, the p key, and q in one input batch"
+ (it
+  "saves the snapshot before quitting"
+  (expect (length (%snapshots-of-a-real-run "pq" nil)) :to-be 1))
+ (it
+  "saves the resized frame before quitting when a resize came in the same poll"
+  (let ((snapshots (%snapshots-of-a-real-run "pq" (list (list 73 31)))))
+    (expect (length snapshots) :to-be 1)
+    (let ((rows (uiop:split-string (string-right-trim '(#\Newline) (first snapshots))
+                                   :separator '(#\Newline))))
+      (expect (length rows) :to-be 31)
+      (expect (notevery (lambda (row) (string= (string-trim " " row) "")) rows)
+              :to-be-truthy)))))

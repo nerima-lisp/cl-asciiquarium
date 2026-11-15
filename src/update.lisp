@@ -106,13 +106,20 @@ new-list removedp)."
     (values head removedp)))
 
 (defun %flush-removed-creatures (world)
-  "Delete WORLD's REMOVEP creatures. Every call scans the list, so a creature
-marked by any path (a key, a collision releasing an attached child) is deleted;
-the scan conses nothing when none is marked."
-  (multiple-value-bind (creatures removedp) (%delete-removed-creatures
-                                             (world-%creatures world))
-    (when removedp
-      (%set-world-creatures world creatures))))
+  "Delete WORLD's REMOVEP creatures together with the creatures attached to
+them (RELEASE-ATTACHED). Every call scans the list, so a creature marked by any
+path (a key, a TTL, an exit, its own tick, a resize) is deleted with its
+children in the same call, paused or not; the scan conses nothing when none is
+marked."
+  (let ((creatures (world-%creatures world))
+        (markedp nil))
+    ;; A separate pass: a child can sit ahead of its owner in the list.
+    (dolist (creature creatures)
+      (when (creature-removep creature)
+        (setf markedp t)
+        (release-attached creature)))
+    (when markedp
+      (%set-world-creatures world (values (%delete-removed-creatures creatures))))))
 
 (defun world-advance (world)
   "Advance WORLD by exactly one tick, returning WORLD. While paused nothing

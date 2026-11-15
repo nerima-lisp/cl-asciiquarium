@@ -117,8 +117,8 @@ to the `d' key."
 
 (defun world-request-snapshot (world)
   "Ask for a snapshot of the screen, returning WORLD. Bound to the `p' key.
-The world does no file I/O: the poller in app.lisp, which holds the
-renderer, saves the file right after the keys are applied."
+The world does no file I/O: MAKE-FRAME-DRAWER in app.lisp, which holds the
+renderer, saves the file right after the next frame is drawn."
   (setf (world-snapshot-requested-p world) t)
   world)
 

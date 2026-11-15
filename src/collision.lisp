@@ -131,10 +131,13 @@ anchor); a factory that puts :THREAT in the initial :DATA needs no call."
   (schedule-fish-refill world))
 
 (defun catch-effect (world threat fish)
-  "Turn FISH into a :CAUGHT-FISH carried by THREAT at its current offset, and
-schedule a refill. The kind change takes FISH out of ALIVE-FISH-P, so no other
-threat takes it and it no longer counts toward the fish population."
+  "Turn FISH into a :CAUGHT-FISH carried by THREAT at its current offset,
+attached to THREAT (ATTACH-EXISTING-CREATURE) so it leaves play whenever
+THREAT does, and schedule a refill. The kind change takes FISH out of
+ALIVE-FISH-P, so no other threat takes it and it no longer counts toward the
+fish population."
   (fish-stop-behaviour fish)
+  (attach-existing-creature threat fish)
   (setf (getf (creature-data fish) :tick) 'caught-fish-tick)
   (setf (creature-data fish)
         (list* :captor threat
@@ -151,16 +154,13 @@ threat takes it and it no longer counts toward the fish population."
   (schedule-fish-refill world))
 
 (defun caught-fish-tick (world fish)
-  "Keep FISH at its offset from its :CAPTOR, or mark it REMOVEP once the
-captor is. Like MONSTER-SEGMENT-TICK, this is the same tick when the captor
-ticked earlier in the creature list and the next tick otherwise."
+  "Keep FISH at its offset from its :CAPTOR. FISH does not watch for the
+captor leaving: CATCH-EFFECT attached it, so it leaves with the captor."
   (declare (ignore world))
   (let* ((data (creature-data fish))
-         (captor (getf data :captor)))
-    (if (creature-removep captor)
-        (setf (creature-removep fish) t)
-        (let ((entity (creature-entity fish)))
-          (setf (entity-x entity) (+ (creature-x captor) (getf data :offset-x))
-                (entity-y entity) (+ (creature-y captor) (getf data :offset-y)))))))
+         (captor (getf data :captor))
+         (entity (creature-entity fish)))
+    (setf (entity-x entity) (+ (creature-x captor) (getf data :offset-x))
+          (entity-y entity) (+ (creature-y captor) (getf data :offset-y)))))
 
 (register-creature-restyler :caught-fish #'restyle-fish)

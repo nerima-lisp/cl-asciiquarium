@@ -260,31 +260,37 @@ notification never outlives its four seconds."
     (%invalidate-world-render-order world)
     creature)
   (defun attach-creature (world owner child)
-    "Add CHILD to WORLD as a creature that leaves with OWNER: every path that
-takes OWNER out of play calls RELEASE-ATTACHED."
+    "Add CHILD to WORLD as a creature that leaves with OWNER: however OWNER is
+marked REMOVEP, %FLUSH-REMOVED-CREATURES calls RELEASE-ATTACHED on it."
     (attach-existing-creature owner child)
     (%add-world-creature world child))
   (defun attach-existing-creature (owner child)
     "Make CHILD, already in the world, leave with OWNER as ATTACH-CREATURE's
-children do (a fish a gull catches). Children that already left on their own
-are dropped from OWNER's :ATTACHED here, so a long-lived owner's list holds
-only its current children."
+children do (a fish CATCH-EFFECT hands to its captor). Children that already
+left on their own are dropped from OWNER's :ATTACHED here, so a long-lived
+owner's list holds only its current children."
     (let ((data (creature-data owner)))
       (setf (getf data :attached)
             (cons child (delete-if #'creature-removep (getf data :attached))))
       (setf (creature-data owner) data)))
   (defun release-attached (owner)
     "Mark every child ATTACH-CREATURE or ATTACH-EXISTING-CREATURE registered
-on OWNER REMOVEP and forget them. A child released during a tick stays in the list until the end of the
-next WORLD-ADVANCE, so its :TICK is cleared too: it must not act on an owner
-that has left (a stun mark restoring a dying fish's speed)."
-    (let ((data (creature-data owner)))
-      (when (getf data :attached)
-        (dolist (child (getf data :attached))
+on OWNER REMOVEP, together with the children attached to it in turn (a fish
+held by an octopus's tentacle), and forget them. A child released during a
+tick stays in the list until the end of the next WORLD-ADVANCE, so its :TICK is
+cleared too: it must not act on an owner that has left (a stun mark restoring
+a dying fish's speed). %FLUSH-REMOVED-CREATURES calls this for every REMOVEP
+creature, so an owner marked by any path takes its children with it."
+    (let* ((data (creature-data owner))
+           (children (getf data :attached)))
+      (when children
+        ;; Forgotten before the walk, so a released child never revisits OWNER.
+        (setf (getf data :attached) nil)
+        (dolist (child children)
           (setf (creature-removep child) t)
           (when (getf (creature-data child) :tick)
-            (setf (getf (creature-data child) :tick) nil)))
-        (setf (getf data :attached) nil))))
+            (setf (getf (creature-data child) :tick) nil))
+          (release-attached child)))))
   (defun %world-render-order-cache-valid-p (world)
     (world-render-order-valid-p world))
   (defun %rebuild-world-render-order (world)
@@ -400,14 +406,13 @@ from the screen size, and so WORLD-RESIZE rebuilds.")
   "Take every creature whose kind is in KINDS out of WORLD together with the
 children attached to it (ATTACH-CREATURE). They are marked REMOVEP first, so a
 creature that keeps a reference to one (a diver's chest, an octopus's
-tentacle) sees it leave; the list then drops them along with anything else
-already marked, so a released child never ticks or threatens again."
-  (let ((creatures (world-%creatures world)))
-    (dolist (creature creatures)
-      (when (member (creature-kind creature) kinds)
-        (setf (creature-removep creature) t)
-        (release-attached creature)))
-    (%set-world-creatures world (remove-if #'creature-removep creatures))))
+tentacle) sees it leave; %FLUSH-REMOVED-CREATURES then drops them, their
+children, and anything else already marked, so a released child never ticks or
+threatens again."
+  (dolist (creature (world-%creatures world))
+    (when (member (creature-kind creature) kinds)
+      (setf (creature-removep creature) t)))
+  (%flush-removed-creatures world))
 
 (defun world-resize (world width height)
   "Resize WORLD to WIDTH by HEIGHT in place, returning WORLD.

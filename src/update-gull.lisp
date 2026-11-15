@@ -14,11 +14,9 @@
       (return creature))))
 
 (defun gull-catch-effect (world gull fish)
-  "The :EFFECT of a diving gull: CATCH-EFFECT on FISH, attach FISH to GULL so
-it leaves with the gull (GULL-LEAVE), then disarm GULL so the rest of this
-collision pass leaves any other fish under it alone."
+  "The :EFFECT of a diving gull: CATCH-EFFECT on FISH, then disarm GULL so the
+rest of this collision pass leaves any other fish under it alone."
   (catch-effect world gull fish)
-  (attach-existing-creature gull fish)
   (setf (getf (creature-data gull) :threat) nil))
 
 (defun gull-dive-target (world gull)
@@ -92,7 +90,7 @@ leaves fewer than +GULL-MIN-SKY-ROWS+ sky rows, otherwise advance its :PHASE.
 A cruising gull keeps to its slot's row of the current sky."
   (if (or (eq (world-theme world) :moonlight)
           (< (world-waterline-row world) +gull-min-sky-rows+))
-      (gull-leave gull)
+      (setf (creature-removep gull) t)
       (let ((data (creature-data gull)))
         (ecase (getf data :phase)
           (:cruise
