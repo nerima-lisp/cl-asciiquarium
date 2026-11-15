@@ -240,3 +240,23 @@
     (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be nil)
     (world-apply-key-events world (decode-input key))
     (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be t))))
+
+(defun %help-characters ()
+  "The characters the help panel names: each key of +HELP-ENTRIES+, split at
+\" / \", with \"space\" read as the space character."
+  (loop for (key) in cl-asciiquarium::+help-entries+
+        append (loop for start = 0 then (+ end 3)
+                     for end = (or (search " / " key :start2 start) (length key))
+                     for name = (subseq key start end)
+                     collect (if (string= name "space") #\Space (char name 0))
+                     while (< end (length key)))))
+
+(describe
+ "the help panel"
+ (it
+  "names a key of every binding, and the quit and shark keys handled outside the table"
+  (let ((named (%help-characters)))
+    (expect (remove-if (lambda (characters) (intersection characters named))
+                       (mapcar #'car cl-asciiquarium::+key-bindings+))
+            :to-be nil)
+    (expect (subsetp '(#\q #\s) named) :to-be-truthy))))
