@@ -233,6 +233,31 @@ accessors."
         (and world (creature-on-exit creature world policy))))
     creature))
 
+(defun %adopt-sprite-prototype (creature prototype)
+  "Make CREATURE draw PROTOTYPE's frames in PROTOTYPE's colors, sharing every
+cached frame and blit run the way MAKE-CREATURE's :%SPRITE-PROTOTYPE does, so a
+restyle builds nothing. FRAME-INDEX wraps into PROTOTYPE's frame count.
+Returns CREATURE."
+  (setf (creature-%frames creature) (creature-%frames prototype)
+        (creature-%frames-shared-p creature) t
+        (creature-%frames-escaped-p creature) nil
+        (creature-%prepared-frames creature) (creature-%prepared-frames prototype)
+        (creature-%style creature) (creature-%style prototype)
+        (creature-%style-shared-p creature) t
+        (creature-%style-escaped-p creature) nil
+        (creature-%prepared-style creature) (creature-%prepared-style prototype)
+        (creature-%mirrored-frames creature) (creature-%mirrored-frames prototype)
+        (creature-%frame-widths creature) (creature-%frame-widths prototype)
+        (creature-%frame-heights creature) (creature-%frame-heights prototype)
+        (creature-%frame-runs creature) (creature-%frame-runs prototype)
+        (creature-%mirrored-frame-runs creature) (creature-%mirrored-frame-runs prototype)
+        (creature-%masks creature) (creature-%masks prototype)
+        (creature-%mirrored-masks creature) (creature-%mirrored-masks prototype)
+        (creature-%role-styles creature) (creature-%role-styles prototype)
+        (creature-frame-index creature) (mod (creature-frame-index creature)
+                                             (length (creature-%frames prototype))))
+  creature)
+
 (defun creature-x (creature)
   (entity-x (creature-entity creature)))
 

@@ -157,8 +157,13 @@ REMOVEP, so a fish leaving the tank stops counting the moment it is marked."
          (entry (fish-species (getf data :species)))
          (prototype (%fish-sprite-prototype entry (getf data :palette-index)
                                            (world-theme world))))
-    (%set-creature-colors fish
-                          :style (copy-tree (creature-%style prototype))
-                          :role-styles (creature-%role-styles prototype))))
+    ;; A fish still drawing its prototype's frames takes the new theme's
+    ;; prototype whole, its runs already built; one whose frames were replaced
+    ;; (a dying fish, KILL-FISH) is recolored in place.
+    (if (creature-%frames-shared-p fish)
+        (%adopt-sprite-prototype fish prototype)
+        (%set-creature-colors fish
+                              :style (copy-tree (creature-%style prototype))
+                              :role-styles (creature-%role-styles prototype)))))
 
 (register-creature-restyler :fish #'restyle-fish)

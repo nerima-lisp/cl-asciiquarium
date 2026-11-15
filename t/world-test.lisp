@@ -350,3 +350,73 @@
         (expect (world-fish-count world) :to-be 27)
         (expect (count-if #'cl-asciiquarium::alive-fish-p (cl-asciiquarium::world-%creatures world))
                 :to-be 30)))))
+
+(describe "time of day"
+  (it "moves day -> dusk -> night -> day every 1100 ticks, keeping every fish eq"
+    (with-seeded-random-state (7)
+      (let* ((cl-asciiquarium::*auto-events* '())
+             (world (make-world :width 40 :height 12 :fish-count 3 :theme :coral
+                                :shark-enabled-p nil))
+             (fish (remove :fish (cl-asciiquarium::world-%creatures world)
+                           :key #'cl-asciiquarium::creature-kind :test-not #'eq))
+             (themes '()))
+        (setf (cl-asciiquarium::world-guest-cooldown world) most-positive-fixnum)
+        (dotimes (i 1099) (world-advance world))
+        (expect (world-theme world) :to-be :coral)
+        (world-advance world)
+        (expect (world-theme world) :to-be :abyss)
+        (expect (every (lambda (one) (member one (cl-asciiquarium::world-%creatures world) :test #'eq))
+                       fish)
+                :to-be-truthy)
+        (dotimes (i 2200)
+          (world-advance world)
+          (pushnew (world-theme world) themes))
+        (expect (reverse themes) :to-equal '(:abyss :moonlight :coral)))))
+  (it "never changes on its own under --no-daycycle"
+    (let ((world (make-world :width 20 :height 10 :fish-count 0 :daycycle-p nil
+                             :theme :moonlight)))
+      (dotimes (i 5000) (world-advance world))
+      (expect (world-theme world) :to-be :moonlight)
+      (expect (cl-asciiquarium::world-daypart-at world) :to-be 0)))
+  (it "restarts the cycle from the theme `t' picks"
+    (let ((world (make-world :width 20 :height 10 :fish-count 0 :theme :coral)))
+      (dotimes (i 500) (world-advance world))
+      (world-apply-key-events world (decode-input "t"))
+      (expect (world-theme world) :to-be :moonlight)
+      (dotimes (i 1099) (world-advance world))
+      (expect (world-theme world) :to-be :moonlight)
+      (world-advance world)
+      (expect (world-theme world) :to-be :coral)))
+  (it "keeps --no-daycycle after `t' and `n'"
+    (let ((world (make-world :width 20 :height 10 :fish-count 0 :daycycle-p nil)))
+      (world-apply-key-events world (decode-input "tn"))
+      (expect (cl-asciiquarium::world-daypart-at world) :to-be 0)))
+  (it "switches the background once per automatic change, repainting the open water"
+    (let* ((*color-mode* :truecolor)
+           (world (make-world :width 40 :height 12 :fish-count 0 :theme :coral))
+           (renderer (make-renderer 40 12 :initial-cell (cl-asciiquarium::world-background-cell world)))
+           (switches 0))
+      (unwind-protect
+           (progn
+             (dotimes (i 1090) (world-advance world))
+             (render-frame renderer world)
+             (dotimes (i 20)
+               (let ((before (cl-asciiquarium::world-background-cell world)))
+                 (world-advance world)
+                 (render-frame renderer world)
+                 (unless (eq before (cl-asciiquarium::world-background-cell world))
+                   (incf switches))))
+             (expect (world-theme world) :to-be :abyss)
+             (expect switches :to-be 1)
+             ;; No cell may keep the coral water color (14 38 41) once dusk
+             ;; has come: the open water is repainted, not only the creatures.
+             (let ((screen (cl-tty-kit:renderer-screen renderer))
+                   (coral-water (cl-tty-kit:style-bg 14 38 41)))
+               (expect (loop for y below 12
+                             never (loop for x below 40
+                                         thereis (member coral-water
+                                                         (cl-tty-kit:cell-style
+                                                          (cl-tty-kit:screen-cell screen x y))
+                                                         :test #'equal)))
+                       :to-be-truthy)))
+        (shutdown-renderer renderer)))))

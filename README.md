@@ -45,7 +45,14 @@ A ship lowers an anchor that eats fish, and a submarine's sonar stuns them; the
 `a`, `m`, and `d` keys bring a ship, a submarine, or a diver on demand. See
 [Keybindings and CLI](https://nerima-lisp.github.io/cl-asciiquarium/guide/usage/).
 The tank starts with 18 fish, or `--max-fish N` (1-40, default 30) if that is
-lower, and `+` grows it up to `N`. `--calm` stops blinking animations.
+lower, and `+` grows it up to `N`. `--calm` stops blinking animations and the
+storm's lightning flash.
+
+Above the water, two gulls dive now and then for a fish near the surface and
+leave at night, and a fisher sails in from time to time to lower a hook for
+one; `f` calls a fisher at once. The weather moves from clear to rain to storm
+and back, with rain, ripples, dark clouds, choppy water, rocking boats, and
+lightning; `w` skips to the next weather.
 
 ## Visual modes
 
@@ -55,6 +62,14 @@ cooler high-contrast palette. The theme also sets the sky: day for `coral`,
 dusk for `abyss`, and night for `moonlight`. A theme change recolors the
 scenery, status bar, shark, and bubbles in place instead of rebuilding the
 scene, so nothing moves or respawns.
+The gulls are the exception: they fly off when the sky turns to night and
+come back by day or dusk.
+
+The time of day also changes on its own, from day to dusk to night and back,
+and a `t` press restarts the wait before the next change from the chosen
+theme. `n` skips to the
+next time of day, and `--no-daycycle` keeps the starting theme until a key
+changes it.
 
 `--color auto|truecolor|256|16|mono` selects how the themes' 24-bit palettes
 reach the terminal; `auto`, the command-line default, reads `COLORTERM`,
@@ -64,8 +79,8 @@ reach the terminal; `auto`, the command-line default, reads `COLORTERM`,
 symbols.
 
 The `u` key toggles the status bar on the bottom row, which reports the theme,
-time of day, fish count, discovered species, and paused/swimming state, with key
-hints on the right. The status bar, sky, and ambient current are regular
+time of day, weather, fish count, discovered species, and paused/swimming state,
+with key hints on the right. The status bar, sky, and ambient current are regular
 creatures in the scene, so they are clipped, ordered, cached, and redrawn by
 the same incremental renderer as every fish and guest. See
 [Keybindings and CLI](https://nerima-lisp.github.io/cl-asciiquarium/guide/usage/)

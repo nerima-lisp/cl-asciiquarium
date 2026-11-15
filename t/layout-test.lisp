@@ -95,7 +95,7 @@
       (expect (search "controls" (first lines)) :to-be-truthy)
       (expect (char (car (last lines)) 0) :to-equal #\╰)
       (dolist (label '("quit" "redraw" "pause" "fish count" "spawn shark" "spawn guest" "spawn school"
-                       "cycle theme" "status bar" "this help"))
+                       "spawn fisher" "cycle theme" "next weather" "next time of day" "status bar" "this help"))
         (expect (some (lambda (line) (search label line)) lines) :to-be-truthy))
       (expect (length (remove-duplicates (mapcar #'length lines))) :to-be 1)))
   (it "is opaque: a creature behind its interior does not show through"
@@ -233,6 +233,10 @@ creature kept OLD's colors."
         (spawn-shark-now world)
         (dolist (kind '(:ship :duck-line :dolphin :sea-monster))
           (spawn-guest-now world kind))
+        (let ((boat (cl-asciiquarium::spawn-fisher-now world)))
+          (dolist (part '(:line :hook :cheer))
+            (cl-asciiquarium::%add-world-creature
+             world (getf (cl-asciiquarium::creature-data boat) part))))
         (let* ((anchor (cl-asciiquarium::make-anchor world (%kind-creature world :ship)))
                (chain (getf (cl-asciiquarium::creature-data anchor) :chain)))
           ;; Frame 0 of a chain is empty; one link gives it a color to check.
@@ -249,10 +253,11 @@ creature kept OLD's colors."
           ;; (or a new one nobody listed) fails here instead of going unchecked.
           (expect (sort (copy-list kinds) #'string<)
                   :to-equal (sort (list :ambient-current :waterline :ripple :sky :sand :castle
-                                        :seaweed :coral :rock :starfish :vent :chest :hud
+                                        :seaweed :coral :rock :starfish :vent :chest :plankton :hud
                                         :help-overlay :shark :bubble :ship :anchor :chain :duck-line
                                         :dolphin :sea-monster :monster-segment
-                                        :plume :crab :octopus)
+                                        :plume :crab :octopus
+                                        :gull :fisher :line :hook :cheer)
                                   #'string<))
           ;; Precondition: before the switch every kind shows an abyss-only
           ;; color, so the assertion below cannot pass vacuously.
@@ -264,3 +269,80 @@ creature kept OLD's colors."
             (expect (list (cl-asciiquarium::creature-kind creature)
                           (intersection (%creature-run-colors creature) old-colors :test #'equal))
                     :to-equal (list (cl-asciiquarium::creature-kind creature) nil))))))))
+
+(describe "theme changes reuse prepared sprites"
+  (flet ((runs (creature) (cl-asciiquarium::creature-%frame-runs creature)))
+    (it "gives a restyled fish the new theme's prototype runs, the ones a fresh fish gets"
+      (with-seeded-random-state (5)
+        (let* ((*color-mode* :truecolor)
+               (world (make-world :width 80 :height 24 :fish-count 0 :theme :abyss))
+               (fish (make-fish world :species :dart)))
+          (cl-asciiquarium::%add-world-creature world fish)
+          (world-set-theme world :coral)
+          (let ((prototype (cl-asciiquarium::%fish-sprite-prototype
+                            (cl-asciiquarium::fish-species :dart)
+                            (getf (cl-asciiquarium::creature-data fish) :palette-index)
+                            :coral)))
+            (expect (runs fish) :to-be (runs prototype))
+            (expect (cl-asciiquarium::creature-%mirrored-frame-runs fish)
+                    :to-be (cl-asciiquarium::creature-%mirrored-frame-runs prototype))))))
+    (it "gives a restyled background creature the runs a fresh one gets, and back again"
+      (let* ((*color-mode* :truecolor)
+             (world (make-world :width 80 :height 24 :fish-count 0 :theme :abyss))
+             (castle (%kind-creature world :castle))
+             (sky (%kind-creature world :sky))
+             (abyss-runs (runs castle)))
+        (world-set-theme world :coral)
+        (let ((fresh (make-world :width 80 :height 24 :fish-count 0 :theme :coral)))
+          (expect (runs castle) :to-be (runs (%kind-creature fresh :castle)))
+          (expect (runs sky) :to-be (runs (%kind-creature fresh :sky))))
+        (world-set-theme world :abyss)
+        (expect (runs castle) :to-be abyss-runs)))
+    (it "builds a weather's sheet runs once for a screen size"
+      (let* ((world (make-world :width 40 :height 24 :fish-count 0))
+             (first-rain (progn (cl-asciiquarium::world-change-weather world :rain)
+                                (%kind-creature world :rain-sheet))))
+        (cl-asciiquarium::world-change-weather world :clear)
+        (world-advance world)
+        (cl-asciiquarium::world-change-weather world :rain)
+        (let ((second-rain (find-if (lambda (creature)
+                                      (and (eq (cl-asciiquarium::creature-kind creature) :rain-sheet)
+                                           (not (cl-asciiquarium::creature-removep creature))))
+                                    (cl-asciiquarium::world-%creatures world))))
+          (expect (eq second-rain first-rain) :to-be-falsy)
+          (expect (runs second-rain) :to-be (runs first-rain)))))
+    (it "shares the lit sky's runs between flashes, adding only the bolt's"
+      (let* ((world (make-world :width 40 :height 24 :fish-count 0))
+             (one (cl-asciiquarium::make-flash world 10))
+             (two (cl-asciiquarium::make-flash world 20))
+             (frame-runs (svref (runs one) 0)))
+        (expect (svref (svref (runs two) 0) 2) :to-be (svref frame-runs 2))
+        ;; Five lit rows, then one bolt cell per row.
+        (expect (length frame-runs) :to-be (* 3 (+ 5 5)))))))
+
+(describe "background prototype cache"
+  (it "keeps only the entries for the screen size last asked for"
+    (dolist (height '(24 30 40 52))
+      (make-world :width 80 :height height :fish-count 0))
+    (let ((last-size (hash-table-count cl-asciiquarium::*decor-prototypes*)))
+      (expect (plusp last-size) :to-be-truthy)
+      (clrhash cl-asciiquarium::*decor-prototypes*)
+      (setf cl-asciiquarium::*decor-prototype-width* 0)
+      (make-world :width 80 :height 52 :fish-count 0)
+      (expect (hash-table-count cl-asciiquarium::*decor-prototypes*) :to-be last-size)))
+  (it "rebuilds for the new size after a resize, keeping the restyle fast path"
+    (let* ((*color-mode* :truecolor)
+           (world (make-world :width 80 :height 24 :fish-count 0 :theme :abyss)))
+      (world-resize world 90 30)
+      (let ((castle (%kind-creature world :castle)))
+        (world-set-theme world :coral)
+        (expect (cl-asciiquarium::creature-%frame-runs castle)
+                :to-be (cl-asciiquarium::creature-%frame-runs
+                        (%kind-creature (make-world :width 90 :height 30 :fish-count 0
+                                                    :theme :coral)
+                                        :castle))))))
+  (it "builds identical sprites after the cache is emptied by another size"
+    (let* ((*color-mode* :truecolor)
+           (before (%drawn-rows (make-world :width 80 :height 24 :fish-count 0))))
+      (make-world :width 60 :height 40 :fish-count 0)
+      (expect (%drawn-rows (make-world :width 80 :height 24 :fish-count 0)) :to-equal before))))

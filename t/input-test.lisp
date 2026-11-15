@@ -165,3 +165,22 @@
       :key
       (function cl-asciiquarium::creature-kind))
      :to-be-null))))
+
+(describe
+ "w and n advance the weather and the time of day"
+ (it-each
+  (("w" :rain) ("W" :rain) ("ww" :storm) ("www" :clear))
+  "keys ~S leave the weather at ~S"
+  (keys weather)
+  (let ((world (tiny-world)))
+    (world-apply-key-events world (decode-input keys))
+    (expect (cl-asciiquarium::world-weather world) :to-be weather)))
+ (it-each
+  (("n" :abyss) ("N" :abyss) ("nn" :moonlight) ("nnn" :coral))
+  "keys ~S move a :coral world to ~S and restart the cycle"
+  (keys theme)
+  (let ((world (make-world :width 20 :height 10 :fish-count 0 :theme :coral)))
+    (dotimes (i 10) (world-advance world))
+    (world-apply-key-events world (decode-input keys))
+    (expect (world-theme world) :to-be theme)
+    (expect (cl-asciiquarium::world-daypart-at world) :to-be (+ 10 cl-asciiquarium::+daypart-ticks+)))))

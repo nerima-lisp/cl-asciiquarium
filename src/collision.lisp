@@ -112,7 +112,7 @@ nothing itself; effects and reactions may."
           (%cache-collision-bounds creature))))
     (dolist (threat creatures)
       (let ((row (getf (creature-data threat) :threat)))
-        (when row
+        (when (and row (not (creature-removep threat)))
           (%apply-threat world threat row creatures))))
     world))
 

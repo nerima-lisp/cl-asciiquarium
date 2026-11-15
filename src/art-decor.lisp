@@ -27,24 +27,82 @@
                       (%role-style theme foreground (or background :bg)
                                    (eq flag :reverse)))))
 
-(defun %make-decor (world kind frames masks roles &key (x 0) (y 0) (z 0) frame-period)
+(defvar *decor-prototypes* (make-hash-table :test #'equal)
+  "Background sprite prototypes keyed by (KEY THEME COLOR-MODE ASCII), so
+building or restyling a background creature whose art was already prepared
+for that theme builds no blit runs. It holds one screen size's entries only;
+see %DECOR-PROTOTYPE.")
+
+(defvar *decor-prototype-width* 0)
+
+(defvar *decor-prototype-height* 0)
+
+(defun %decor-prototype (world key roles build)
+  "Return the prototype for KEY under WORLD's theme, painted in ROLES. BUILD
+is called only on a miss and returns (VALUES FRAMES MASKS), or NIL when there
+is nothing to draw, in which case NIL is returned and nothing is cached. A
+lookup for another screen size than the cached entries were built for first
+empties the cache: background art is laid out from the screen size, so the
+old entries would never be asked for again by a world of this size."
+  (unless (and (= (world-width world) *decor-prototype-width*)
+               (= (world-height world) *decor-prototype-height*))
+    (clrhash *decor-prototypes*)
+    (setf *decor-prototype-width* (world-width world)
+          *decor-prototype-height* (world-height world)))
+  (let* ((theme (world-theme world))
+         (full-key (list key theme (effective-color-mode) *ascii*)))
+    (or (gethash full-key *decor-prototypes*)
+        (multiple-value-bind (frames masks) (funcall build)
+          (when frames
+            (setf (gethash full-key *decor-prototypes*)
+                  (make-creature :kind :decor-prototype :frames frames :masks masks
+                                 :role-styles (%resolve-roles theme roles)
+                                 :style (color-style :fg :theme theme)
+                                 :%trusted-frames-p t :%trusted-style-p t
+                                 :x 0 :y 0 :policy :none)))))))
+
+(defun %make-cached-decor (world kind key build roles &key (x 0) (y 0) (z 0) frame-period)
+  "Create a background CREATURE of KIND in WORLD from the prototype for KEY
+(see %DECOR-PROTOTYPE), or NIL when BUILD has nothing to draw. KEY must
+identify what BUILD returns under WORLD's theme. KEY, BUILD, ROLES, and the
+prototype's frames are kept in the creature's data so RESTYLE-DECOR can take
+another theme's prototype."
+  (let ((prototype (%decor-prototype world key roles build)))
+    (when prototype
+      (make-creature :world world :kind kind :%sprite-prototype prototype
+                     :frame-period frame-period :z z :policy :none
+                     :x x :y y :dx 0 :dy 0
+                     :data (list :roles roles :decor-key key :decor-build build
+                                 :decor-frames (creature-%frames prototype))))))
+
+(defun %make-decor (world kind frames masks roles &rest options &key x y z frame-period)
   "Create a background CREATURE of KIND in WORLD from FRAMES, their MASKS, and
-ROLES, remembering ROLES so RESTYLE-DECOR can recolor it for another theme."
-  (let ((theme (world-theme world)))
-    (make-creature :world world :kind kind :frames frames :masks masks
-                   :role-styles (%resolve-roles theme roles)
-                   :style (color-style :fg :theme theme)
-                   :frame-period frame-period :z z :policy :none
-                   :x x :y y :dx 0 :dy 0
-                   :data (list :roles roles))))
+ROLES; see %MAKE-CACHED-DECOR."
+  (declare (ignore x y z frame-period))
+  (apply #'%make-cached-decor world kind (list kind frames masks roles)
+         (lambda () (values frames masks)) roles options))
+
+(defun %same-frames-p (frames other)
+  (and (= (length frames) (length other))
+       (every #'string= frames other)))
 
 (defun restyle-decor (world creature)
-  "Recolor a %MAKE-DECOR creature for WORLD's current theme in place."
-  (let ((theme (world-theme world)))
-    (%set-creature-colors creature
-                          :style (color-style :fg :theme theme)
-                          :role-styles (%resolve-roles
-                                        theme (getf (creature-data creature) :roles)))))
+  "Repaint a %MAKE-CACHED-DECOR creature for WORLD's current theme: it takes
+that theme's prototype, built by its data's :DECOR-BUILD on a miss. A creature
+with no :DECOR-BUILD (a flash), or whose frames were replaced since it took its
+prototype, is recolored in place instead. Frames are compared by content,
+because reading them through CREATURE-FRAMES or CREATURE-ART copies them."
+  (let ((theme (world-theme world))
+        (data (creature-data creature)))
+    (if (and (getf data :decor-build)
+             (%same-frames-p (creature-%frames creature) (getf data :decor-frames)))
+        (let ((prototype (%decor-prototype world (getf data :decor-key) (getf data :roles)
+                                           (getf data :decor-build))))
+          (setf (getf (creature-data creature) :decor-frames) (creature-%frames prototype))
+          (%adopt-sprite-prototype creature prototype))
+        (%set-creature-colors creature
+                              :style (color-style :fg :theme theme)
+                              :role-styles (%resolve-roles theme (getf data :roles))))))
 
 (defun %repeat-motif (motif width phase)
   (let ((length (length motif)))
@@ -281,17 +339,14 @@ fewer than three sky rows."
         (values (%grid-text art) (%grid-text mask))))))
 
 (defun make-sky (world)
-  "Create the sky CREATURE for WORLD's theme, or NIL when there is no room."
-  (multiple-value-bind (art mask) (sky-sprite world)
-    (when art
-      (%make-decor world :sky (list art) (list mask) +sky-roles+ :z -1))))
-
-(defun restyle-sky (world creature)
-  "Redraw the sky for WORLD's theme: its art changes with the time of day."
-  (multiple-value-bind (art mask) (sky-sprite world)
-    (when art
-      (%set-creature-frames creature (list art) :masks (list mask)
-                            :role-styles (%resolve-roles (world-theme world) +sky-roles+)))))
+  "Create the sky CREATURE for WORLD's theme, or NIL when there is no room.
+Its art is drawn for the theme, so a restyle redraws it with the time of day."
+  (%make-cached-decor world :sky
+                      (list :sky (world-width world) (world-waterline-row world))
+                      (lambda ()
+                        (multiple-value-bind (art mask) (sky-sprite world)
+                          (when art (values (list art) (list mask)))))
+                      +sky-roles+ :z -1))
 
 ;;; -- Background composition ----------------------------------------------
 
@@ -310,7 +365,9 @@ as before the layout existed, so seeded runs keep their fish."
                    (when (< (1+ (world-waterline-row world)) (world-sand-top world))
                      (make-ripple world))
                    (make-sand world))
-             (seabed-life world (make-seabed-ornaments world)))))
+             (seabed-life world (make-seabed-ornaments world))
+             (list (make-plankton world)
+                   (make-weather-sheet world)))))
 
 ;;; -- Status bar ----------------------------------------------------------
 
@@ -322,6 +379,8 @@ as before the layout existed, so seeded runs keep their fish."
 live indicator, k a key name, p the bar's padding.")
 
 (defparameter +time-of-day-labels+ '((:coral . "day") (:abyss . "dusk") (:moonlight . "night")))
+
+(defparameter +weather-labels+ '((:clear . "clear") (:rain . "rain") (:storm . "storm")))
 
 (defparameter +status-bar-keys+
   '(("h" . "help") ("t" . "theme") ("space" . "pause") ("q" . "quit")))
@@ -336,7 +395,8 @@ badge and the swimming/paused state) is never dropped."
                         (cons (visual-theme-label (world-theme world)) #\A)
                         (cons " " #\B)))
           (cons 3 (list (cons (cdr (assoc (world-theme world) +time-of-day-labels+)) #\n)
-                        (cons " · " #\m) (cons "clear" #\n)))
+                        (cons " · " #\m)
+                        (cons (cdr (assoc (world-weather world) +weather-labels+)) #\n)))
           (cons 1 (list (cons (format nil "fish ~D" (world-fish-count world)) #\n)))
           (cons 2 (list (cons (format nil "dex ~D/~D"
                                       (length (world-discovered-species world))
@@ -415,7 +475,9 @@ too narrow, then the summary's least important groups (see %STATUS-GROUPS)."
   '(("q" . "quit") ("r" . "redraw") ("space" . "pause") ("+ / -" . "fish count")
     ("s" . "spawn shark") ("g" . "spawn guest") ("c" . "spawn school")
     ("a" . "ship and anchor") ("m" . "submarine") ("d" . "diver")
+    ("f" . "spawn fisher")
     ("t" . "cycle theme")
+    ("w" . "next weather") ("n" . "next time of day")
     ("u" . "status bar") ("h" . "this help"))
   "Every key binding the application implements (input.lisp), in help order.")
 
@@ -473,8 +535,7 @@ world's current theme, keeping its position."
       (%set-creature-frames creature (list art) :masks (list mask) :role-styles role-styles))))
 
 (dolist (kind '(:waterline :ripple :ambient-current :sand :castle :seaweed
-                :coral :rock :starfish :vent :chest))
+                :coral :rock :starfish :vent :chest :sky))
   (register-creature-restyler kind #'restyle-decor))
-(register-creature-restyler :sky #'restyle-sky)
 (register-creature-restyler :hud (restyle-panel #'hud-sprite))
 (register-creature-restyler :help-overlay (restyle-panel #'help-sprite))

@@ -42,7 +42,8 @@ user presses `q')."
            :ascii-p (option-value invocation :ascii)
            :fish-count (min +default-fish-count+ max-fish)
            :max-fish max-fish
-           :calm-p (option-value invocation :calm))))
+           :calm-p (option-value invocation :calm)
+           :daycycle-p (not (option-value invocation :no-daycycle)))))
   0)
 
 (defparameter *app*
@@ -73,6 +74,8 @@ the status bar, and h for the full key list."
                        "Most fish the + key grows the tank to (1-40, default 30).")
          (make-option :name "calm" :kind :flag
                        :description "Turn off blinking animations.")
+         (make-option :name "no-daycycle" :kind :flag
+                       :description "Keep the starting theme instead of moving through day, dusk, and night.")
          (make-option :name "theme" :kind :value
                        :choices '("abyss" "coral" "moonlight")
                        :description "Initial visual theme (default abyss).")

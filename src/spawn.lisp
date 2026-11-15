@@ -21,7 +21,8 @@ pending. Called by every effect that takes a fish out of play."
 
 (defparameter +big-event-kinds+ '(:ship
                                    :sub
-                                   :dinghy)
+                                   :dinghy
+                                   :fisher)
   "The CREATURE-KIND of each big event's lead creature. At most
 +MAX-BIG-EVENTS+ of them may be on screen before the automatic paths
 (MAYBE-SPAWN-GUEST, ADVANCE-WORLD-EVENTS) hold back; keys spawn regardless.")
@@ -31,7 +32,8 @@ pending. Called by every effect that takes a fish out of play."
 (defvar *auto-events*
   '((:id :school :big nil :every (900 1600) :first 600 :spawn spawn-school-if-room)
     (:id :sub :big t :every (1200 2000) :first 900 :spawn spawn-submarine-now)
-    (:id :diver :big t :every (1400 2400) :first 1200 :spawn spawn-diver-now))
+    (:id :diver :big t :every (1400 2400) :first 1200 :spawn spawn-diver-now)
+    (:id :fisher :big t :every (1000 1800) :first 800 :spawn spawn-fisher-now))
   "The automatic events ADVANCE-WORLD-EVENTS runs, one plist row each:
 (:ID keyword :BIG boolean :EVERY (low high) :FIRST ticks :SPAWN symbol).
 :SPAWN names a (WORLD) function. :FIRST is the fixed tick of the first
@@ -120,7 +122,8 @@ is also how long a fish courts.")
 (defun advance-world-events (world)
   "Run WORLD's per-tick event bookkeeping: a due refill, every due row of
 *AUTO-EVENTS*, then, every +COURTING-INTERVAL-TICKS+ ticks, the pick of a
-courting fish. Called by WORLD-ADVANCE after the automatic shark and guest
+courting fish, then the weather and time of day (ADVANCE-SKY-EVENTS,
+update-weather.lisp). Called by WORLD-ADVANCE after the automatic shark and guest
 spawns."
   (maybe-refill-fish world)
   (let ((tick (world-tick world))
@@ -134,6 +137,7 @@ spawns."
                      (+ tick (apply #'random-between (getf row :every)))))
     (when (zerop (mod tick +courting-interval-ticks+))
       (select-courting-fish world)))
+  (advance-sky-events world)
   world)
 
 (defun spawn-shark-now (world)
