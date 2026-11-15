@@ -166,7 +166,7 @@
                 (expect (assoc :plume (schedule-effects world before)) :to-be nil)))))))))
 
 (describe "ten-minute event schedule"
-  ;; Hang escape hatch, not a performance gate: shared-host load stretches wall time far beyond observed subsecond runs.
+  ;; Hang escape hatch, not a performance gate. Cause of builder slowdown unconfirmed.
   (it "shows every main event with seed 1"
     (:timeout-ms 30000)
     (expect (missing-schedule-events 1) :to-be nil))
