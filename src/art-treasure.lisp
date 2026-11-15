@@ -123,14 +123,3 @@ screens leave out, or when a dinghy is already out for it."
 (register-creature-restyler :dinghy #'restyle-decor)
 (register-creature-restyler :diver #'restyle-decor)
 (register-creature-restyler :rope #'restyle-vertical-line)
-
-(defun restyle-chest (world chest)
-  (if (and (not (creature-%frames-escaped-p chest))
-           (or (%same-frames-p (creature-%frames chest) +chest-open-frames+)
-               (%same-frames-p (creature-%frames chest) +chest-closed-frames+)))
-      (%set-fixed-creature-colors
-       chest :style (color-style :fg :theme (world-theme world))
-       :role-styles (%resolve-roles (world-theme world) (getf (creature-data chest) :roles)))
-      (restyle-decor world chest)))
-
-(register-creature-restyler :chest #'restyle-chest)
