@@ -155,94 +155,89 @@ return the total UTF-8 bytes those frames write to the terminal."
                              (dolist (creature moving)
                                (incf (cl-tty-kit:entity-x
                                       (cl-asciiquarium::creature-entity creature))))))
-  (progn
-  (%benchmark-output-bytes "Advanced renderer"
-                           (lambda (world moving)
-                             (declare (ignore moving))
-                             (cl-asciiquarium:world-advance world)))
-  (defparameter +worst-case-seed+ 590)
-  (defparameter +worst-case-frames+ 300)
+(%benchmark-output-bytes "Advanced renderer"
+                         (lambda (world moving)
+                           (declare (ignore moving))
+                           (cl-asciiquarium:world-advance world)))
+(defparameter +worst-case-seed+ 590)
+(defparameter +worst-case-frames+ 300)
 
-  (defun %worst-case-kind-count (world kind)
-    (count kind
-           (cl-asciiquarium::world-%creatures world)
-           :key #'cl-asciiquarium::creature-kind
-           :test #'eq))
+(defun %worst-case-kind-count (world kind)
+  (count kind
+         (cl-asciiquarium::world-%creatures world)
+         :key #'cl-asciiquarium::creature-kind
+         :test #'eq))
 
-  (defun %validate-worst-case-world (world)
-    (unless (and (= 40 (cl-asciiquarium::world-fish-count world))
-                 (= 40 (cl-asciiquarium::world-max-fish world))
-                 (= 40 (%worst-case-kind-count world :fish))
-                 (= 2 (cl-asciiquarium::big-event-count world))
-                 (= 1 (%worst-case-kind-count world :sub))
-                 (= 1 (%worst-case-kind-count world :dinghy))
-                 (= 1 (%worst-case-kind-count world :diver))
-                 (= 1 (%worst-case-kind-count world :rope))
-                 (eq :moonlight (cl-asciiquarium::world-theme world))
-                 (eq :storm (cl-asciiquarium::world-weather world)))
-      (error "Worst case benchmark scene was not preserved."))
-    world)
+(defun %validate-worst-case-world (world)
+  (unless (and (= 40 (%worst-case-kind-count world :fish))
+               (= 2 (cl-asciiquarium::big-event-count world))
+               (= 1 (%worst-case-kind-count world :sub))
+               (= 1 (%worst-case-kind-count world :dinghy))
+               (= 1 (%worst-case-kind-count world :diver))
+               (= 1 (%worst-case-kind-count world :rope))
+               (eq :moonlight (cl-asciiquarium::world-theme world))
+               (eq :storm (cl-asciiquarium::world-weather world)))
+    (error "Worst case benchmark scene was not preserved."))
+  world)
 
-  (defun %make-worst-case-world ()
-    (let ((world (cl-asciiquarium:make-world :width 160
-                                             :height 48
-                                             :fish-count 40
-                                             :max-fish 40)))
-      (cl-asciiquarium::world-change-daypart world :moonlight)
-      (cl-asciiquarium::world-advance-weather world)
-      (cl-asciiquarium::world-advance-weather world)
-      (cl-asciiquarium::spawn-submarine-now world)
-      (unless (cl-asciiquarium::spawn-diver-now world)
-        (error "Worst case benchmark could not spawn a diver."))
-      (dotimes (tick 100)
-        (declare (ignore tick))
-        (cl-asciiquarium:world-advance world))
-      (%validate-worst-case-world world)))
+(defun %make-worst-case-world ()
+  (let ((world (cl-asciiquarium:make-world :width 160
+                                           :height 48
+                                           :fish-count 40
+                                           :max-fish 40)))
+    (cl-asciiquarium::world-change-daypart world :moonlight)
+    (cl-asciiquarium::world-advance-weather world)
+    (cl-asciiquarium::world-advance-weather world)
+    (cl-asciiquarium::spawn-submarine-now world)
+    (unless (cl-asciiquarium::spawn-diver-now world)
+      (error "Worst case benchmark could not spawn a diver."))
+    (dotimes (tick 100)
+      (declare (ignore tick))
+      (cl-asciiquarium:world-advance world))
+    (%validate-worst-case-world world)))
 
-  (defun benchmark-worst-case ()
-    (let ((elapsed nil)
-          (allocations nil)
-          (terminal-output nil))
-      (dotimes (sample +benchmark-samples+)
-        (declare (ignore sample))
-        (let* ((*random-state* (sb-ext:seed-random-state +worst-case-seed+))
-               (world (%make-worst-case-world))
-               (renderer (cl-tty-kit:make-renderer 160 48))
-               (stream (make-broadcast-stream)))
-          (unwind-protect
-               (progn
+(defun benchmark-worst-case ()
+  (let ((elapsed nil)
+        (allocations nil)
+        (terminal-output nil))
+    (dotimes (sample +benchmark-samples+)
+      (declare (ignore sample))
+      (let* ((*random-state* (sb-ext:seed-random-state +worst-case-seed+))
+             (world (%make-worst-case-world))
+             (renderer (cl-tty-kit:make-renderer 160 48))
+             (stream (make-broadcast-stream)))
+        (unwind-protect
+             (progn
+               (cl-asciiquarium:render-frame renderer world :stream stream)
+               (multiple-value-bind (milliseconds bytes)
+                   (%measure-per-iteration +worst-case-frames+
+                     (loop repeat +worst-case-frames+
+                           do (cl-asciiquarium:world-advance world)
+                              (cl-asciiquarium:render-frame renderer world :stream stream)))
                  (%validate-worst-case-world world)
-                 (cl-asciiquarium:render-frame renderer world :stream stream)
-                 (multiple-value-bind (milliseconds bytes)
-                     (%measure-per-iteration +worst-case-frames+
-                       (loop repeat +worst-case-frames+
-                             do (cl-asciiquarium:world-advance world)
-                                (cl-asciiquarium:render-frame renderer world :stream stream)))
-                   (%validate-worst-case-world world)
-                   (push milliseconds elapsed)
-                   (push bytes allocations)))
-            (cl-asciiquarium:shutdown-renderer renderer)))
-        (let* ((*random-state* (sb-ext:seed-random-state +worst-case-seed+))
-               (world (%make-worst-case-world))
-               (renderer (cl-tty-kit:make-renderer 160 48))
-               (total 0))
-          (unwind-protect
-               (progn
-                 (%validate-worst-case-world world)
-                 (cl-asciiquarium:render-frame renderer world :stream (make-broadcast-stream))
-                 (dotimes (frame +worst-case-frames+)
-                   (declare (ignore frame))
-                   (cl-asciiquarium:world-advance world)
-                   (incf total (%frame-output-bytes renderer world)))
-                 (%validate-worst-case-world world)
-                 (push (/ total (coerce +worst-case-frames+ 'double-float)) terminal-output))
-            (cl-asciiquarium:shutdown-renderer renderer))))
-      (format t
-              "~&Worst case: median ~,3F ms/frame, ~:D bytes/frame, ~,1F terminal output bytes/frame (~D samples x ~D frames)~%"
-              (%median elapsed)
-              (%median allocations)
-              (%median terminal-output)
-              +benchmark-samples+
-              +worst-case-frames+)))
+                 (push milliseconds elapsed)
+                 (push bytes allocations)))
+          (cl-asciiquarium:shutdown-renderer renderer)))
+      (let* ((*random-state* (sb-ext:seed-random-state +worst-case-seed+))
+             (world (%make-worst-case-world))
+             (renderer (cl-tty-kit:make-renderer 160 48))
+             (total 0))
+        (unwind-protect
+             (progn
+               (cl-asciiquarium:render-frame renderer world :stream (make-broadcast-stream))
+               (dotimes (frame +worst-case-frames+)
+                 (declare (ignore frame))
+                 (cl-asciiquarium:world-advance world)
+                 (incf total (%frame-output-bytes renderer world)))
+               (%validate-worst-case-world world)
+               (push (/ total (coerce +worst-case-frames+ 'double-float)) terminal-output))
+          (cl-asciiquarium:shutdown-renderer renderer))))
+    (format t
+            "~&Worst case: median ~,3F ms/frame, ~:D bytes/frame, ~,1F terminal output bytes/frame (~D samples x ~D frames)~%"
+            (%median elapsed)
+            (%median allocations)
+            (%median terminal-output)
+            +benchmark-samples+
+            +worst-case-frames+)))
 
-  (benchmark-worst-case))
+(benchmark-worst-case)
