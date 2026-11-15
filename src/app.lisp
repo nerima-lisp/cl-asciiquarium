@@ -24,21 +24,24 @@ compose them once per RUN rather than reimplementing either. When a key
 asked for a snapshot (WORLD-REQUEST-SNAPSHOT), the renderer's screen, still
 the frame drawn just before the key was read, is saved in SNAPSHOT-DIRECTORY
 and the status bar reports the file or the failure; the report comes after
-the picture, so it is not in it."
+the picture, so it is not in it. On a poll that resized the renderer, its
+screen holds no frame yet, so the request waits for the next poll."
   (let ((size-poller (make-terminal-size-poller))
         (input-poller (make-stream-input-poller stream :decoder decoder)))
     (lambda (state)
-      (multiple-value-bind (columns rows) (funcall size-poller state 0)
-        (when (and columns rows)
-          (world-resize state columns rows)
-          (renderer-resize renderer columns rows
-                           :initial-cell (world-background-cell state))))
-      (world-apply-key-events state (funcall input-poller state 0))
-      (when (world-snapshot-requested-p state)
-        (setf (world-snapshot-requested-p state) nil)
-        (world-notify state (snapshot-notification
-                             (save-snapshot (renderer-screen renderer) snapshot-directory
-                                            (get-universal-time)))))
+      (let ((resized-p nil))
+        (multiple-value-bind (columns rows) (funcall size-poller state 0)
+          (when (and columns rows)
+            (setf resized-p t)
+            (world-resize state columns rows)
+            (renderer-resize renderer columns rows
+                             :initial-cell (world-background-cell state))))
+        (world-apply-key-events state (funcall input-poller state 0))
+        (when (and (world-snapshot-requested-p state) (not resized-p))
+          (setf (world-snapshot-requested-p state) nil)
+          (world-notify state (snapshot-notification
+                               (save-snapshot (renderer-screen renderer) snapshot-directory
+                                              (get-universal-time))))))
       state)))
 
 (defun quit-on-signal (world)

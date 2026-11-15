@@ -337,3 +337,40 @@ exist, so no test reads or writes the real dex file."
       (%run-under-stubbed-terminal (lambda (world) (setf art (%hud-art world)) world)
                                    :dex-path path :width 80 :height 24)
       (expect (search "dex file unreadable; not saving" art) :to-be-truthy)))))
+
+(describe
+ "make-world-poller, a resize, and the p key in one poll"
+ (it
+  "saves the snapshot on the next poll, after the resized screen has been drawn"
+  (let* ((size-poller-symbol 'cl-asciiquarium::make-terminal-size-poller)
+         (original-size-poller (symbol-function size-poller-symbol)))
+    (with-temporary-directory (dir "aq-poller-snapshot-")
+      (with-input-from-string (stream "p")
+        (unwind-protect
+             (let ((sizes (list (list 73 31))))
+               (setf (symbol-function size-poller-symbol)
+                     (lambda ()
+                       (lambda (state timeout)
+                         (declare (ignore state timeout))
+                         (values-list (pop sizes)))))
+               (let* ((world (tiny-world :width 20 :height 10))
+                      (renderer (make-renderer 20 10 :initial-cell (world-background-cell world)))
+                      (poll (cl-asciiquarium::make-world-poller
+                             renderer stream (make-input-decoder) :snapshot-directory dir)))
+                 (render-frame renderer world :stream (make-broadcast-stream))
+                 (funcall poll world)
+                 (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be t)
+                 (expect (uiop:directory-files dir) :to-be nil)
+                 (render-frame renderer world :stream (make-broadcast-stream))
+                 ;; The resized world redrawn from scratch, before the saved
+                 ;; notice changes the status bar.
+                 (let ((expected (format nil "~{~A~^~%~}~%"
+                                         (mapcar (lambda (row) (string-right-trim " " row))
+                                                 (%drawn-rows world)))))
+                   (funcall poll world)
+                   (expect (cl-asciiquarium::world-snapshot-requested-p world) :to-be nil)
+                   (let ((files (uiop:directory-files dir)))
+                     (expect (length files) :to-be 1)
+                     (expect (uiop:read-file-string (first files) :external-format :utf-8)
+                             :to-equal expected)))))
+          (setf (symbol-function size-poller-symbol) original-size-poller)))))))
