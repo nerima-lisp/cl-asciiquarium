@@ -252,6 +252,7 @@ notification never outlives its four seconds."
       (let ((species (getf (creature-data creature) :species)))
         (unless (member species (world-discovered-species world))
           (push species (world-discovered-species world))
+          (world-refresh-hud world)
           (when (fish-species-entry-spawn-probability (fish-species species))
             (world-notify world (format nil "Discovered: ~(~A~)" species))))))
     (when (%active-predator-p creature)
