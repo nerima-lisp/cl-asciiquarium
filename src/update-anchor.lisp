@@ -67,8 +67,9 @@ ship resumes its :SAVED-DX."
                (entity-dx (creature-entity (getf data :ship)))
                (getf (creature-data (getf data :ship)) :saved-dx)))))))
 
-(defun %set-chain-length (chain length reach)
-  (declare (ignore reach))
+(defun %set-chain-length (world chain length reach)
+  (when (>= reach (length (creature-%frames chain)))
+    (restyle-vertical-line world chain))
   (setf (creature-frame-index chain) length))
 
 (defun chain-top-row (world ship ship-height)
@@ -89,7 +90,7 @@ already been placed."
                              (getf data :ship-height))))
     (setf (entity-x entity) (+ (creature-x anchor) (getf data :shaft-x))
           (entity-y entity) top)
-    (%set-chain-length chain
+    (%set-chain-length world chain
                        (max 0 (- (creature-y anchor) top))
                        (max 0 (- (max (creature-y anchor) (anchor-seabed world anchor)) top)))))
 
