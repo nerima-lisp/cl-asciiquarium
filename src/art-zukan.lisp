@@ -37,8 +37,7 @@ even species count."
          (rows (ceiling (length +fish-species+) 2))
          (inner (+ 1 cell-width 3 cell-width 1))
          (title (format nil " dex ~D/~D "
-                        (count-if (lambda (entry) (member (fish-species-entry-name entry) discovered))
-                                  +fish-species+)
+                        (world-discovered-known-count world)
                         (length +fish-species+)))
          (art-lines '())
          (mask-lines '()))

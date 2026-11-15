@@ -45,11 +45,27 @@ the `q' key. The signal boundary is not unit-tested; see t/app-test.lisp."
     (sb-sys:enable-interrupt sb-unix:sighup #'handle))
   (values))
 
+(defparameter +dex-unreadable-message+ "dex file unreadable; not saving")
+
+(defun default-zukan-path ()
+  "The dex file's pathname for this process's XDG_STATE_HOME and home."
+  (zukan-path (uiop:getenv "XDG_STATE_HOME") (user-homedir-pathname)))
+
+(defun make-zukan-advancer (path saved-count)
+  "Return a TICK-LOOP-RUN-REALTIME advance function: WORLD-ADVANCE, then save
+the discovered species to the dex file at PATH when a species was discovered
+since the last save (ZUKAN-SAVE-IF-GROWN). SAVED-COUNT is how many species the
+file held when it was read."
+  (lambda (world)
+    (world-advance world)
+    (setf saved-count (zukan-save-if-grown world path saved-count))
+    world))
+
 (defun run (&key (width +default-width+) (height +default-height+) fish-count
             (max-fish +default-max-fish+) seed
             (interval 1/20) (stream *standard-output*) (shark-enabled-p t)
             monochrome-p (theme :abyss) (color-mode :ansi16) ascii-p calm-p
-            (daycycle-p t))
+            (daycycle-p t) (dex-path (default-zukan-path)))
   "Run the aquarium in the real terminal until `q' is pressed, or SIGTERM/
 SIGHUP arrives from outside (see INSTALL-QUIT-SIGNAL-HANDLER) -- both quit
 exactly as cleanly, restoring the terminal via WITH-TERMINAL-SESSION's
@@ -63,43 +79,52 @@ cl-tty-kit:TICK-LOOP-RUN-REALTIME; SHARK-ENABLED-P and MONOCHROME-P forward the
 accepts one of +VISUAL-THEMES+ and can be changed while running. COLOR-MODE
 (one of +COLOR-MODES+, from --color) and ASCII-P (--ascii) bind *COLOR-MODE*
 and *ASCII*, both read only as creatures are prepared. MAX-FISH (--max-fish),
-CALM-P (--calm), and DAYCYCLE-P (NIL under --no-daycycle) go to MAKE-WORLD."
+CALM-P (--calm), and DAYCYCLE-P (NIL under --no-daycycle) go to MAKE-WORLD.
+DEX-PATH is the dex file (LOAD-ZUKAN): its species start the world's
+discoveries, and each new discovery is saved to it. When it is unreadable the
+status bar says so and this run never writes it."
   (when seed
     (setf *random-state* (sb-ext:seed-random-state seed)))
-  ;; LET*, not LET: MAKE-WORLD's init-form must run after *MONOCHROME* is
-  ;; bound, since it constructs every background/fish creature (via
-  ;; SOLID-STYLE, creature.lisp) right away -- LET's parallel-binding
-  ;; semantics would evaluate MAKE-WORLD against the outer, unbound
-  ;; *MONOCHROME* instead.
-  (let* ((*monochrome* monochrome-p)
-         (*color-mode* color-mode)
-         (*ascii* ascii-p)
-         (world (make-world :width width :height height
-                             :fish-count (or fish-count +default-fish-count+)
-                             :max-fish max-fish
-                             :calm-p calm-p
-                             :daycycle-p daycycle-p
-                             :shark-enabled-p shark-enabled-p
-                             :theme theme
-                             :ticks-per-second (max 1 (round 1 interval))))
-         (renderer (make-renderer width height
-                                  :initial-cell (world-background-cell world)))
-         (decoder (make-input-decoder)))
-    (with-raw-mode ()
-      ;; :NORMAL reports button presses and releases only, which is all the
-      ;; left-click food needs; the session turns reporting off again on exit.
-      (with-terminal-session (session-stream :stream stream :hide-cursor t :alternate-screen t
-                                             :mouse :normal)
-        (install-quit-signal-handler world)
-        (unwind-protect
-             (tick-loop-run-realtime
-              world
-              #'world-advance
-              (lambda (state) (render-frame renderer state :stream session-stream))
-              #'world-quitp
-              :stream session-stream
-              :interval interval
-              :poll (make-world-poller renderer *standard-input* decoder))
-          (sb-sys:enable-interrupt sb-unix:sigterm :default)
-          (sb-sys:enable-interrupt sb-unix:sighup :default)
-          (shutdown-renderer renderer))))))
+  (multiple-value-bind (known-species dex-writable-p) (load-zukan dex-path)
+    ;; LET*, not LET: MAKE-WORLD's init-form must run after *MONOCHROME* is
+    ;; bound, since it constructs every background/fish creature (via
+    ;; SOLID-STYLE, creature.lisp) right away -- LET's parallel-binding
+    ;; semantics would evaluate MAKE-WORLD against the outer, unbound
+    ;; *MONOCHROME* instead.
+    (let* ((*monochrome* monochrome-p)
+           (*color-mode* color-mode)
+           (*ascii* ascii-p)
+           (world (make-world :width width :height height
+                               :fish-count (or fish-count +default-fish-count+)
+                               :max-fish max-fish
+                               :calm-p calm-p
+                               :daycycle-p daycycle-p
+                               :shark-enabled-p shark-enabled-p
+                               :theme theme
+                               :ticks-per-second (max 1 (round 1 interval))
+                               :discovered-species known-species))
+           (renderer (make-renderer width height
+                                    :initial-cell (world-background-cell world)))
+           (decoder (make-input-decoder)))
+      (with-raw-mode ()
+        ;; :NORMAL reports button presses and releases only, which is all the
+        ;; left-click food needs; the session turns reporting off again on exit.
+        (with-terminal-session (session-stream :stream stream :hide-cursor t :alternate-screen t
+                                               :mouse :normal)
+          (install-quit-signal-handler world)
+          (unless dex-writable-p
+            (world-notify world +dex-unreadable-message+))
+          (unwind-protect
+               (tick-loop-run-realtime
+                world
+                (if dex-writable-p
+                    (make-zukan-advancer dex-path (length known-species))
+                    #'world-advance)
+                (lambda (state) (render-frame renderer state :stream session-stream))
+                #'world-quitp
+                :stream session-stream
+                :interval interval
+                :poll (make-world-poller renderer *standard-input* decoder))
+            (sb-sys:enable-interrupt sb-unix:sigterm :default)
+            (sb-sys:enable-interrupt sb-unix:sighup :default)
+            (shutdown-renderer renderer)))))))

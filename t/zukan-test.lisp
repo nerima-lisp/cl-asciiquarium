@@ -4,15 +4,7 @@
 (in-package #:cl-asciiquarium/test)
 
 (defmacro with-zukan-directory ((var) &body body)
-  "Bind VAR to a new empty directory under the system temporary directory for
-BODY, deleting it and its contents afterwards."
-  `(let ((,var (uiop:ensure-directory-pathname
-                (merge-pathnames (format nil "aq-zukan-~36R"
-                                         (random most-positive-fixnum (make-random-state t)))
-                                 (uiop:temporary-directory)))))
-     (ensure-directories-exist ,var)
-     (unwind-protect (progn ,@body)
-       (uiop:delete-directory-tree ,var :validate t :if-does-not-exist :ignore))))
+  `(with-temporary-directory (,var "aq-zukan-") ,@body))
 
 (defvar *zukan-read-eval-probe* nil
   "Set by a #. form in a dex file only if the reader evaluated it.")
@@ -239,4 +231,26 @@ t/snapshot-test.lisp, loaded after this file, uses it too."
       (expect (equalp (cl-asciiquarium::creature-%role-styles overlay) before) :to-be-falsy)
       (expect (equalp (cl-asciiquarium::creature-%role-styles overlay)
                       (nth-value 2 (cl-asciiquarium::zukan-sprite world)))
+              :to-be-truthy))))
+
+(describe "make-world :discovered-species"
+  (it "treats the stored species as discovered, announcing only a new rare one"
+    (let ((world (make-world :width 80 :height 24 :fish-count 0
+                             :discovered-species '(:golden))))
+      (cl-asciiquarium::%add-world-creature world (make-fish world :species :golden))
+      (expect (cl-asciiquarium::world-notification world) :to-be nil)
+      (cl-asciiquarium::%add-world-creature world (make-fish world :species :oarfish))
+      (expect (cl-asciiquarium::world-notification world) :to-equal "Discovered: oarfish")))
+  (it "leaves the caller's list alone as species are discovered"
+    (let* ((stored (list :golden))
+           (world (make-world :width 80 :height 24 :fish-count 0 :discovered-species stored)))
+      (cl-asciiquarium::%add-world-creature world (make-fish world :species :dart))
+      (expect stored :to-equal '(:golden))))
+  (it "counts only known species in the status bar"
+    (let ((world (make-world :width 80 :height 24 :fish-count 0
+                             :discovered-species '(:kraken :dart))))
+      (cl-asciiquarium::world-refresh-hud world)
+      (expect (search "dex 1/16"
+                      (creature-art (find :hud (cl-asciiquarium::world-%creatures world)
+                                          :key #'cl-asciiquarium::creature-kind)))
               :to-be-truthy))))

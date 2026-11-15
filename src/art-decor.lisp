@@ -385,6 +385,14 @@ live indicator, k a key name, p the bar's padding.")
 (defparameter +status-bar-keys+
   '(("h" . "help") ("t" . "theme") ("space" . "pause") ("q" . "quit")))
 
+(defun world-discovered-known-count (world)
+  "How many of +FISH-SPECIES+ WORLD has discovered. A dex file written by a
+newer build can name species this one does not know; they are kept but not
+counted."
+  (let ((discovered (world-discovered-species world)))
+    (count-if (lambda (entry) (member (fish-species-entry-name entry) discovered))
+              +fish-species+)))
+
 (defun %status-groups (world)
   "Return the status bar's left summary as a list of (DROP-RANK . SEGMENTS)
 groups in display order, each segment a (TEXT . ROLE). A group with a higher
@@ -399,7 +407,7 @@ badge and the swimming/paused state) is never dropped."
                         (cons (cdr (assoc (world-weather world) +weather-labels+)) #\n)))
           (cons 1 (list (cons (format nil "fish ~D" (world-fish-count world)) #\n)))
           (cons 2 (list (cons (format nil "dex ~D/~D"
-                                      (length (world-discovered-species world))
+                                      (world-discovered-known-count world)
                                       (length +fish-species+))
                               #\n)))
           (cons 0 (list (cons "●" (if paused-p #\m #\l))

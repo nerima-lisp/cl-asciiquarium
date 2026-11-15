@@ -4,15 +4,7 @@
 (in-package #:cl-asciiquarium/test)
 
 (defmacro with-snapshot-directory ((var) &body body)
-  "Bind VAR to a new empty directory under the system temporary directory for
-BODY, deleting it and its contents afterwards."
-  `(let ((,var (uiop:ensure-directory-pathname
-                (merge-pathnames (format nil "aq-snapshot-~36R"
-                                         (random most-positive-fixnum (make-random-state t)))
-                                 (uiop:temporary-directory)))))
-     (ensure-directories-exist ,var)
-     (unwind-protect (progn ,@body)
-       (uiop:delete-directory-tree ,var :validate t :if-does-not-exist :ignore))))
+  `(with-temporary-directory (,var "aq-snapshot-") ,@body))
 
 (defun %file-text (pathname)
   (uiop:read-file-string pathname :external-format :utf-8))

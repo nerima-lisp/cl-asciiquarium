@@ -91,7 +91,11 @@ would leave a real terminal just as wrecked."
     (and (>= (length output) (length suffix))
          (string= suffix output :start2 (- (length output) (length suffix))))))
 
-(defun %run-under-stubbed-terminal (tick-loop-action)
+(defvar *stubbed-advance* nil
+  "The advance function RUN handed the stubbed tick loop, bound while a
+%RUN-UNDER-STUBBED-TERMINAL action runs.")
+
+(defun %run-under-stubbed-terminal (tick-loop-action &rest run-arguments)
   "Drive RUN with only the real-terminal boundary stubbed out, and report what
 it did. Returns (VALUES OUTCOME OUTPUT DISABLE-RAW-MODE-CALLS), where OUTCOME is
 :RETURNED-NORMALLY or the condition RUN signalled.
@@ -105,7 +109,9 @@ RUN's own :STREAM argument, and the UNWIND-PROTECT under test is untouched.
 
 TICK-LOOP-ACTION replaces CL-TTY-KIT:TICK-LOOP-RUN-REALTIME and receives the
 WORLD, so a test can make the loop return normally, quit through QUIT-ON-SIGNAL,
-or signal."
+or signal; it can tick through *STUBBED-ADVANCE*. RUN-ARGUMENTS go to RUN
+ahead of the defaults, which include a :DEX-PATH in a directory that does not
+exist, so no test reads or writes the real dex file."
   (let* ((enable-symbol 'cl-tty-kit:enable-raw-mode)
          (disable-symbol 'cl-tty-kit:disable-raw-mode)
          (loop-symbol 'cl-tty-kit:tick-loop-run-realtime)
@@ -126,13 +132,20 @@ or signal."
                    t))
            (setf (symbol-function loop-symbol)
                  (lambda (world advance render stop &rest options)
-                   (declare (ignore advance render stop options))
-                   (funcall tick-loop-action world)))
+                   (declare (ignore render stop options))
+                   (let ((*stubbed-advance* advance))
+                     (funcall tick-loop-action world))))
            (setf outcome
                  (handler-case
-                     (progn (cl-asciiquarium::run :width 20 :height 10
-                                                  :fish-count 0
-                                                  :stream captured)
+                     (progn (apply #'cl-asciiquarium::run
+                                   (append run-arguments
+                                           (list :width 20 :height 10 :fish-count 0
+                                                 :stream captured
+                                                 :dex-path (merge-pathnames
+                                                            (format nil "aq-no-dex-~36R/zukan.sexp"
+                                                                    (random most-positive-fixnum
+                                                                            (make-random-state t)))
+                                                            (uiop:temporary-directory)))))
                             :returned-normally)
                    (error (condition) condition))))
       (setf (symbol-function enable-symbol) original-enable
@@ -213,3 +226,43 @@ or signal."
       (expect off :to-be-truthy)
       (expect (< on off) :to-be-truthy))
     (expect (%terminal-restored-p output) :to-be-truthy))))
+
+(describe
+ "run and the dex file"
+ (it
+  "starts from the stored species, unknown ones included, and saves each new discovery"
+  (with-temporary-directory (dir "aq-run-dex-")
+    (let ((path (merge-pathnames "zukan.sexp" dir))
+          (stored nil)
+          (notification :unset))
+      (cl-asciiquarium::save-zukan path '(:golden :kraken))
+      (expect (%run-under-stubbed-terminal
+               (lambda (world)
+                 (setf stored (copy-list (cl-asciiquarium::world-discovered-species world)))
+                 (cl-asciiquarium::%add-world-creature world (make-fish world :species :dart))
+                 (funcall *stubbed-advance* world)
+                 (setf notification (cl-asciiquarium::world-notification world))
+                 world)
+               :dex-path path)
+              :to-be :returned-normally)
+      (expect (sort stored #'string<) :to-equal '(:golden :kraken))
+      (expect (sort (cl-asciiquarium::load-zukan path) #'string<) :to-equal '(:dart :golden :kraken))
+      (expect notification :to-be nil))))
+ (it
+  "says an unreadable file will not be saved, and leaves it as it was"
+  (with-temporary-directory (dir "aq-run-dex-")
+    (let ((path (merge-pathnames "zukan.sexp" dir))
+          (notification nil))
+      (with-open-file (stream path :direction :output)
+        (write-string "(:zukan 1 :species (:dart" stream))
+      (expect (%run-under-stubbed-terminal
+               (lambda (world)
+                 (cl-asciiquarium::%add-world-creature world (make-fish world :species :eel))
+                 (funcall *stubbed-advance* world)
+                 (setf notification (cl-asciiquarium::world-notification world))
+                 world)
+               :dex-path path)
+              :to-be :returned-normally)
+      (expect notification :to-equal "dex file unreadable; not saving")
+      (expect (uiop:read-file-string path) :to-equal "(:zukan 1 :species (:dart")
+      (expect (uiop:directory-files dir) :to-equal (list path))))))
