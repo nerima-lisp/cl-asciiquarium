@@ -115,7 +115,7 @@ As a library, from another flake:
 ```nix
 # flake.nix
 inputs.cl-asciiquarium = {
-  url = "github:nerima-lisp/cl-asciiquarium/v0.3.0";
+  url = "github:nerima-lisp/cl-asciiquarium/v0.2.0";
   inputs.nixpkgs.follows = "nixpkgs";
 };
 ```
