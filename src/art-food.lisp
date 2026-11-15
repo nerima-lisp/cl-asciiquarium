@@ -20,4 +20,4 @@ its :THREAT."
 (register-creature-restyler
  :food
  (lambda (world food)
-   (%set-creature-colors food :style (creature-%style (%food-sprite-prototype (world-theme world))))))
+   (%set-fixed-creature-colors food :style (creature-%style (%food-sprite-prototype (world-theme world))))))

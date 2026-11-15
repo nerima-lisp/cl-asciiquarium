@@ -98,7 +98,7 @@ the waterline, for the storm sway), and the fishing state :PHASE and
 
 (defun restyle-fisher (world boat)
   (multiple-value-bind (role-styles style) (%fisher-boat-colors (world-theme world))
-    (%set-creature-colors boat :style style :role-styles role-styles)))
+    (%set-fixed-creature-colors boat :style style :role-styles role-styles)))
 
 (defun %add-fisher-part (world part)
   "Add PART to WORLD in WORLD's current theme: it was built with its boat, and

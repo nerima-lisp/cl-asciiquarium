@@ -44,7 +44,7 @@ and an OFF-SCREEN-GUEST-SPEC already validated by
 %PARSE-OFF-SCREEN-GUEST-CLAUSES: the DEFUN, preceded by the registration of a
 restyler that repaints the guest in its :COLOR for a new theme."
     `(progn
-      (register-named-color-restyler ,(off-screen-guest-spec-kind spec)
+      (%register-fixed-color-restyler ,(off-screen-guest-spec-kind spec)
                                      ,(off-screen-guest-spec-color spec))
       (defun ,name (world &key facing)
        ,docstring
@@ -237,6 +237,6 @@ CREATUREs trailing LEADER, indices 1 through +SEA-MONSTER-SEGMENT-COUNT+."
   (loop for index from 1 to +sea-monster-segment-count+
         collect (make-monster-segment world leader index)))
 
-(register-named-color-restyler :anchor :bright-black)
+(%register-fixed-color-restyler :anchor :bright-black)
 (register-creature-restyler :chain #'restyle-vertical-line)
-(register-named-color-restyler :monster-segment :green)
+(%register-fixed-color-restyler :monster-segment :green)

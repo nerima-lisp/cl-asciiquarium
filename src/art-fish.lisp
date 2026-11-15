@@ -101,7 +101,7 @@ tick is only killed once."
   (unless (getf (creature-data fish) :dying)
     (fish-stop-behaviour fish)
     (setf (creature-data fish) (list* :dying t (creature-data fish)))
-    (%set-creature-frames fish (vector +fish-death-art+))
+    (%set-creature-frames fish (vector +fish-death-art+) :escaped-p nil)
     (setf (creature-frame-index fish) 0)
     (setf (creature-ttl fish) +death-animation-ticks+)
     (setf (entity-dx (creature-entity fish)) 0)
@@ -162,7 +162,7 @@ REMOVEP, so a fish leaving the tank stops counting the moment it is marked."
     ;; (a dying fish, KILL-FISH) is recolored in place.
     (if (creature-%frames-shared-p fish)
         (%adopt-sprite-prototype fish prototype)
-        (%set-creature-colors fish
+        (%set-fixed-creature-colors fish
                               :style (copy-tree (creature-%style prototype))
                               :role-styles (creature-%role-styles prototype)))))
 

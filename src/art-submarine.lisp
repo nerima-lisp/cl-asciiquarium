@@ -90,4 +90,4 @@ through +SONAR-FRAMES+ and is removed after the last one."
 (register-creature-restyler
  :sonar (lambda (world ring)
           (%adopt-sprite-prototype ring (%sonar-sprite-prototype (world-theme world)))))
-(register-named-color-restyler :stun-mark :yellow)
+(%register-fixed-color-restyler :stun-mark :yellow)

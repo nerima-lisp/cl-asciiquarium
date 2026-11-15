@@ -28,7 +28,7 @@ going down.")
   "Show FRAMES and MASKS on CHEST, keeping its bottom row where it was. The
 role styles stay: the chest's roles (data :ROLES) cover both arts."
   (let ((old-height (nth-value 1 (creature-dimensions chest))))
-    (%set-creature-frames chest frames :masks masks
+    (%set-creature-frames chest frames :escaped-p nil :masks masks
                                        :role-styles (creature-%role-styles chest))
     (decf (entity-y (creature-entity chest))
           (- (nth-value 1 (creature-dimensions chest)) old-height))))
