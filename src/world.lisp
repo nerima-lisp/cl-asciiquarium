@@ -596,22 +596,21 @@ input.lisp."
   world)
 
 (defun world-decrease-fish-count (world)
-  "Lower WORLD-FISH-COUNT by one (down to zero), returning WORLD. One live fish
-is removed only when more live fish than the new target remain, so a press
-while a refill is pending lowers the target instead of taking a second fish.
-A fish already dying (see ALIVE-FISH-P) is left alone, so this never
-interrupts a death animation already in progress. The removed fish stops its
-behaviour (FISH-STOP-BEHAVIOUR) and is marked REMOVEP, so it stops counting as
-live at once and WORLD-ADVANCE deletes it, with the creatures attached to it
-(a lantern's glow, a stun mark), at the end of its next call, paused or not;
-school followers let go on their next tick. Bound to the `-' key; see
-input.lisp."
+  "Lower WORLD-FISH-COUNT by one (down to zero), returning WORLD. Remove one
+living resident only when residents exceed the new target; passing schools
+do not satisfy that target and are left alone. A press during a resident
+shortfall lowers the target without taking another fish. Dying fish finish
+their animation. The removed resident stops its behaviour and is marked
+REMOVEP immediately; WORLD-ADVANCE deletes it and its attached creatures
+at the end of the next call, paused or not. Bound to the '-' key."
   (when (plusp (world-fish-count world))
     (decf (world-fish-count world))
-    (when (> (count-if #'alive-fish-p (world-%creatures world)) (world-fish-count world))
-      (let ((fish (find-if #'alive-fish-p (world-%creatures world))))
-        (fish-stop-behaviour fish)
-        (setf (creature-removep fish) t))))
+    (flet ((resident-p (fish)
+             (and (alive-fish-p fish) (not (school-visitor-p fish)))))
+      (when (> (count-if #'resident-p (world-%creatures world)) (world-fish-count world))
+        (let ((fish (find-if #'resident-p (world-%creatures world))))
+          (fish-stop-behaviour fish)
+          (setf (creature-removep fish) t)))))
   (world-refresh-hud world)
   world)
 

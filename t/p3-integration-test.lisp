@@ -229,7 +229,7 @@
                                  (<= (+ (creature-x fish) (creature-dimensions fish)) 0))
                              :to-be-truthy)))))))
 
-  (it "never leaves a school follower or lantern glow tracking a fish the - key removed"
+  (it "preserves a passing school and clears the glow of a resident removed by minus"
     (with-soft-assertions
       (with-seeded-random-state (7)
         (let ((world (p3-quiet-guests
@@ -238,17 +238,13 @@
           (setf (cl-asciiquarium::world-fish-count world) 6)
           (multiple-value-bind (leader members) (cl-asciiquarium::spawn-school-now world)
             (cl-asciiquarium::world-decrease-fish-count world)
-            ;; Precondition: `-' took the leader, the most recently added fish.
-            ;; It is marked at once and deleted at the end of the next tick.
-            (expect (cl-asciiquarium::creature-removep leader) :to-be t)
+            ;; A school-only tank has no resident to remove.
+            (expect (cl-asciiquarium::alive-fish-p leader) :to-be-truthy)
             (dotimes (tick 5) (world-advance world))
-            (expect (p3-in-world-p world leader) :to-be nil)
-            ;; Guards removal by `-': were the leader deleted without REMOVEP,
-            ;; all five followers would still name it and hover, frozen, at its
-            ;; last position.
+            (expect (p3-in-world-p world leader) :to-be t)
             (expect (loop for index from 1 below (length members)
                           for data = (cl-asciiquarium::creature-data (aref members index))
-                          never (getf data :leader))
+                          always (eq (getf data :leader) leader))
                     :to-be-truthy)))
         (let ((world (p3-quiet-guests
                       (make-world :width 160 :height 30 :fish-count 0 :theme :moonlight
@@ -297,6 +293,32 @@
                     world (nth-value 1 (creature-dimensions fish)))
                  (<= top (creature-y fish) bottom))))
          members))
+
+(describe "resident decrease with a passing school"
+  (it-each ((0) (2)) "preserves the school after minus with ~D missing residents" (losses)
+    (with-seeded-random-state (7)
+      (let* ((world (p3-quiet-guests
+                    (make-world :width 120 :height 30 :fish-count 18 :max-fish 30
+                                :shark-enabled-p nil :hud-visible-p nil)))
+             (residents (live-fish world)))
+        (multiple-value-bind (leader members) (cl-asciiquarium::spawn-school-now world)
+          (dolist (fish (subseq residents 0 losses))
+            (cl-asciiquarium::eat-effect world nil fish))
+          (world-decrease-fish-count world)
+          (expect (world-fish-count world) :to-be 17)
+          (expect (cl-asciiquarium::alive-fish-p leader) :to-be-truthy)
+          (expect (count-if-not #'cl-asciiquarium::school-visitor-p (live-fish world))
+                  :to-be (min 17 (- 18 losses)))
+          (world-advance world)
+          (expect (every #'cl-asciiquarium::school-visitor-p members) :to-be-truthy)
+          (loop repeat 200
+                do (world-advance world)
+                   (expect (<= (count-if-not #'cl-asciiquarium::school-visitor-p
+                                            (live-fish world))
+                               (world-fish-count world))
+                           :to-be-truthy))
+          (expect (count-if-not #'cl-asciiquarium::school-visitor-p (live-fish world))
+                  :to-be 17))))))
 
 (describe "P3 integration: lantern and school"
   (it "a school follower is pulled out of formation by a lantern and eaten"
