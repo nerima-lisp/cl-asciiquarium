@@ -296,8 +296,10 @@ writes the dex, and `src/app-snapshot.lisp` writes screen snapshots outside
 
 `RUN` (`src/app.lisp`) uses continuation-passing style here. It does not call
 the tick loop's poll/advance/render/quit steps directly; it hands
-`TICK-LOOP-RUN-REALTIME` four closures (the poller `MAKE-WORLD-POLLER`
-returns, `WORLD-ADVANCE`, `RENDER-FRAME`, `WORLD-QUITP`) and control never
+`TICK-LOOP-RUN-REALTIME` four closures: the poller `MAKE-WORLD-POLLER`
+returns, an advancer from `MAKE-ZUKAN-ADVANCER` (or `#'WORLD-ADVANCE` when the
+dex is not writable), a frame drawer from `MAKE-FRAME-DRAWER`, and
+`#'WORLD-QUITP`. Control never
 returns to `RUN` until the loop itself decides to quit -- `RUN` is inverted,
 and the loop is what drives the continuations forward each tick, polling for
 new terminal state before every pure advance. `cl-tty-kit`'s loop owns when
