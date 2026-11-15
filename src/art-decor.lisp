@@ -47,6 +47,7 @@ old entries would never be asked for again by a world of this size."
   (unless (and (= (world-width world) *decor-prototype-width*)
                (= (world-height world) *decor-prototype-height*))
     (clrhash *decor-prototypes*)
+    ;; Resize is the common eviction boundary for both sprite caches.
     (clrhash *recolored-sprite-prototypes*)
     (setf *decor-prototype-width* (world-width world)
           *decor-prototype-height* (world-height world)))
@@ -565,7 +566,8 @@ alone."
                    :x 1 :y (1+ (world-waterline-row world)) :dx 0 :dy 0)))
 
 (defun restyle-panel (sprite-function)
-  "Return a panel restyler that rebuilds its sprite while preserving its position."
+  "Return a restyler that rebuilds a panel from SPRITE-FUNCTION for the
+world's current theme, keeping its position."
   (lambda (world creature)
     (multiple-value-bind (art mask role-styles) (funcall sprite-function world)
       (%set-creature-frames creature (list art) :masks (list mask)

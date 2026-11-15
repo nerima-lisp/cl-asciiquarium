@@ -68,6 +68,8 @@ ship resumes its :SAVED-DX."
                (getf (creature-data (getf data :ship)) :saved-dx)))))))
 
 (defun %set-chain-length (world chain length reach)
+  "If WORLD grows before REFRESH-VERTICAL-LINES runs, reacquire a prototype
+when REACH exceeds its maximum supported length before selecting LENGTH."
   (when (>= reach (length (creature-%frames chain)))
     (restyle-vertical-line world chain))
   (setf (creature-frame-index chain) length))

@@ -26,8 +26,9 @@ holds one fish."
   (max 0 (- (world-waterline-row world) (getf (creature-data boat) :boat-rise))))
 
 (defun fishing-depth-limit (world boat row)
-  "The deepest the line reaches from BOAT on ROW: the row above WORLD's current
-sand, within the line frames the factory built (:MAX-DEPTH)."
+  "Maximum line length from BOAT on ROW, stopping above the sand and capped
+by BOAT's :MAX-DEPTH. The shared vertical-line prototype covers
+the screen height and active line lengths; :MAX-DEPTH does not size it."
   (max 1 (min (getf (creature-data boat) :max-depth)
               (- (world-sand-top world) row 2))))
 

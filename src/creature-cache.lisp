@@ -215,13 +215,16 @@ unmasked in the creature's STYLE (KILL-FISH's death frame relies on this)."
     (%rebuild-creature-frame-caches creature)
     frames))
 
-(defvar *recolored-sprite-prototypes* (make-hash-table :test #'equal))
+(defvar *recolored-sprite-prototypes* (make-hash-table :test #'equal)
+  "Recolored prototypes for private fixed art only. Variable art and public
+frame aliases are rebuilt in place. %DECOR-PROTOTYPE clears this table when
+screen dimensions change, alongside the background prototypes.")
 
 (defun %recolored-sprite-prototype (frames masks style role-styles)
   (let* ((frame-key (coerce frames 'list))
          (mask-key (coerce masks 'list))
          (key (list frame-key mask-key style role-styles)))
-    (declare (dynamic-extent frame-key mask-key key))
+    (declare (dynamic-extent key))
     (or (gethash key *recolored-sprite-prototypes*)
         (let ((prototype
                 (make-creature :kind :recolored-sprite-prototype
