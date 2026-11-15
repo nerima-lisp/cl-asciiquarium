@@ -91,11 +91,11 @@ bound; its bindings are visible to the :Y and :DATA forms that follow."
 
 (define-off-screen-guest make-ship
     "Create a ship CREATURE crossing WORLD at waterline level. Its :DROP-TICK
-data entry is the absolute WORLD-TICK at which MAYBE-DROP-ANCHOR (update.lisp)
-creates its anchor, computed here so the drop lands near mid-screen regardless
-of which edge the ship started from. FACING defaults to a random :LEFT or
-:RIGHT; an explicit override is what lets a test exercise one crossing
-direction deterministically."
+data entry is the absolute WORLD-TICK at which MAYBE-DROP-ANCHOR
+(update-anchor.lisp) stops it and creates its anchor, computed here so the drop
+lands near mid-screen regardless of which edge the ship started from. FACING
+defaults to a random :LEFT or :RIGHT; an explicit override is what lets a test
+exercise one crossing direction deterministically."
   :kind :ship
   :art +ship-art+
   :color :white
@@ -106,29 +106,68 @@ direction deterministically."
   :y (max 0 (1- (world-waterline-row world)))
   :data (list :drop-tick (+ (world-tick world) travel-to-midpoint)
               :anchor-dropped nil
+              :saved-dx dx
               :tick 'maybe-drop-anchor))
 
 (defun make-anchor (world ship)
-  "Create an anchor CREATURE falling from SHIP's current position. It falls
-(policy :NONE; its descent is stopped explicitly, see ANCHOR-TICK in update.lisp) to a
-random :TARGET-DEPTH row, then stops, becomes :DROPPED, and carries +ANCHOR-THREAT+ (see
-collision.lisp) for +ANCHOR-DROPPED-TICKS+ before despawning."
-  (let* ((height (world-height world))
-         (target-depth (random-between (+ (world-waterline-row world) 3)
-                                        (max (+ (world-waterline-row world) 4) (- height 3)))))
+  "Create an anchor CREATURE falling from SHIP's current position, together
+with its chain (data :CHAIN, see MAKE-CHAIN). It falls (policy :NONE; ANCHOR-TICK
+in update-anchor.lisp stops it) until its bottom row rests on the row above the
+sand, its :TARGET-DEPTH; only then does it carry +ANCHOR-THREAT+."
+  (let* ((offset-x (round (/ (sprite-width +ship-art+) 2)))
+         (x (+ (creature-x ship) offset-x))
+         (target-depth (- (world-sand-top world)
+                          (nth-value 1 (sprite-dimensions +anchor-art+))))
+         (chain-top (+ (creature-y ship) (nth-value 1 (sprite-dimensions +ship-art+))))
+         (anchor (make-creature :world world
+                                :kind :anchor
+                                :frames (list +anchor-art+)
+                                :style (world-style world :bright-black)
+                                :%trusted-frames-p t
+                                :%trusted-style-p t
+                                :z 3
+                                :policy :none
+                                :x x
+                                :y (world-waterline-row world)
+                                :dx 0 :dy +anchor-speed+
+                                :data (list :phase :fall :target-depth target-depth
+                                            :rise-at 0 :threat nil :ship ship :chain nil
+                                            :offset-x offset-x
+                                            :tick 'anchor-tick :place 'place-anchor))))
+    (setf (getf (creature-data anchor) :chain)
+          (make-chain world anchor (- chain-top (creature-y ship))
+                      (max 0 (- target-depth chain-top))))
+    anchor))
+
+(defun vertical-line-frames (glyph max-length)
+  "Frames for a line hanging down: frame N is N lines of GLYPH, for N from 0
+(a single space) to MAX-LENGTH, built up front so a tick only picks a frame
+index and never builds a string."
+  (loop for length from 0 to max-length
+        collect (if (zerop length)
+                    " "
+                    (format nil "~{~A~^~%~}" (make-list length :initial-element glyph)))))
+
+(defun make-chain (world anchor ship-height max-length)
+  "Create the :CHAIN CREATURE hanging from the row under ANCHOR's ship
+(SHIP-HEIGHT rows below the ship's top) in the anchor's shaft column, with
+VERTICAL-LINE-FRAMES up to MAX-LENGTH links for PLACE-CHAIN (update-anchor.lisp)
+to pick from."
+  (let ((shaft-x (position #\| +anchor-art+))
+        (top (+ (creature-y (getf (creature-data anchor) :ship)) ship-height)))
     (make-creature :world world
-                    :kind :anchor
-                    :frames (list +anchor-art+)
-                    :style (world-style world :bright-black)
-                    :%trusted-frames-p t
-                    :%trusted-style-p t
-                    :z 3
-                    :policy :none
-                    :x (+ (creature-x ship) (round (/ (sprite-width +ship-art+) 2)))
-                    :y (world-waterline-row world)
-                    :dx 0 :dy 1
-                    :data (list :target-depth target-depth :dropped nil :threat nil
-                                :tick 'anchor-tick))))
+                   :kind :chain
+                   :frames (vertical-line-frames +chain-glyph+ max-length)
+                   :style (world-style world :bright-black)
+                   :%trusted-frames-p t
+                   :%trusted-style-p t
+                   :z 3
+                   :policy :none
+                   :x (+ (creature-x anchor) shaft-x)
+                   :y top
+                   :dx 0 :dy 0
+                   :data (list :anchor anchor :shaft-x shaft-x :ship-height ship-height
+                               :tick 'chain-tick :place 'place-chain))))
 
 (define-off-screen-guest make-duck-line
     "Create a decorative line-of-ducks CREATURE crossing WORLD near the
@@ -208,4 +247,5 @@ CREATUREs trailing LEADER, indices 1 through +SEA-MONSTER-SEGMENT-COUNT+."
         collect (make-monster-segment world leader index)))
 
 (register-named-color-restyler :anchor :bright-black)
+(register-named-color-restyler :chain :bright-black)
 (register-named-color-restyler :monster-segment :green)

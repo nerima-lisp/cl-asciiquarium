@@ -38,7 +38,11 @@ asciiquarium --seed 42 --fps 24 --theme coral
 
 The shark hunts, eaten fish are replaced from the screen edge, schools scatter
 and regroup, puffers inflate, lantern fish lure small fish to their light, and
-fish of the same species lay eggs that grow into new fish; see
+fish of the same species lay eggs that grow into new fish. On the seabed an
+octopus under the rock snatches passing fish, a vent's plume lifts them, a crab
+walks the sand, and a treasure chest throws up gold until a diver comes for it.
+A ship lowers an anchor that eats fish, and a submarine's sonar stuns them; the
+`a`, `m`, and `d` keys bring a ship, a submarine, or a diver on demand. See
 [Keybindings and CLI](https://nerima-lisp.github.io/cl-asciiquarium/guide/usage/).
 The tank starts with 18 fish, or `--max-fish N` (1-40, default 30) if that is
 lower, and `+` grows it up to `N`. `--calm` stops blinking animations.

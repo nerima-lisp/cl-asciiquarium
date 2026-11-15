@@ -1,7 +1,7 @@
 (in-package #:cl-asciiquarium/test)
 
 (defun brood-test-world ()
-  (let ((world (tiny-world :width 80 :height 24)))
+  (let ((world (remove-octopus (tiny-world :width 80 :height 24))))
     (setf (cl-asciiquarium::world-shark-enabled-p world) nil
           (cl-asciiquarium::world-guest-cooldown world) 100000)
     world))

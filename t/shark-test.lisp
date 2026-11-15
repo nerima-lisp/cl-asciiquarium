@@ -4,7 +4,8 @@
 
 (defun hunting-world ()
   "A 120x30 world with no fish, no automatic shark, and no HUD."
-  (make-world :width 120 :height 30 :fish-count 0 :shark-enabled-p nil :hud-visible-p nil))
+  (remove-octopus
+   (make-world :width 120 :height 30 :fish-count 0 :shark-enabled-p nil :hud-visible-p nil)))
 
 (defun parked-shark (world &key (x 10) (y 10) (facing :right) (dx 0) (eaten 0))
   "A shark from MAKE-SHARK moved to X Y with speed DX, already in WORLD."

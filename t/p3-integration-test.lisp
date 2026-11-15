@@ -9,7 +9,7 @@
 
 (defun p3-quiet-guests (world)
   (setf (cl-asciiquarium::world-guest-cooldown world) most-positive-fixnum)
-  world)
+  (remove-octopus world))
 
 (defun p3-in-world-p (world creature)
   (and (member creature (cl-asciiquarium::world-%creatures world) :test #'eq) t))

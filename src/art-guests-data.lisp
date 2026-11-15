@@ -1,8 +1,8 @@
 ;;;; src/art-guests-data.lisp -- special-guest art and their numeric
 ;;;; constants (cooldown/arc/segment tuning). Pure data; art-guests.lisp
 ;;;; holds the DEFINE-OFF-SCREEN-GUEST macro, the four factories it
-;;;; generates from this data, and the two hand-written factories
-;;;; (MAKE-ANCHOR, MAKE-MONSTER-SEGMENT) that don't fit its shape.
+;;;; generates from this data, and the hand-written factories (MAKE-ANCHOR,
+;;;; MAKE-CHAIN, MAKE-MONSTER-SEGMENT) that don't fit its shape.
 (in-package #:cl-asciiquarium)
 
 (defparameter +ship-art+
@@ -13,9 +13,15 @@
   (format nil " _|_~%( o )~% \\_/")
   "Original anchor art, dropped straight down from a ship.")
 
-(defparameter +anchor-dropped-ticks+ 30
-  "How many ticks a dropped anchor stays in place (and interactive) before it
-is winched back up and despawns.")
+(defparameter +anchor-rest-ticks+ 70
+  "How many ticks a landed anchor rests on the seabed (and eats fish) before it
+is hauled back up; see ANCHOR-TICK in update-anchor.lisp.")
+
+(defparameter +anchor-speed+ 1
+  "Rows per tick an anchor falls, and later rises.")
+
+(defparameter +chain-glyph+ "¦"
+  "One link of an anchor's chain, one per row between the ship and the anchor.")
 
 (defparameter +anchor-threat+ '(:grip :body :effect eat-effect :prey nil :alarm t)
   "The :THREAT row (see collision.lisp) a landed anchor carries: any fish under

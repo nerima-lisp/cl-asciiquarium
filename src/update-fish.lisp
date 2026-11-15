@@ -92,22 +92,12 @@
           (release-lantern-target lantern)
           (eat-effect world lantern fish))))))
 
-(defun remove-lantern-glow (lantern)
-  (let* ((data (creature-data lantern))
-         (glow (getf data :glow)))
-    (when glow
-      (setf (creature-removep glow) t
-            (getf data :glow) nil))))
-
-(defun stop-lantern (lantern)
-  (release-lantern-target lantern)
-  (remove-lantern-glow lantern))
-
 (defun lantern-glow-tick (world glow)
-  (let ((lantern (getf (creature-data glow) :lantern)))
-    (when (or (not (alive-fish-p lantern))
-              (not (eq (world-theme world) :moonlight)))
-      (remove-lantern-glow lantern))))
+  "Leave when the theme turns away from moonlight; the glow leaves with its
+lantern through ATTACH-CREATURE."
+  (unless (eq (world-theme world) :moonlight)
+    (setf (creature-removep glow) t
+          (getf (creature-data (getf (creature-data glow) :lantern)) :glow) nil)))
 
 (defun update-lantern-glow (world lantern)
   (when (eq (world-theme world) :moonlight)
@@ -120,7 +110,7 @@
                                  :z 4 :policy :none :x 0 :y 0
                                  :data (list :lantern lantern :tick 'lantern-glow-tick))
               (getf data :glow) glow)
-        (%add-world-creature world glow))
+        (attach-creature world lantern glow))
       ;; The parent has already moved, including any wrap, in this tick.
       (setf (entity-x (creature-entity glow))
             (+ (creature-x lantern) (if (eq (creature-facing lantern) :right) 4 -1))
