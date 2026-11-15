@@ -290,15 +290,14 @@
                         :to-be t)))))))))
 
 (describe "fishing line sprite cache"
-  (it "keeps only the line built for the latest screen height"
+  (it "keeps only prototypes for the latest screen size"
     (with-seeded-random-state (5)
       (let ((world (gull-world)))
         (dolist (height '(24 30 40))
           (world-resize world 80 height)
           (cl-asciiquarium::make-fisher world))
-        (let ((boat (cl-asciiquarium::make-fisher world)))
-          (expect (hash-table-count cl-asciiquarium::*fishing-line-prototypes*) :to-be 1)
-          (expect cl-asciiquarium::*fishing-line-depth* :to-be (boat-data boat :max-depth)))))))
+        (expect (hash-table-count cl-asciiquarium::*vertical-line-prototypes*) :to-be 1)
+        (expect cl-asciiquarium::*vertical-line-prototype-height* :to-be 40)))))
 
 (describe "fisher part sprites"
   (it "shares one set of line, hook, and cheer runs between fishers of the same screen"
@@ -312,7 +311,7 @@
                        '(:line :hook :cheer))
                 :to-be t)
         (expect (length (creature-frames (boat-data first-boat :line)))
-                :to-be (boat-data first-boat :max-depth))))))
+                :to-be (world-height world))))))
 
 (describe "the fisher from either edge"
   (it "fishes past the rod tip, cheers over the fisher, and sails on, facing either way"

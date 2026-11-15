@@ -11,11 +11,8 @@
   (values (mask-role-styles +fisher-colors+ :theme theme)
           (color-style :fg :theme theme)))
 
-(defun fishing-line-frames (max-depth)
-  "Return one line frame per length from 1 to MAX-DEPTH rows."
-  (loop for length from 1 to max-depth
-        collect (format nil "~{~A~^~%~}"
-                        (make-list length :initial-element +fishing-line-glyph+))))
+(defparameter +fishing-line-spec+
+  (list +fishing-line-glyph+ 1 (lambda (theme) (color-style :muted :theme theme))))
 
 (defparameter +fisher-part-colors+ '((:line . :muted) (:hook . :fg) (:cheer . :live))
   "The theme color role each fisher part is drawn in.")
@@ -23,45 +20,29 @@
 (defvar *fisher-part-prototypes* (make-hash-table :test #'equal)
   "Hook and cheer sprite prototypes keyed by (KIND THEME COLOR-MODE ASCII).")
 
-(defvar *fishing-line-prototypes* (make-hash-table :test #'equal)
-  "Line sprite prototypes of *FISHING-LINE-DEPTH* frames only, keyed by (THEME
-COLOR-MODE ASCII). A line of another length empties it first, so the lines of
-earlier screen heights are not kept.")
-
-(defvar *fishing-line-depth* nil
-  "The MAX-DEPTH every prototype in *FISHING-LINE-PROTOTYPES* was built for.")
-
-(defun %fisher-part-table (kind max-depth)
-  (cond ((not (eq kind :line)) *fisher-part-prototypes*)
-        ((eql max-depth *fishing-line-depth*) *fishing-line-prototypes*)
-        (t (setf *fishing-line-depth* max-depth)
-           (clrhash *fishing-line-prototypes*))))
-
-(defun %fisher-part-prototype (kind max-depth theme)
-  (let ((table (%fisher-part-table kind max-depth))
-        (key (list kind theme (effective-color-mode) *ascii*)))
-    (or (gethash key table)
-        (setf (gethash key table)
-              (make-creature :kind :fisher-part-prototype
-                             :frames (ecase kind
-                                       (:line (fishing-line-frames max-depth))
-                                       (:hook (list +fishing-hook-art+))
-                                       (:cheer (list +fisher-cheer-art+)))
-                             :style (color-style (cdr (assoc kind +fisher-part-colors+))
-                                                 :theme theme)
-                             :%trusted-frames-p t :%trusted-style-p t
-                             :x 0 :y 0 :policy :none)))))
-
-(defun %fisher-part-max-depth (kind boat)
-  (and (eq kind :line) (getf (creature-data boat) :max-depth)))
+(defun %fisher-part-prototype (world kind &optional part)
+  (if (eq kind :line)
+      (%vertical-line-prototype world +fishing-line-spec+ part)
+      (let* ((theme (world-theme world))
+             (key (list kind theme (effective-color-mode) *ascii*)))
+        (or (gethash key *fisher-part-prototypes*)
+            (setf (gethash key *fisher-part-prototypes*)
+                  (make-creature :kind :fisher-part-prototype
+                                 :frames (ecase kind
+                                           (:hook (list +fishing-hook-art+))
+                                           (:cheer (list +fisher-cheer-art+)))
+                                 :style (color-style (cdr (assoc kind +fisher-part-colors+))
+                                                     :theme theme)
+                                 :%trusted-frames-p t :%trusted-style-p t
+                                 :x 0 :y 0 :policy :none))))))
 
 (defun %make-fisher-part (world kind boat &key tick place ttl threat)
   (make-creature :world world :kind kind
-                 :%sprite-prototype (%fisher-part-prototype
-                                     kind (%fisher-part-max-depth kind boat) (world-theme world))
+                 :%sprite-prototype (%fisher-part-prototype world kind)
                  :z (if (eq kind :cheer) 7 6) :policy :none :ttl ttl
                  :x (creature-x boat) :y (creature-y boat)
-                 :data (list :boat boat :threat threat :boat-rise nil :tick tick :place place)))
+                 :data (list :boat boat :threat threat :boat-rise nil :tick tick :place place
+                             :line-spec (and (eq kind :line) +fishing-line-spec+))))
 
 (defun fishing-line-x (boat)
   "The column under BOAT's rod tip, just past its art on the facing side."
@@ -126,11 +107,7 @@ the theme may have changed since while it was not in WORLD to be restyled."
   (%add-world-creature world part))
 
 (defun restyle-fisher-part (world part)
-  (let ((kind (creature-kind part)))
-    (%adopt-sprite-prototype
-     part (%fisher-part-prototype kind
-                                  (%fisher-part-max-depth kind (getf (creature-data part) :boat))
-                                  (world-theme world)))))
+  (%adopt-sprite-prototype part (%fisher-part-prototype world (creature-kind part) part)))
 
 (register-creature-restyler :fisher #'restyle-fisher)
 (register-creature-restyler :line #'restyle-fisher-part)

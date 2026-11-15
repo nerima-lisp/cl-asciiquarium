@@ -27,6 +27,19 @@
               (expect (length (cl-asciiquarium::creature-%frames prototype)) :to-be 9)
               (expect (aref (cl-asciiquarium::creature-%frame-runs prototype) 8) :to-be runs))))))))
 
+(describe "shared fishing line prototypes"
+  (it "reuses fishing line runs when boat depths alternate"
+    (with-seeded-random-state (93)
+      (let* ((world (make-world :width 80 :height 48 :fish-count 0))
+             (boat (cl-asciiquarium::make-fisher world :facing :right))
+             (data (cl-asciiquarium::creature-data boat))
+             (line (getf data :line))
+             (runs (cl-asciiquarium::creature-%frame-runs line)))
+        (dolist (depth '(38 39 40 39 38))
+          (setf (getf data :max-depth) depth)
+          (cl-asciiquarium::restyle-fisher-part world line)
+          (expect (cl-asciiquarium::creature-%frame-runs line) :to-be runs))))))
+
 (describe "shared vertical line prototypes"
   (it "shares chain runs across lengths on the same screen"
     (with-seeded-random-state (91)
