@@ -2,19 +2,14 @@
 
 ## Data apart from logic: the `-data.lisp` files
 
-`art-fish-data.lisp`, `art-decor-data.lisp`, `art-guests-data.lisp`, and
-`art-shark-data.lisp` hold nothing but sprite-art strings, color/timing
-constants, `:THREAT` rows, and (for fish) the small `FISH-SPECIES-ENTRY` table
--- no function bodies, no control flow. `art-fish.lisp`, `art-decor.lisp`,
-`art-guests.lisp`, and `art-shark.lisp` hold the factories that read that
-data, and the `update-*.lisp` files hold the per-tick behaviour (`update-shark.lisp`
-for the shark's hunt). The split runs one level below the CREATURE contract
-below: every sprite's *identity* (what it looks like, what it's called, how
-long its cooldown or arc is) is data a designer could hand-edit without
-touching a function body, and every sprite's *behavior* (how it's placed,
-how it animates) is logic that reads that data by name. `bubble.lisp` stays
-as one file -- one factory is too little to split without turning "find the
-bubble's art" into two file opens for no reader benefit.
+The `art-*-data.lisp` files hold sprite strings, color and timing constants,
+threat rows, and the fish species table; matching `art-*.lisp` files hold the
+creature factories, while `update-*.lisp` files hold per-tick behaviour. The
+food feature follows that split in `art-food-data.lisp`, `art-food.lisp`, and
+`update-food.lisp`. `bubble-data.lisp` holds bubble art and immutable sprite
+prototypes selected by `bubble.lisp`. The fish dex and screen snapshots use
+application-side file I/O in `app-zukan.lisp` and `app-snapshot.lisp`, outside
+the world simulation.
 
 ## The single entity/collision contract
 
@@ -24,21 +19,17 @@ wrapping a `cl-tty-kit:ENTITY`
 a paint order (`Z`), an optional lifetime (`TTL`), and a kind-specific `DATA`
 plist.
 
-Every sprite type in this repository -- the sky, the waterline and ripple row,
-the castle and seabed ornaments, seaweed, the sand, the ambient current, the
-status bar (HUD), the help panel, each fish species, the shark, bubbles, the ship,
-its anchor and chain, the duck line, the dolphin, the sea monster's head and body
-segments, the submarine and its sonar rings, the treasure chest and its coins,
-the diver's dinghy, rope, and diver, the vent's plume, the crab, and the
-octopus with its tentacle and ink -- is a `CREATURE`. None of them has its own struct.
+Background pieces, UI panels, food grains, fish, predators, visitors, and
+seabed residents are all `CREATURE`s. None has its own struct.
 `WORLD-ADVANCE` (`src/update.lisp`) ticks every creature the same way:
 `ENTITY-TICK`, then `CREATURE-TICK-ANIMATION`, then a `TTL` countdown. A
-creature with extra per-tick behaviour (a fish's bubble timer, a ship's anchor
-drop, an anchor's fall, rest on the seabed, and rise, a submarine's sonar
-timer, the chest's opening schedule, the dinghy's dive phases, the crab's turn
-at an edge, the octopus's reach and ink, a bubble's waterline removal, a dolphin's
-leap arc, a sea-monster segment following its leader, the shark steering
-toward the nearest fish ahead) carries a `:TICK` function in its `:DATA` plist, set by the
+creature with extra per-tick behaviour (a fish's bubble timer, a food grain's
+lure, a gull's dive, the fisher's line and hook, a ship's anchor drop, an
+anchor's fall, rest on the seabed, and rise, a submarine's sonar timer, the
+chest's opening schedule, the dinghy's dive phases, the crab's turn at an edge,
+the octopus's reach and ink, a bubble's waterline removal, a dolphin's leap
+arc, a sea-monster segment following its leader, the shark steering toward the
+nearest fish ahead) carries a `:TICK` function in its `:DATA` plist, set by the
 factory that builds it, and `TICK-CREATURE` calls it last. The anchor and
 its chain, which hang from the ship, and the fisher's line and hook, which
 hang from the boat, also carry a `:PLACE` function that puts them back where
@@ -55,21 +46,23 @@ declares where the threat grips (its whole body or its leading N columns), the
 function applied to a fish it grips, which species it may take, and whether
 creatures carrying a `:SENSE` entry react when it comes within their range.
 Today the threats are the shark's mouth, a landed anchor, a lantern fish's
-light (its leading column, small species only), one courting fish at a
-time, the submarine (it only alarms), its sonar rings (they stun), the vent's
-plume (it lifts fish), and an octopus tentacle's tip. The pass loops over threats (a handful at most) and, for each, over every
-creature once, so its cost is threats × creatures. The pass returns at once
-while the world has held no threat since its creature list was last recounted;
-a screen with a vent always holds the plume's threat row, so that shortcut
-applies only on screens without a vent. There is no all-pairs
-matrix: no creature is tested against every other one. Fish do interact with
-fish, but only through threats. A lantern fish picks the nearest small fish in
-range as its lure target on its own tick and eats it with its leading column.
-For spawning, one courting fish at a time becomes a temporary threat whose
-whole body is its grip.
+light (its leading column, small species only), one courting fish at a time,
+food grains, the fisher's hook, a diving gull's body (one fish per dive), the
+submarine (it only alarms), its sonar rings (they stun), the vent's plume (it
+lifts fish), and an octopus tentacle's tip.
+The pass loops over active threats and, for each, over every creature once, so
+its cost is threats × creatures. Food is capped at 18 grains. The pass returns at once
+while the world has held no threat since its creature list was last recounted.
+A vent always holds the plume's threat row, so a screen with a vent does not
+take the early return. Screens without one can still have threats from the
+shark, food, and other creatures. Fish do interact with fish, but only through
+threats. A lantern fish picks the nearest small fish in range as its lure
+target on its own tick and eats it with its leading column. For spawning, one
+courting fish at a time becomes a temporary threat whose whole body is its
+grip.
 
-Two motion patterns beyond simple constant-velocity travel now live inside
-this same contract, both still expressed as ordinary `CREATURE`s rather than
+Three motion patterns beyond simple constant-velocity travel now live inside
+this same contract, all still expressed as ordinary `CREATURE`s rather than
 as new struct types:
 
 - The **dolphin**'s vertical position is not a constant `DY`: `DOLPHIN-TICK`
@@ -89,6 +82,9 @@ as new struct types:
   lag that reads as a trailing body rather than a bug. The same reference is
   how a despawning head propagates: a segment marks itself `REMOVEP` once it
   observes the head already `REMOVEP`, one tick after the head itself exits.
+- The **crab** walks along the seabed at a constant horizontal speed and
+  reverses that speed when it reaches either screen edge (`CRAB-TICK` in
+  `src/update-vent.lisp`).
 
 A creature leaves the world by being marked `REMOVEP`;
 `%FLUSH-REMOVED-CREATURES` deletes marked creatures at the end of each
@@ -117,7 +113,7 @@ for its death animation while its children must go. The tentacle and the ink
 are transient kinds, so a redraw clears them while the octopus stays; the
 octopus finds them `REMOVEP`, peeks again, and forgets them.
 
-Four of those factories -- `MAKE-SHIP`, `MAKE-DUCK-LINE`, `MAKE-DOLPHIN`, and
+Four guest factories -- `MAKE-SHIP`, `MAKE-DUCK-LINE`, `MAKE-DOLPHIN`, and
 `MAKE-SEA-MONSTER` (`src/art-guests.lisp`) -- share a further, more specific
 shape on top of `CREATURE` itself: each enters `WORLD` fully off-screen on one
 edge, crosses it via `OFF-SCREEN-ENTRY`, and despawns past the other, differing
@@ -140,8 +136,9 @@ from, not "every guest factory."
 - `:WRAP` -- reposition the creature fully back inside the world at the edge
   it left (fish, ordinary swimmers).
 - `:DESPAWN` -- mark it `REMOVEP`, removed at the end of the current tick
-  (the shark, the ship, the duck line -- creatures whose next appearance is
-  instead scheduled by a cooldown in `spawn.lisp`).
+  (the shark, ship, submarine, diver's dinghy, fisher, duck line, dolphin,
+  and sea monster; their next automatic appearance is scheduled by a cooldown
+  in `spawn.lisp`).
 - `:NONE` -- no callback (the background scenery, the status bar, and things
   like bubbles and the anchor whose removal condition is not a hard screen
   edge).
@@ -156,9 +153,10 @@ dispatches on the `EDGE` argument it is given rather than re-deriving which
 axis to fix from position -- the two calls each correctly wrap their own
 axis.
 
-`:DESPAWN` has the mirror-image subtlety: `MAKE-SHARK`, `MAKE-SHIP`, and
-`MAKE-DUCK-LINE` all spawn fully off-screen (`X` already negative, or
-already >= `WORLD-WIDTH`) so the creature visibly enters the screen, but
+`:DESPAWN` has the mirror-image subtlety: `MAKE-SHARK`, `MAKE-SHIP`,
+`MAKE-DUCK-LINE`, `MAKE-DOLPHIN`, `MAKE-SEA-MONSTER`, `MAKE-SUBMARINE`,
+`SPAWN-DIVER-NOW`, and `MAKE-FISHER` spawn fully off-screen (`X` already
+negative, or already >= `WORLD-WIDTH`) so the creature visibly enters the screen, but
 `ENTITY-TICK`'s off-bounds check does not know that and fires `:ON-EXIT` for
 the spawn-side edge on every tick until the creature crosses back on-screen.
 `EXIT-EDGE-IN-TRAVEL-DIRECTION-P` (`src/creature.lisp`) guards `:DESPAWN` so
@@ -181,10 +179,9 @@ rebuilding the scene: each art file registers a restyler per creature kind
 with `REGISTER-CREATURE-RESTYLER`, and `WORLD-SET-THEME` calls the one
 registered for each creature's kind. No creature is removed, added, or moved
 and no random number is drawn, so a theme change never reshuffles a seeded
-run. Every kind but the fish has a restyler: the scenery, the status bar, the
-help panel, bubbles, and the shark and special guests (which share
-`REGISTER-NAMED-COLOR-RESTYLER`). A kind without one, today only the fish,
-keeps the colors it was built with. `WORLD-CYCLE-THEME` is `WORLD-SET-THEME` with the next
+run. Restylers cover the scenery, status bar, help and zukan panels, bubbles,
+food, fish, the shark, and special guests (which share
+`REGISTER-NAMED-COLOR-RESTYLER`). `WORLD-CYCLE-THEME` is `WORLD-SET-THEME` with the next
 member of `+VISUAL-THEMES+`. `WORLD-TOGGLE-HUD` adds or removes the status bar
 creature without changing simulation state.
 
@@ -201,12 +198,14 @@ The ambient current is a four-row animated `:AMBIENT-CURRENT` creature with
 four deterministic frames, its rows spread through the water between the
 ripple row and the sand. It has no edge callback, but it still participates
 in z-ordering, clipping, prepared-sprite caching, and incremental redraw. The
-status bar is a one-row `:HUD` creature at the top render layer on
-the bottom row. Its text is rebuilt whenever something it shows changes
-(theme, pause, fish count, redraw, resize, a notification), never per tick; `WORLD-NOTIFY` sets a notification that `WORLD-ADVANCE` counts down,
-paused or not, for four seconds of ticks at the `TICKS-PER-SECOND` given to
-`MAKE-WORLD`. This makes status information a composited part of the scene
-instead of a second output path.
+status bar is a one-row `:HUD` creature at the top render layer on the bottom
+row. `WORLD-REFRESH-HUD` rebuilds its text after theme, pause, fish-target,
+weather, redraw, resize, or notification changes, never per tick. `%ADD-WORLD-CREATURE`
+also refreshes it when it records a new fish species, so the dex count changes
+immediately. `WORLD-NOTIFY` sets a notification that
+`WORLD-ADVANCE` counts down, paused or not, for four seconds of ticks at the
+`TICKS-PER-SECOND` given to `MAKE-WORLD`. This makes status information a
+composited part of the scene instead of a second output path.
 
 ## Render order, blit runs, and incremental frames
 
@@ -282,30 +281,26 @@ previous call:
 
 ## Pure simulation, thin real I/O
 
-Following the split `cl-tty-kit`'s `examples/renderer-loop.lisp` and
-`examples/event-loop.lisp` establish: `WORLD-ADVANCE` (`src/update.lisp`) is
-a pure state transition -- no I/O, no wall clock -- so
-`cl-tty-kit:TICK-LOOP-RUN` can call it a fixed number of times and produce an
-exactly reproducible result. Every test in `t/` drives the simulation this
-way. `src/app.lisp` is the thin real-I/O side: `MAKE-WORLD-POLLER` composes
-`cl-tty-kit:MAKE-TERMINAL-SIZE-POLLER` and `cl-tty-kit:MAKE-STREAM-INPUT-POLLER`
-(provided by `cl-tty-kit` 1.5.0) into the terminal-size/stdin poll
-`TICK-LOOP-RUN-REALTIME` runs once per tick, ahead of `WORLD-ADVANCE` itself.
+`WORLD-ADVANCE` (`src/update.lisp`) is a pure state transition with no I/O or
+wall-clock reads. `cl-tty-kit:TICK-LOOP-RUN` can call it a fixed number of
+times and produce an exactly reproducible result; every test in `t/` drives
+the simulation this way. The `cl-tty-kit` examples
+`examples/renderer-loop.lisp` and `examples/event-loop.lisp` show this split.
 
-This is also where continuation-passing style genuinely belongs in this
-codebase, and nowhere else. `RUN` (`src/app.lisp`) does not call the tick
-loop's poll/advance/render/quit steps directly; it hands
-`TICK-LOOP-RUN-REALTIME` four closures (the poller `MAKE-WORLD-POLLER`
-returns, `WORLD-ADVANCE`, `RENDER-FRAME`, `WORLD-QUITP`) and control never
-returns to `RUN` until the loop itself decides to quit -- `RUN` is inverted,
-and the loop is what drives the continuations forward each tick, polling for
-new terminal state before every pure advance. That is CPS, exactly where it
-belongs: at the one real effectful boundary, selected because `cl-tty-kit`'s
-loop, not this application, owns when the next tick happens. `WORLD-ADVANCE`
-and everything it calls stay direct-style on purpose -- rewriting a pure,
-already-total state transition into continuation-passing form would add an
-indirection with no boundary to justify it, at the direct cost of the
-readability this project otherwise prioritizes.
+`src/app.lisp` owns real I/O. `src/app-zukan.lisp` reads and writes the dex,
+and `src/app-snapshot.lisp` saves screen snapshots outside `WORLD-ADVANCE`.
+`MAKE-WORLD-POLLER` composes `cl-tty-kit:MAKE-TERMINAL-SIZE-POLLER` and
+`cl-tty-kit:MAKE-STREAM-INPUT-POLLER` (from `cl-tty-kit` 1.5.0). The realtime
+loop calls this poller once per tick before it advances the world.
+`WORLD-APPLY-KEY-EVENTS` passes mouse events to `WORLD-APPLY-MOUSE-EVENT`,
+which handles left-button presses for food.
+
+`RUN` passes four callbacks to `TICK-LOOP-RUN-REALTIME`: the poller returned
+by `MAKE-WORLD-POLLER`, an advancer from `MAKE-ZUKAN-ADVANCER` (or
+`#'WORLD-ADVANCE` when the dex is not writable), a frame drawer from
+`MAKE-FRAME-DRAWER`, and `#'WORLD-QUITP`. The loop drives these callbacks each
+tick and returns to `RUN` when the quit predicate is true. `WORLD-ADVANCE`
+and its callees stay direct-style because they perform no terminal I/O.
 
 `WORLD-QUITP` is also how `RUN` quits cleanly when nothing inside the tick
 loop asked it to. `INSTALL-QUIT-SIGNAL-HANDLER` (`src/app.lisp`) wires

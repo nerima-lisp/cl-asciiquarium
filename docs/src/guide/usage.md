@@ -26,8 +26,9 @@ Decoded via cl-tty-kit's input decoder (`WORLD-APPLY-KEY-EVENT` in
 - `t` or `T` -- cycle the visual theme through `abyss`, `coral`, and
   `moonlight` (`WORLD-CYCLE-THEME`). The scene is recolored in place
   (`WORLD-SET-THEME`): no creature is removed, added, or moved, and no random
-  number is drawn, so a seeded run is not reshuffled. Everything but the fish
-  takes the new theme's colors; fish keep the colors they were created with.
+  number is drawn, so a seeded run is not reshuffled. Fish foreground colors
+  come from each species' fixed color sets and the fish's palette index; only
+  the background color follows the selected theme.
   The chosen theme also becomes the time of day, and the automatic
   time-of-day cycle restarts from it (`WORLD-CHANGE-DAYPART`; see
   [Weather and time of day](#weather-and-time-of-day)). The gulls are the one
@@ -234,10 +235,10 @@ species in it count as already discovered, so a rare species is announced in
 the status bar only the first time it ever appears. The file is written
 right after each new discovery, not at exit; when a write fails, the status
 bar says `dex save failed` and the next discovery tries again. Before each
-write the file is read again and merged with this run's species, so with two
-aquariums running at once, one can overwrite the other's latest discovery
-only when both write within the same instant. The run whose discovery was
-lost still remembers it and writes it again at its own next discovery.
+write, the file is read again and merged with this run's species. If two
+aquariums read the file before either replaces it, the later replacement can
+omit the other run's latest discovery. That run keeps the discovery in memory
+and writes it again after its next discovery.
 
 A file this build cannot read (not one `(:zukan 1 :species (:dart :golden))`
 form of distinct keywords, longer than 65,536 characters, or not valid UTF-8)

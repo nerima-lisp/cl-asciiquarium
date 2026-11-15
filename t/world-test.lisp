@@ -420,3 +420,14 @@
                                                          :test #'equal)))
                        :to-be-truthy)))
         (shutdown-renderer renderer)))))
+(describe
+ "discovering a common species"
+ (it
+  "updates the HUD dex count immediately"
+  (let* ((world (make-world :width 80 :height 24 :fish-count 0))
+         (hud (find-if (lambda (creature)
+                         (eq (cl-asciiquarium::creature-kind creature) :hud))
+                       (cl-asciiquarium::world-%creatures world))))
+    (cl-asciiquarium::%add-world-creature
+     world (cl-asciiquarium::make-fish world :species :clown))
+    (expect (search "dex 1/16" (creature-art hud)) :to-be-truthy))))

@@ -1,72 +1,57 @@
 # Roadmap
 
+This page lists implemented features and explicit out-of-scope designs.
+
 ## Current scope
 
-- Original fish species (`+FISH-SPECIES+`, `src/art-fish-data.lisp`), each
-  multi-line, direction-mirrored art, each with color *palettes* rather than
-  one fixed color -- two individuals of the same species need not match.
-- Three predators: the shark, which hunts the nearest fish ahead and eats with
-  its mouth (disable-able for the whole run via `--no-shark`, or spawned on
-  demand with the `s` key); a landed anchor, which eats any fish beneath it;
-  and the lantern fish, which lures and eats small fish. Eaten fish are
-  replaced from the screen edge.
-- Schools of six that scatter from threats (`c` spawns one), puffers that
-  inflate, and spawning: fish of one species lay eggs that grow into fish.
-- Rising bubble trails, periodically emitted from fish, removed at the
-  waterline.
-- Swaying two-tone seaweed (a 2-frame loop), a castle with lit windows, and
-  other seabed ornaments: coral, a rock, a starfish, a vent, and a chest.
-- 4 special guests, spawned on a shared cooldown or on demand with the `g`
-  key: a ship that drops an anchor (which removes a fish directly beneath
-  it), a decorative line of ducks, a leaping dolphin (a parametric sine-arc
-  `Y`, the first non-linear motion in this codebase), and a segmented sea
-  monster (a head `CREATURE` plus several trailing `:MONSTER-SEGMENT`
-  `CREATURE`s that follow it as a synchronized trail). See
-  [Architecture](../reference/architecture.md) for both motion patterns.
-- Three visual themes (`:abyss`, `:coral`, and `:moonlight`), cycled with `t`,
-  plus an ambient current and a status bar on the bottom row toggled with
-  `u`.
-- `q`/Ctrl-C to quit, `r` to redraw/reshuffle, space to pause/resume, `+`/`-`
-  to grow/shrink the live fish count, `h` to toggle an on-screen help panel,
-  and polled terminal-resize handling.
-- `--color auto|truecolor|256|16|mono` to choose the color depth
-  (`--monochrome` is the same as `--color mono`), and `--ascii` to draw only
-  ASCII symbols.
-- `--theme abyss|coral|moonlight` to select the initial visual theme.
+- Sixteen original fish species (`+FISH-SPECIES+`, `src/art-fish-data.lisp`)
+  use multi-line, direction-mirrored art and color palettes. Fish of the same
+  species can lay eggs that grow through fry; schools of six scatter from
+  threats, puffers inflate, and fish emit bubbles. `e` or a left click adds
+  food that nearby fish can eat.
+- Threat interactions include the shark, lantern fish, courting fish, food,
+  fisher's hook, landed anchor, submarine hull and sonar, vent plume, octopus
+  tentacle, and a diving gull's body. Eaten or caught fish are later replaced
+  by newly spawned fish that enter from a screen edge.
+- The seabed has seaweed, a castle, coral, a rock, a starfish, a vent, a crab,
+  an octopus, and a treasure chest. A ship lowers an anchor; a diver visits
+  the chest in a dinghy.
+- Visitors include ships, submarines, divers, fishers, gulls, a line of ducks,
+  a leaping dolphin, and a segmented sea monster. Automatic guest events count
+  ships, submarines, divers' dinghies, and fishers; at most two such events
+  can be on screen at once. The `g`, `a`, `m`, `d`, and `f` keys can spawn guests on
+  demand regardless of that limit.
+- Weather cycles through clear, rain, and storm. Time of day cycles through
+  day, dusk, and night; night has denser glowing plankton. `w` and `n` advance
+  those cycles, and `--calm` stops the storm's lightning flash.
+- Three visual themes (`:abyss`, `:coral`, and `:moonlight`) can be cycled
+  with `t`. The ambient current and a status bar share the scene; `u` toggles
+  the status bar.
+- `q`/Ctrl-C quits, `r` redraws the fish, space pauses or resumes, `+`/`-`
+  changes the target fish count, `s` spawns a shark, `c` spawns a school, `h`
+  toggles help, and `z` toggles the fish dex. Terminal resizing is polled while
+  the aquarium runs.
+- The fish dex remembers discovered species between runs in
+  `$XDG_STATE_HOME/cl-asciiquarium/zukan.sexp`, or
+  `~/.local/state/cl-asciiquarium/zukan.sexp` when `$XDG_STATE_HOME` is unset,
+  empty, or relative. `p` saves a text snapshot in an absolute
+  `$XDG_PICTURES_DIR`, or in the current directory when that variable is unset,
+  empty, or relative.
+- `--color auto|truecolor|256|16|mono` chooses color depth
+  (`--monochrome` is the same as `--color mono`), and `--ascii` draws only
+  ASCII symbols. `--theme abyss|coral|moonlight` selects the starting theme;
+  `--no-daycycle` disables automatic time-of-day changes, and `--no-shark`
+  disables the shark.
 
 ## Out of scope
 
 - A general NxN interaction matrix. Each threat kind declares its interaction
   in a `:THREAT` row (the shark's mouth, a landed anchor, a lantern fish's
-  light, and a courting fish), and `src/collision.lisp` checks them in one
+  light, a courting fish, food, the fisher's hook, a diving gull's body, the
+  submarine hull or sonar rings, the vent's plume, or the octopus tentacle),
+  and `src/collision.lisp` checks them in one
   threats × creatures pass; no creature is tested against every other one. The
-  dolphin, the sea monster, and the duck line are decorative.
+  dolphin, sea monster, and duck line are decorative.
 - A generic ECS or config-driven guest-definition DSL. Creatures are plain
   `CREATURE` structs built by plain Lisp functions.
 
-## Renderer
-
-The renderer now combines cached sprite preparation, non-space blit runs, and
-cached `Z` ordering with incremental frame rendering:
-
-- mirrored frames reuse prepared sprite data;
-- order caches are invalidated when the world changes;
-- `RENDER-FRAME` tracks renderer-owned snapshots and redraws only dirty regions
-  when that is cheaper than a full repaint;
-- cache preparation is bounded and can run in parallel while retaining a serial
-  path with equivalent output.
-
-`DRAW-WORLD` remains the simple full-redraw reference path. To inspect the
-deterministic update/render path locally, run:
-
-```sh
-nix develop --command sbcl --script scripts/benchmark-render.lisp
-```
-
-The full gate is `nix flake check`; it covers the test suite, documentation,
-formatting, and structural Lisp lint.
-
-## Possible follow-up work
-
-- A crab or other seafloor walker, exercising a third motion pattern (bounded
-  horizontal pacing) beyond the dolphin's arc and the sea monster's trail.
