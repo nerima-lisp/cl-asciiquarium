@@ -32,18 +32,19 @@
         (setf (entity-dx entity) (getf data :school-dx)
               (entity-dy entity) 0))
     ;; A crossing ends at the far edge; a lost leader leaves ordinary fish.
-    (unless departing
-      (setf (entity-on-exit entity) (getf data :school-on-exit)))))
+    (if departing
+        (setf (getf data :school-departed) t)
+        (setf (entity-on-exit entity) (getf data :school-on-exit)))))
 
 (defun school-exit (world fish entity edge)
+  (declare (ignore world))
   ;; ENTITY-TICK tests a point; a leftward fish still has its body to cross.
   (when (and (exit-edge-in-travel-direction-p entity edge)
              (or (not (eq edge :left))
                  (<= (+ (entity-x entity) (creature-dimensions fish)) 0)))
     (setf (getf (creature-data fish) :school-departed) t
           (creature-removep fish) t)
-    (fish-stop-behaviour fish)
-    (schedule-fish-refill world)))
+    (fish-stop-behaviour fish)))
 
 (defun school-tick (world fish)
   (let* ((data (creature-data fish))

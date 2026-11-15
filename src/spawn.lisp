@@ -7,6 +7,11 @@
 ;;;; for tests.
 (in-package #:cl-asciiquarium)
 
+(defun school-visitor-p (fish)
+  (and (alive-fish-p fish)
+       (or (getf (creature-data fish) :leader)
+           (getf (creature-data fish) :school-departed))))
+
 (defparameter +bubble-interval-range+ '(20 60))
 
 (defparameter +refill-delay-ticks+ 90
@@ -100,19 +105,22 @@ facing right, or flush with the right edge facing left."
     fish))
 
 (defun maybe-refill-fish (world)
-  "Once WORLD's pending refill is due, add one edge fish when fewer live fish
-than WORLD-FISH-COUNT remain, and schedule the next refill only while the
-population is still short. The shortfall is counted at this moment, so a
-lowered target or extra fish need no bookkeeping."
+  "Refill missing resident fish one at a time, subject to the total fish cap."
   (let ((due (world-refill-at world))
         (tick (world-tick world)))
     (when (and (plusp due) (>= tick due))
-      (let ((live (count-if #'alive-fish-p (world-%creatures world)))
+      (let ((live 0)
+            (residents 0)
             (target (world-fish-count world)))
-        (when (< live target)
-          (%add-world-creature world (make-edge-fish world)))
+        (dolist (fish (world-%creatures world))
+          (when (alive-fish-p fish)
+            (incf live)
+            (unless (school-visitor-p fish) (incf residents))))
+        (when (and (< residents target) (< live (world-max-fish world)))
+          (%add-world-creature world (make-edge-fish world))
+          (incf residents))
         (setf (world-refill-at world)
-              (if (< (1+ live) target) (+ tick +refill-delay-ticks+) 0))))))
+              (if (< residents target) (+ tick +refill-delay-ticks+) 0))))))
 
 (defparameter +courting-interval-ticks+ 50
   "How often ADVANCE-WORLD-EVENTS picks a fish to court (SELECT-COURTING-FISH,
