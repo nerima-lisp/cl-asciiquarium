@@ -137,6 +137,11 @@
                      (make-world :width 120 :height 30 :fish-count 18 :max-fish 30
                                  :shark-enabled-p nil :hud-visible-p nil)))
              (residents (live-fish world)))
+        (dolist (fish residents)
+          ;; This refill fixture accounts only for the two explicit losses.
+          (when (eq (getf (cl-asciiquarium::creature-data fish) :species) :lantern)
+            (setf (getf (cl-asciiquarium::creature-data fish) :lure-next)
+                  most-positive-fixnum)))
         (cl-asciiquarium::spawn-school-now world)
         (dolist (fish (subseq residents 0 2))
           (cl-asciiquarium::eat-effect world nil fish))

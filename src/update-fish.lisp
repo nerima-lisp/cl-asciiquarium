@@ -17,7 +17,7 @@
 
 (defun initialize-lantern (world fish)
   (setf (creature-data fish)
-        (list* :threat +lantern-threat+ :lure-next (+ (world-tick world) 240)
+        (list* :threat +lantern-threat+ :lure-next (+ (world-tick world) 60)
                :lure-target nil :glow nil
                (creature-data fish))
         (getf (creature-data fish) :tick) 'lantern-tick)

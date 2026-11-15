@@ -187,7 +187,7 @@
             (cl-asciiquarium::puffer-inflate world puffer nil))
           (expect (- (sb-ext:get-bytes-consed) before) :to-be 0))
         (expect returns :to-be 222)
-        (expect (getf (cl-asciiquarium::creature-data lantern) :lure-next) :to-be 10080)))))
+        (expect (getf (cl-asciiquarium::creature-data lantern) :lure-next) :to-be 10140)))))
 
 (describe "lantern steady state"
   (it "keeps the random sequence unchanged under calm"
