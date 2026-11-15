@@ -300,4 +300,3 @@
               (world-set-theme world :coral)
               (expect (hash-table-count cl-asciiquarium::*recolored-sprite-prototypes*) :to-be entries)
               (expect (aref (cl-asciiquarium::creature-%frames first) 0) :to-equal "custom chest"))))))))
-
