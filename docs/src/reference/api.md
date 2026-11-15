@@ -43,7 +43,7 @@
 - `WORLD-RESIZE (world width height)` -- resize in place, clamping any
   creature the new bounds left outside, calling the `:PLACE` data function of
   each creature that has one (an anchor and its chain go back under their
-  ship), rebuilding the scenery for the new size, and moving the status bar to
+  ship, a fishing line and hook under their boat), rebuilding the scenery for the new size, and moving the status bar to
   the new bottom row.
 - `WORLD-REDRAW (world)` -- remove every creature of a kind in
   `+TRANSIENT-CREATURE-KINDS+` (fish, the shark, bubbles, guests and what

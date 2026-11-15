@@ -344,3 +344,36 @@
                                      (> (creature-x boat) stop-x)
                                      (< (creature-x boat) stop-x)))
                     :to-equal (list facing t))))))))
+
+(describe "the fisher on a paused resize"
+  (it-each ((18 30 :lower) (30 12 :wait))
+      "keeps the line and the hook hanging from the boat from ~D to ~D rows (~S)"
+      (from to phase)
+    (with-seeded-random-state (5)
+      (let* ((world (make-world :width 100 :height from :fish-count 0 :shark-enabled-p nil
+                                :hud-visible-p nil :theme :coral))
+             (boat (progn (remove-gulls world)
+                          (setf (cl-asciiquarium::world-guest-cooldown world)
+                                most-positive-fixnum)
+                          (cl-asciiquarium::spawn-fisher-now world)))
+             (line (boat-data boat :line))
+             (hook (boat-data boat :hook)))
+        (expect (advance-until-phase world boat phase 500) :to-be phase)
+        (dotimes (i 5) (world-advance world))
+        (world-apply-key-events world (decode-input " "))
+        (let ((old-row (creature-y boat)))
+          (world-resize world 100 to)
+          (flet ((check ()
+                   (with-soft-assertions
+                     (expect (world-paused-p world) :to-be t)
+                     ;; Non-vacuity: the resize moved the boat to another row.
+                     (expect (/= (creature-y boat) old-row) :to-be t)
+                     (expect (creature-y line) :to-be (1+ (creature-y boat)))
+                     (expect (+ (creature-y line) (nth-value 1 (creature-dimensions line)))
+                             :to-be (creature-y hook))
+                     (expect (creature-x line) :to-be (creature-x hook))
+                     (expect (< (creature-y hook) (cl-asciiquarium::world-sand-top world))
+                             :to-be t))))
+            (check)
+            (world-advance world)
+            (check)))))))

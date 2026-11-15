@@ -40,8 +40,10 @@ at an edge, the octopus's reach and ink, a bubble's waterline removal, a dolphin
 leap arc, a sea-monster segment following its leader, the shark steering
 toward the nearest fish ahead) carries a `:TICK` function in its `:DATA` plist, set by the
 factory that builds it, and `TICK-CREATURE` calls it last. The anchor and
-its chain, which hang from the ship, also carry a `:PLACE` function that puts
-them back where they belong. Their `:TICK` calls it, and `WORLD-RESIZE` calls
+its chain, which hang from the ship, and the fisher's line and hook, which
+hang from the boat, also carry a `:PLACE` function that puts them back where
+they belong. Their `:TICK` calls it (for the line and hook, it is the
+`:TICK` itself), and `WORLD-RESIZE` calls
 it for every creature that has one, so a paused world shows them in place at
 the new size. The calls follow creature-list order, so a `:PLACE` that reads
 another creature's position (the chain reads the anchor's) needs that creature

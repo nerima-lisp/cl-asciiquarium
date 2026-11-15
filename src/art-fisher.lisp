@@ -55,13 +55,13 @@ earlier screen heights are not kept.")
 (defun %fisher-part-max-depth (kind boat)
   (and (eq kind :line) (getf (creature-data boat) :max-depth)))
 
-(defun %make-fisher-part (world kind boat &key tick ttl threat)
+(defun %make-fisher-part (world kind boat &key tick place ttl threat)
   (make-creature :world world :kind kind
                  :%sprite-prototype (%fisher-part-prototype
                                      kind (%fisher-part-max-depth kind boat) (world-theme world))
                  :z (if (eq kind :cheer) 7 6) :policy :none :ttl ttl
                  :x (creature-x boat) :y (creature-y boat)
-                 :data (list :boat boat :threat threat :boat-rise nil :tick tick)))
+                 :data (list :boat boat :threat threat :boat-rise nil :tick tick :place place)))
 
 (defun fishing-line-x (boat)
   "The column under BOAT's rod tip, just past its art on the facing side."
@@ -99,10 +99,14 @@ the waterline, for the storm sway), and the fishing state :PHASE and
                                                :tick 'fisher-tick))))
           (let ((data (creature-data boat)))
             (setf (getf data :line)
-                  (%make-fisher-part world :line boat :tick 'fishing-line-tick)
+                  ;; The :PLACE lets WORLD-RESIZE re-hang a part under the boat
+                  ;; it has just moved, while paused too.
+                  (%make-fisher-part world :line boat
+                                     :tick 'fishing-line-tick :place 'fishing-line-tick)
                   (getf data :hook)
                   (%make-fisher-part world :hook boat
-                                     :tick 'fishing-hook-tick :threat +hook-threat+)
+                                     :tick 'fishing-hook-tick :place 'fishing-hook-tick
+                                     :threat +hook-threat+)
                   (getf data :cheer)
                   (%make-fisher-part world :cheer boat :ttl +fisher-cheer-ticks+)))
           boat)))))
